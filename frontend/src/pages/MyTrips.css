@@ -1,0 +1,73 @@
+.mytrips {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.mytrips__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.mytrips__title {
+  font-size: 24px;
+  margin: 0 0 6px;
+}
+
+.mytrips__subtitle {
+  font-size: 14px;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.mytrips__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.mytrips__stats-card {
+  display: block;
+}
+
+.mytrips__name {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+.mytrips__stats-main {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-primary);
+  margin: 0 0 4px;
+}
+
+.mytrips__meta {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.mytrips__risk-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.mytrips__risk-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+
+@media (max-width: 720px) {
+  .mytrips__grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,144 @@
+.newtrip__title {
+  font-size: 24px;
+  margin: 0 0 4px;
+}
+
+.newtrip__subtitle {
+  font-size: 14px;
+  color: var(--color-text-muted);
+  margin: 0 0 24px;
+}
+
+.newtrip__body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.newtrip__map-card {
+  position: relative;
+  min-height: 460px;
+}
+
+.newtrip__map-label {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 16px;
+}
+
+.newtrip__map {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-areas:
+    ". gangwon gangwon"
+    "gi gangwon gangwon"
+    "gi chungcheong gyeongsang"
+    "jeolla chungcheong gyeongsang"
+    "jeolla . gyeongsang";
+  gap: 8px;
+  height: 380px;
+}
+
+.newtrip__map-region {
+  border: 1px solid var(--color-border);
+  background: #dbe3f5;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.newtrip__map-region--seoul { grid-area: gi; }
+.newtrip__map-region--gi { grid-area: gi; }
+.newtrip__map-region--gangwon { grid-area: gangwon; }
+.newtrip__map-region--chungcheong { grid-area: chungcheong; }
+.newtrip__map-region--jeolla { grid-area: jeolla; }
+.newtrip__map-region--gyeongsang { grid-area: gyeongsang; }
+
+.newtrip__map-region--selected {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.newtrip__jeju {
+  position: absolute;
+  bottom: 24px;
+  left: 64px;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: #dbe3f5;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.newtrip__jeju--selected {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.newtrip__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.newtrip__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  padding: 16px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.newtrip__option-name {
+  margin: 0 0 4px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.newtrip__option-desc {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.newtrip__option--selected {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.newtrip__check {
+  color: #fff;
+  background: var(--color-primary);
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.newtrip__footer {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 800px) {
+  .newtrip__body {
+    grid-template-columns: 1fr;
+  }
+}
