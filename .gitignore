@@ -9,6 +9,9 @@ desktop.ini
 .idea/
 *.iml
 
+# Local AI assistant workspace (kept out of the repo)
+.c*de/
+
 # Env
 .env
 .env.local
