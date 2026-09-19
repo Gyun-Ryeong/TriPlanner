@@ -1,0 +1,117 @@
+.trip-schedule__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.trip-schedule__eyebrow {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0 0 6px;
+}
+
+.trip-schedule__title {
+  font-size: 26px;
+  margin: 0 0 6px;
+}
+
+.trip-schedule__meta {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.trip-schedule__actions {
+  display: flex;
+  gap: 10px;
+}
+
+.trip-schedule__body {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.trip-schedule__list-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.trip-schedule__list-header h2 {
+  font-size: 17px;
+  margin: 0 0 4px;
+}
+
+.trip-schedule__stop {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.trip-schedule__stop-index {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.trip-schedule__stop-label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin: 0 0 2px;
+}
+
+.trip-schedule__stop-name {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 2px;
+}
+
+.trip-schedule__map {
+  min-height: 640px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.trip-schedule__map-placeholder {
+  height: 100%;
+  min-height: 640px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: repeating-linear-gradient(45deg, #eef1f8, #eef1f8 10px, #e5e9f4 10px, #e5e9f4 20px);
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.trip-schedule__map-note {
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .trip-schedule__body {
+    grid-template-columns: 1fr;
+  }
+  .trip-schedule__map,
+  .trip-schedule__map-placeholder {
+    min-height: 320px;
+  }
+}
