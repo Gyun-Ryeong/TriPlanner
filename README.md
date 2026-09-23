@@ -20,7 +20,7 @@
 | 영역 | 기술 |
 | --- | --- |
 | Frontend | React (Vite), React Router |
-| Backend | Java 25, Spring Boot *(예정)* |
+| Backend | Java 25, Spring Boot 4.1.1 (Maven, Spring Data JPA, Spring Security + JWT) |
 | Database | MySQL (HeidiSQL로 관리) |
 | 형상관리 | Git / GitHub |
 
@@ -29,7 +29,7 @@
 ```
 TriPlanner/
 ├── frontend/       # React 프론트엔드
-├── backend/        # Spring Boot 백엔드 (예정)
+├── backend/        # Spring Boot 백엔드
 ├── 스토리보드/      # 화면 설계 목업 이미지
 └── README.md
 ```
@@ -37,7 +37,7 @@ TriPlanner/
 ## 현재 진행 상태
 
 - **프론트엔드**: 스토리보드 10개 화면을 정적 페이지로 구현 완료. 로그인/회원가입 등 인증 로직은 없고, 화면 표시용 더미 데이터만 사용 중입니다.
-- **백엔드**: 아직 구현 전.
+- **백엔드**: 프로젝트 스캐폴딩 완료 (Maven, JPA, Security+JWT 의존성 세팅). 아직 엔티티/API 미구현.
 - **지도**: 여행 동선 화면의 지도는 카카오맵 API 연동 전까지 정적 placeholder로 대체되어 있습니다.
 
 ## 시작하기 (프론트엔드)
@@ -55,3 +55,16 @@ npm run dev
 ```bash
 npm run build
 ```
+
+## 시작하기 (백엔드)
+
+1. 로컬 MySQL을 실행하고, `triplanner` 데이터베이스를 준비합니다 (없으면 앱이 자동 생성하도록 설정되어 있습니다).
+2. `backend/src/main/resources/application-local.yml.example` 을 참고해서 **본인 로컬 DB 계정 정보**로 `application-local.yml`(같은 폴더, 이미 생성되어 있고 gitignore 처리됨)을 채워주세요. 이 파일은 절대 Git에 올라가지 않습니다.
+3. 실행:
+
+```bash
+cd backend
+./mvnw spring-boot:run
+```
+
+기본적으로 `http://localhost:8080` 에서 실행됩니다.

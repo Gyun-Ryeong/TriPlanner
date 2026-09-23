@@ -1,0 +1,10 @@
+# 이 파일을 복사해서 application-local.yml로 저장한 뒤, 본인 로컬 MySQL 정보로 채워주세요.
+# application-local.yml은 .gitignore에 의해 절대 깃에 올라가지 않습니다.
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/triplanner?useSSL=false&serverTimezone=Asia/Seoul&createDatabaseIfNotExist=true
+    username: your_mysql_username
+    password: your_mysql_password
+
+jwt:
+  secret: change-this-to-a-long-random-string
