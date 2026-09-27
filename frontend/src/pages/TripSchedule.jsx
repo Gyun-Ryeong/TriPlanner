@@ -47,7 +47,7 @@ export default function TripSchedule() {
         <div className="card trip-schedule__map">
           <div className="trip-schedule__map-placeholder">
             <p>지도 영역</p>
-            <p className="trip-schedule__map-note">카카오맵 연동 예정 (현재는 정적 화면)</p>
+            <p className="trip-schedule__map-note">네이버맵 연동 예정 (현재는 정적 화면)</p>
           </div>
         </div>
       </div>
