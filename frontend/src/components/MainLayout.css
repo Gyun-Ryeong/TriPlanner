@@ -45,6 +45,24 @@
   border-bottom-color: var(--color-primary);
 }
 
+.app-header__logout {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.app-header__logout:hover {
+  background: var(--color-bg);
+}
+
+.app-header__login-link {
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
 .app-header__user {
   display: flex;
   align-items: center;

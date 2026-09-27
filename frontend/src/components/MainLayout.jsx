@@ -1,4 +1,5 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { getAuth, clearAuth } from '../api/authStorage.js'
 import './MainLayout.css'
 
 const NAV_ITEMS = [
@@ -9,12 +10,15 @@ const NAV_ITEMS = [
   { to: '/alerts', label: '실시간 알림' },
 ]
 
-const CURRENT_USER = {
-  name: '이민지',
-  email: 'minji.lee@triplanner.com',
-}
-
 export default function MainLayout() {
+  const navigate = useNavigate()
+  const auth = getAuth()
+
+  function handleLogout() {
+    clearAuth()
+    navigate('/login')
+  }
+
   return (
     <div className="layout">
       <header className="app-header">
@@ -37,7 +41,16 @@ export default function MainLayout() {
           </nav>
 
           <div className="app-header__user">
-            <span className="app-header__user-name">{CURRENT_USER.name}님</span>
+            {auth ? (
+              <>
+                <span className="app-header__user-name">{auth.nickname}님</span>
+                <button type="button" className="app-header__logout" onClick={handleLogout}>
+                  로그아웃
+                </button>
+              </>
+            ) : (
+              <NavLink to="/login" className="app-header__login-link">로그인</NavLink>
+            )}
           </div>
         </div>
       </header>
