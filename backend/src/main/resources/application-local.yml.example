@@ -15,3 +15,18 @@ spring:
 
 jwt:
   secret: change-this-to-a-long-random-string
+
+naver:
+  login:
+    client-id: your_naver_login_client_id
+    client-secret: your_naver_login_client_secret
+  app:
+    client-id: your_naver_app_client_id
+    client-secret: your_naver_app_client_secret
+  map:
+    client-id: your_naver_map_client_id
+    client-secret: your_naver_map_client_secret
+
+# data.go.kr(공공데이터포털) 발급 키 - TourAPI(한국관광공사), 에어코리아(한국환경공단) 공용
+public-data:
+  service-key: your_data_go_kr_service_key
