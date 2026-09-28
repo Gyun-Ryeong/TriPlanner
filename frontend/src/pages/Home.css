@@ -24,6 +24,28 @@
   margin: 0;
 }
 
+.home__hero-greeting--guest {
+  color: var(--color-warn);
+}
+
+.home__guest-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.home__guest-text {
+  font-size: 14px;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.home__guest-card .btn {
+  width: auto;
+}
+
 .home__stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

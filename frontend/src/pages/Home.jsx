@@ -15,11 +15,15 @@ function formatUpcomingDate(startDate, endDate) {
 
 export default function Home() {
   const auth = getAuth()
-  const displayName = auth?.nickname ?? '여행자'
   const [upcomingTrip, setUpcomingTrip] = useState(null)
   const [loadingTrip, setLoadingTrip] = useState(true)
 
   useEffect(() => {
+    if (!auth) {
+      setLoadingTrip(false)
+      return
+    }
+
     let cancelled = false
 
     getMyTrips()
@@ -36,13 +40,34 @@ export default function Home() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [auth])
+
+  if (!auth) {
+    return (
+      <div className="home">
+        <div className="home__hero home__hero--guest">
+          <div>
+            <p className="home__hero-greeting home__hero-greeting--guest">로그인이 필요해요</p>
+            <h1 className="home__hero-title">로그인하고 나만의 여행을 계획해보세요</h1>
+          </div>
+          <Link to="/login" className="btn btn-primary">로그인하기</Link>
+        </div>
+
+        <div className="card home__guest-card">
+          <p className="home__guest-text">
+            여행 일정 생성, AI 챗봇, 실시간 알림 등 모든 기능은 로그인 후 이용하실 수 있어요.
+          </p>
+          <Link to="/signup" className="btn btn-block">회원가입하기</Link>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="home">
       <div className="home__hero">
         <div>
-          <p className="home__hero-greeting">안녕하세요, {displayName}님</p>
+          <p className="home__hero-greeting">안녕하세요, {auth.nickname}님</p>
           <h1 className="home__hero-title">오늘도 설레는 여행을 준비해요</h1>
         </div>
         <Link to="/trips/new" className="btn btn-primary">+ 새 여행 생성하기</Link>
