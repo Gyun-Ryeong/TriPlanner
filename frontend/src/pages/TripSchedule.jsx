@@ -173,8 +173,11 @@ export default function TripSchedule() {
           </p>
         </div>
         <div className="trip-schedule__actions">
-          <button type="button" className="btn">일정 수정</button>
-          <button type="button" className="btn btn-primary">길찾기 시작</button>
+          <div className="trip-schedule__actions-row">
+            <button type="button" className="btn" disabled title="준비 중인 기능입니다">일정 수정</button>
+            <button type="button" className="btn btn-primary" disabled title="준비 중인 기능입니다">길찾기 시작</button>
+          </div>
+          <p className="trip-schedule__actions-note">일정 수정 · 길찾기 기능은 구현 중입니다.</p>
         </div>
       </div>
 
