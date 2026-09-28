@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { getAuth } from '../api/authStorage.js'
 import { getMyTrips } from '../api/trips.js'
 import './TripStats.css'
@@ -69,7 +70,7 @@ export default function TripStats() {
         {loading && <p className="trip-stats__place-desc">불러오는 중...</p>}
         {!loading && trips.length === 0 && <p className="trip-stats__place-desc">아직 등록된 여행이 없어요.</p>}
         {trips.map((t) => (
-          <div key={t.tripId} className="trip-stats__place card">
+          <Link key={t.tripId} to={`/schedule/${t.tripId}`} className="trip-stats__place card">
             <div className="trip-stats__photo" aria-hidden="true" />
             <div className="trip-stats__place-body">
               <div className="trip-stats__place-header">
@@ -78,7 +79,7 @@ export default function TripStats() {
               </div>
               <p className="trip-stats__place-desc">{t.region}</p>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </div>

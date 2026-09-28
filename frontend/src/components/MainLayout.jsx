@@ -4,9 +4,9 @@ import './MainLayout.css'
 
 const NAV_ITEMS = [
   { to: '/', label: '홈', end: true },
-  { to: '/schedule', label: '여행 일정' },
+  { to: '/mytrips/stats', label: '여행 일정', end: true },
   { to: '/chatbot', label: '여행 챗봇' },
-  { to: '/mytrips', label: '내 여행' },
+  { to: '/mytrips', label: '내 여행', end: true },
   { to: '/alerts', label: '실시간 알림' },
 ]
 
