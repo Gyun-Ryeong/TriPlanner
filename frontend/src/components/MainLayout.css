@@ -1,10 +1,11 @@
 .layout {
-  min-height: 100%;
+  height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
 .app-header {
+  flex-shrink: 0;
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
 }
@@ -45,6 +46,24 @@
   border-bottom-color: var(--color-primary);
 }
 
+.app-header__logout {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.app-header__logout:hover {
+  background: var(--color-bg);
+}
+
+.app-header__login-link {
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
 .app-header__user {
   display: flex;
   align-items: center;
@@ -56,10 +75,48 @@
 
 .app-content {
   flex: 1;
+  overflow-y: auto;
   max-width: 1280px;
   width: 100%;
   margin: 0 auto;
   padding: 32px;
+}
+
+.app-footer {
+  flex-shrink: 0;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+}
+
+.app-footer__inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 16px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
+
+.app-footer__logo {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.app-footer__tagline {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin: 2px 0 0;
+}
+
+.app-footer__team,
+.app-footer__copyright {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin: 0;
+  white-space: nowrap;
 }
 
 @media (max-width: 720px) {
@@ -73,5 +130,8 @@
   }
   .app-content {
     padding: 16px;
+  }
+  .app-footer__inner {
+    padding: 12px 16px;
   }
 }

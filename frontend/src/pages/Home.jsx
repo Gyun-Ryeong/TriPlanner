@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { getAuth } from '../api/authStorage.js'
 import './Home.css'
 
 const UPCOMING_TRIP = {
@@ -7,11 +8,14 @@ const UPCOMING_TRIP = {
 }
 
 export default function Home() {
+  const auth = getAuth()
+  const displayName = auth?.nickname ?? '민지'
+
   return (
     <div className="home">
       <div className="home__hero">
         <div>
-          <p className="home__hero-greeting">안녕하세요, 민지님</p>
+          <p className="home__hero-greeting">안녕하세요, {displayName}님</p>
           <h1 className="home__hero-title">오늘도 설레는 여행을 준비해요</h1>
         </div>
         <Link to="/trips/new" className="btn btn-primary">+ 새 여행 생성하기</Link>
