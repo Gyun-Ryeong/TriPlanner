@@ -17,8 +17,8 @@
 }
 
 .newtrip__map-card {
-  position: relative;
-  min-height: 460px;
+  display: flex;
+  flex-direction: column;
 }
 
 .newtrip__map-label {
@@ -27,59 +27,16 @@
   margin: 0 0 16px;
 }
 
-.newtrip__map {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-areas:
-    ". gangwon gangwon"
-    "gi gangwon gangwon"
-    "gi chungcheong gyeongsang"
-    "jeolla chungcheong gyeongsang"
-    "jeolla . gyeongsang";
-  gap: 8px;
-  height: 380px;
+.newtrip__map-card svg {
+  width: 100%;
+  height: auto;
 }
 
-.newtrip__map-region {
-  border: 1px solid var(--color-border);
-  background: #dbe3f5;
-  border-radius: var(--radius-md);
+.newtrip__map-error {
+  color: var(--color-text-muted);
   font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text);
-  cursor: pointer;
-}
-
-.newtrip__map-region--seoul { grid-area: gi; }
-.newtrip__map-region--gi { grid-area: gi; }
-.newtrip__map-region--gangwon { grid-area: gangwon; }
-.newtrip__map-region--chungcheong { grid-area: chungcheong; }
-.newtrip__map-region--jeolla { grid-area: jeolla; }
-.newtrip__map-region--gyeongsang { grid-area: gyeongsang; }
-
-.newtrip__map-region--selected {
-  background: var(--color-primary);
-  color: #fff;
-  border-color: var(--color-primary);
-}
-
-.newtrip__jeju {
-  position: absolute;
-  bottom: 24px;
-  left: 64px;
-  padding: 10px 16px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
-  background: #dbe3f5;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.newtrip__jeju--selected {
-  background: var(--color-primary);
-  color: #fff;
-  border-color: var(--color-primary);
+  text-align: center;
+  margin: 40px 0;
 }
 
 .newtrip__list {

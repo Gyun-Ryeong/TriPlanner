@@ -1,16 +1,17 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createTrip } from '../api/trips.js'
+import KoreaMap from '../components/KoreaMap.jsx'
 import './NewTrip.css'
 
 const REGIONS = [
-  { id: 'seoul', name: '서울 특별시', desc: '경복궁, N서울타워, 한강공원 고층 도시 투어', area: 'seoul' },
-  { id: 'gi', name: '경기도 / 인천', desc: '수원화성, 에버랜드, 송도 센트럴파크 근교 쉼터', area: 'gi' },
-  { id: 'gangwon', name: '강원도', desc: '설악산, 경포대 해변, 커피거리 자연 힐링', area: 'gangwon' },
-  { id: 'chungcheong', name: '충청도', desc: '태안 신두리 사구, 안면도, 단양 국립공원 역사 기행', area: 'chungcheong' },
-  { id: 'jeolla', name: '전라도', desc: '전주 한옥마을, 순천만 국가정원, 여수 밤바다', area: 'jeolla' },
-  { id: 'gyeongsang', name: '경상도', desc: '경주 첨성대, 부산 해운대 해수욕장, 해운대 해변열차', area: 'gyeongsang' },
-  { id: 'jeju', name: '제주도', desc: '한라산 백록담, 올레길 코스, 곽지 해수욕장 푸른 바다', area: 'jeju' },
+  { id: 'seoul', name: '서울 특별시', desc: '경복궁, N서울타워, 한강공원 고층 도시 투어' },
+  { id: 'gi', name: '경기도 / 인천', desc: '수원화성, 에버랜드, 송도 센트럴파크 근교 쉼터' },
+  { id: 'gangwon', name: '강원도', desc: '설악산, 경포대 해변, 커피거리 자연 힐링' },
+  { id: 'chungcheong', name: '충청도', desc: '태안 신두리 사구, 안면도, 단양 국립공원 역사 기행' },
+  { id: 'jeolla', name: '전라도', desc: '전주 한옥마을, 순천만 국가정원, 여수 밤바다' },
+  { id: 'gyeongsang', name: '경상도', desc: '경주 첨성대, 부산 해운대 해수욕장, 해운대 해변열차' },
+  { id: 'jeju', name: '제주도', desc: '한라산 백록담, 올레길 코스, 곽지 해수욕장 푸른 바다' },
 ]
 
 function todayPlus(days) {
@@ -60,25 +61,7 @@ export default function NewTrip() {
       <div className="newtrip__body">
         <div className="card newtrip__map-card">
           <p className="newtrip__map-label">대한민국 지도</p>
-          <div className="newtrip__map">
-            {REGIONS.filter((r) => r.id !== 'jeju').map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                className={`newtrip__map-region newtrip__map-region--${r.area} ${selected === r.id ? 'newtrip__map-region--selected' : ''}`}
-                onClick={() => setSelected(r.id)}
-              >
-                {r.name.split(' ')[0].replace('/', '')}
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            className={`newtrip__jeju ${selected === 'jeju' ? 'newtrip__jeju--selected' : ''}`}
-            onClick={() => setSelected('jeju')}
-          >
-            제주
-          </button>
+          <KoreaMap selected={selected} onSelect={setSelected} />
         </div>
 
         <div className="newtrip__list">
