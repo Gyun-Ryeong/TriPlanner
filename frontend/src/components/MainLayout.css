@@ -75,6 +75,7 @@
 
 .app-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   max-width: 1280px;
   width: 100%;
