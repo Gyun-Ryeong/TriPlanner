@@ -40,6 +40,10 @@ TriPlanner/
 - **백엔드**: 회원가입/로그인(JWT 인증), 여행·일정·일정항목 CRUD API 구현 완료. AI 챗봇(RAG), 실시간 알림 등은 아직 구현 전입니다.
 - **지도**: 여행 동선 화면의 지도는 네이버맵 API 연동 전까지 정적 placeholder로 대체되어 있습니다.
 
+## 데이터 출처
+
+- **대한민국 시도 경계 지도 데이터** (`frontend/public/korea-provinces.json`): 통계청 통계지리정보서비스(SGIS)가 공개한 자료를 [southkorea/southkorea-maps](https://github.com/southkorea/southkorea-maps) 저장소가 정리해 배포한 것을 사용했습니다. [공공누리 제1유형](http://www.kogl.or.kr/info/license.do) 라이선스.
+
 ## 시작하기 (프론트엔드)
 
 ```bash

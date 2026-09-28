@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { ComposableMap, Geographies, Geography } from '@vnedyalk0v/react19-simple-maps'
 
+// 지도 경계 데이터(public/korea-provinces.json) 출처: 통계청 SGIS,
+// https://github.com/southkorea/southkorea-maps (공공누리 제1유형)
+
 const PROVINCE_TO_REGION = {
   '서울특별시': 'seoul',
   '인천광역시': 'gi',
