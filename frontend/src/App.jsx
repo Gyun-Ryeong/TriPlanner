@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom'
 import MainLayout from './components/MainLayout.jsx'
 import Login from './pages/Login.jsx'
 import Signup from './pages/Signup.jsx'
+import NaverCallback from './pages/NaverCallback.jsx'
 import Home from './pages/Home.jsx'
 import Chatbot from './pages/Chatbot.jsx'
 import TripSchedule from './pages/TripSchedule.jsx'
@@ -16,6 +17,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+      <Route path="/oauth/naver/callback" element={<NaverCallback />} />
 
       <Route element={<MainLayout />}>
         <Route path="/" element={<Home />} />

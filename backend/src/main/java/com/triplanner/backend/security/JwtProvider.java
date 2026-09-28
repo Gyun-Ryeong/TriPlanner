@@ -56,4 +56,26 @@ public class JwtProvider {
     public String getEmail(String token) {
         return parseClaims(token).getSubject();
     }
+
+    public String generateState() {
+        Date now = new Date();
+        Date expiry = new Date(now.getTime() + 5 * 60 * 1000);
+
+        return Jwts.builder()
+                .subject(OAUTH_STATE_SUBJECT)
+                .issuedAt(now)
+                .expiration(expiry)
+                .signWith(key)
+                .compact();
+    }
+
+    public boolean isValidState(String state) {
+        try {
+            return OAUTH_STATE_SUBJECT.equals(parseClaims(state).getSubject());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static final String OAUTH_STATE_SUBJECT = "oauth-state";
 }

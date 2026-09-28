@@ -17,3 +17,8 @@ server:
 jwt:
   secret: ${JWT_SECRET:change-this-secret-in-application-local.yml}
   expiration-ms: 86400000
+
+naver:
+  login:
+    redirect-uri: ${NAVER_LOGIN_REDIRECT_URI:http://localhost:8080/api/auth/naver/callback}
+    frontend-redirect-base: ${FRONTEND_REDIRECT_BASE:http://localhost:5173}
