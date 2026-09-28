@@ -63,7 +63,7 @@ public class TripService {
 
     public List<TripSummaryResponse> getMyTrips(String email) {
         User user = currentUser(email);
-        return tripRepository.findByUser_UserId(user.getUserId()).stream()
+        return tripRepository.findByUser_UserIdOrderByStartDateAsc(user.getUserId()).stream()
                 .map(this::toSummary)
                 .toList();
     }
