@@ -60,4 +60,12 @@ public class TripItem {
         this.startTime = startTime;
         this.memo = memo;
     }
+
+    public void updateDetails(Place place, String itemType, Integer visitOrder, LocalTime startTime, String memo) {
+        this.place = place;
+        this.itemType = itemType;
+        this.visitOrder = visitOrder;
+        this.startTime = startTime;
+        this.memo = memo;
+    }
 }

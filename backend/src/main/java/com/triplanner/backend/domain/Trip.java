@@ -57,4 +57,12 @@ public class Trip {
         this.status = status;
         this.createdAt = LocalDateTime.now();
     }
+
+    public void updateDetails(String title, String region, LocalDate startDate, LocalDate endDate, String status) {
+        this.title = title;
+        this.region = region;
+        this.startDate = startDate;
+        this.endDate = endDate;
+        this.status = status;
+    }
 }
