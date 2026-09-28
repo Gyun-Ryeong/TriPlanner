@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { getAuth } from '../api/authStorage.js'
 import './ProfileEdit.css'
 
 export default function ProfileEdit() {
+  const auth = getAuth()
   const [notifications, setNotifications] = useState({
     risk: true,
     schedule: true,
@@ -22,17 +24,17 @@ export default function ProfileEdit() {
 
           <div className="profile-edit__field">
             <label htmlFor="name">이름</label>
-            <input id="name" type="text" defaultValue="이민지" />
+            <input id="name" type="text" defaultValue={auth?.nickname ?? ''} />
           </div>
 
           <div className="profile-edit__field">
             <label htmlFor="email">이메일 주소</label>
-            <input id="email" type="email" defaultValue="minji.lee@triplanner.com" />
+            <input id="email" type="email" defaultValue={auth?.email ?? ''} />
           </div>
 
           <div className="profile-edit__field">
             <label htmlFor="phone">전화번호</label>
-            <input id="phone" type="tel" defaultValue="010-1234-5678" />
+            <input id="phone" type="tel" placeholder="등록된 번호 없음" />
           </div>
         </div>
 

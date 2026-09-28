@@ -1,15 +1,42 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getAuth } from '../api/authStorage.js'
+import { getMyTrips } from '../api/trips.js'
 import './Home.css'
 
-const UPCOMING_TRIP = {
-  place: '경주, 경상북도',
-  date: '2026. 10. 12 — 10. 14 · D-28',
+function formatUpcomingDate(startDate, endDate) {
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  const nights = Math.round((end - start) / (1000 * 60 * 60 * 24))
+  const startLabel = `${start.getFullYear()}. ${start.getMonth() + 1}. ${start.getDate()}`
+  const endLabel = `${end.getMonth() + 1}. ${end.getDate()}`
+  return `${startLabel} — ${endLabel} · ${nights}박 ${nights + 1}일`
 }
 
 export default function Home() {
   const auth = getAuth()
-  const displayName = auth?.nickname ?? '민지'
+  const displayName = auth?.nickname ?? '여행자'
+  const [upcomingTrip, setUpcomingTrip] = useState(null)
+  const [loadingTrip, setLoadingTrip] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+
+    getMyTrips()
+      .then((trips) => {
+        if (!cancelled) setUpcomingTrip(trips[0] ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) setUpcomingTrip(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingTrip(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <div className="home">
@@ -24,22 +51,33 @@ export default function Home() {
       <div className="home__stats">
         <div className="card">
           <p className="card-label">다가오는 여행</p>
-          <p className="home__stat-main">{UPCOMING_TRIP.place}</p>
-          <p className="home__stat-sub">{UPCOMING_TRIP.date}</p>
+          {loadingTrip ? (
+            <p className="home__stat-sub">불러오는 중...</p>
+          ) : upcomingTrip ? (
+            <>
+              <p className="home__stat-main">{upcomingTrip.region}</p>
+              <p className="home__stat-sub">{formatUpcomingDate(upcomingTrip.startDate, upcomingTrip.endDate)}</p>
+            </>
+          ) : (
+            <>
+              <p className="home__stat-main">예정된 여행 없음</p>
+              <p className="home__stat-sub">
+                <Link to="/trips/new">새 여행을 만들어보세요</Link>
+              </p>
+            </>
+          )}
         </div>
 
         <div className="card">
           <p className="card-label">여행 안전 지수</p>
-          <p className="home__stat-main home__stat-main--safe">
-            92 <span className="home__stat-unit">안전</span>
-          </p>
-          <p className="home__stat-sub">현재 특별한 위험 요소가 없어요.</p>
+          <p className="home__stat-main home__stat-main--accent">연동 예정</p>
+          <p className="home__stat-sub">실시간 안전 정보 기능은 준비 중입니다.</p>
         </div>
 
         <div className="card">
           <p className="card-label">체크리스트</p>
-          <p className="home__stat-main home__stat-main--accent">7 / 10</p>
-          <p className="home__stat-sub">출발 전 3개 항목을 확인하세요.</p>
+          <p className="home__stat-main home__stat-main--accent">준비 중</p>
+          <p className="home__stat-sub">출발 전 체크리스트 기능은 준비 중입니다.</p>
         </div>
       </div>
 
@@ -47,14 +85,14 @@ export default function Home() {
         <div className="card">
           <h3 className="home__panel-title">AI 기반 여행 챗봇</h3>
           <p className="home__panel-desc">
-            최신 여행 데이터에 기반해 실시간으로 경주 맛집 및 동선을 답변해드려요.
+            최신 여행 데이터에 기반해 실시간으로 맛집 및 동선을 추천해드려요.
           </p>
           <Link to="/chatbot" className="btn btn-block">챗봇 시작하기</Link>
         </div>
 
         <div className="card">
           <h3 className="home__panel-title">실시간 여행 알림</h3>
-          <p className="home__alert-item">경주 지역은 오늘 맑음 · 가을 단풍 시즌</p>
+          <p className="home__alert-item">여행지의 날씨와 안전 신호를 확인해보세요.</p>
           <Link to="/alerts" className="btn btn-block">알림 전체 보기</Link>
         </div>
       </div>

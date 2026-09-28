@@ -47,7 +47,7 @@ export default function Signup() {
             <input
               id="name"
               type="text"
-              placeholder="이민지"
+              placeholder="닉네임 입력"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
               required

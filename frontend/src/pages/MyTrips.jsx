@@ -1,7 +1,41 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { getAuth } from '../api/authStorage.js'
+import { getMyTrips } from '../api/trips.js'
 import './MyTrips.css'
 
+function formatDate(dateString) {
+  const date = new Date(dateString)
+  return `${date.getFullYear()}. ${date.getMonth() + 1}. ${date.getDate()}`
+}
+
 export default function MyTrips() {
+  const auth = getAuth()
+  const [trips, setTrips] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+
+    getMyTrips()
+      .then((data) => {
+        if (!cancelled) setTrips(data)
+      })
+      .catch(() => {
+        if (!cancelled) setTrips([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const regionCount = new Set(trips.map((t) => t.region)).size
+  const upcomingTrip = trips[0] ?? null
+
   return (
     <div className="mytrips">
       <div className="mytrips__header">
@@ -15,25 +49,33 @@ export default function MyTrips() {
       <div className="mytrips__grid">
         <div className="card">
           <p className="card-label">기본 정보</p>
-          <p className="mytrips__name">이민지</p>
-          <p className="mytrips__meta">minji.lee@triplanner.com · 010-1234-5678</p>
+          <p className="mytrips__name">{auth?.nickname ?? '알 수 없음'}</p>
+          <p className="mytrips__meta">{auth?.email ?? ''}</p>
         </div>
 
         <Link to="/mytrips/stats" className="card mytrips__stats-card">
           <p className="card-label">여행 통계</p>
-          <p className="mytrips__stats-main">8번의 여행</p>
-          <p className="mytrips__meta">방문 지역 5 · 안전 알림 12회</p>
+          <p className="mytrips__stats-main">{loading ? '-' : `${trips.length}번의 여행`}</p>
+          <p className="mytrips__meta">{loading ? '' : `방문 지역 ${regionCount}`}</p>
         </Link>
       </div>
 
       <div className="card mytrips__risk">
         <p className="card-label">다가오는 여행 위험 관리</p>
         <div className="mytrips__risk-row">
-          <div>
-            <p className="mytrips__risk-title">경주, 경상북도 · 2026. 10. 12</p>
-            <p className="mytrips__meta">치안 안전 · 자연재해 낮음 · 의료 접근성 좋음</p>
-          </div>
-          <span className="badge badge-safe">안전 지수 92</span>
+          {loading ? (
+            <p className="mytrips__meta">불러오는 중...</p>
+          ) : upcomingTrip ? (
+            <>
+              <div>
+                <p className="mytrips__risk-title">{upcomingTrip.region} · {formatDate(upcomingTrip.startDate)}</p>
+                <p className="mytrips__meta">여행 안전 정보 연동 예정</p>
+              </div>
+              <span className="badge">연동 예정</span>
+            </>
+          ) : (
+            <p className="mytrips__meta">예정된 여행이 없어요.</p>
+          )}
         </div>
       </div>
     </div>

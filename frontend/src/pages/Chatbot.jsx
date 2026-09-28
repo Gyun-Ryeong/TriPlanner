@@ -1,30 +1,35 @@
 import { useState } from 'react'
+import { getAuth } from '../api/authStorage.js'
 import './Chatbot.css'
 
 const RECENT_CHATS = ['경주 2박 3일 일정', '가을 경주 여행 준비물', '경북 교통편 추천']
 
-const INITIAL_MESSAGES = [
-  {
-    from: 'bot',
-    text: '안녕하세요, 민지님! 최신 여행 정보를 바탕으로 무엇이든 도와드릴게요. 어디로 떠나시나요?',
-  },
-  {
-    from: 'user',
-    text: '10월 경주 2박 3일 일정을 추천해줘. 맛집과 불국사도 넣어줘!',
-  },
-  {
-    from: 'bot',
-    text: '좋아요! 이동 동선을 고려한 맞춤 일정을 만들었어요.',
-    itinerary: [
-      '1일차: 불국사 · 석굴암 · 보문단지',
-      '2일차: 경주 동궁과 월지 · 첨성대 · 황리단길',
-      '3일차: 양동마을 · 교촌마을',
-    ],
-  },
-]
+function buildInitialMessages(nickname) {
+  return [
+    {
+      from: 'bot',
+      text: `안녕하세요, ${nickname}님! 최신 여행 정보를 바탕으로 무엇이든 도와드릴게요. 어디로 떠나시나요?`,
+    },
+    {
+      from: 'user',
+      text: '10월 경주 2박 3일 일정을 추천해줘. 맛집과 불국사도 넣어줘!',
+    },
+    {
+      from: 'bot',
+      text: '좋아요! 이동 동선을 고려한 맞춤 일정을 만들었어요.',
+      itinerary: [
+        '1일차: 불국사 · 석굴암 · 보문단지',
+        '2일차: 경주 동궁과 월지 · 첨성대 · 황리단길',
+        '3일차: 양동마을 · 교촌마을',
+      ],
+    },
+  ]
+}
 
 export default function Chatbot() {
+  const auth = getAuth()
   const [input, setInput] = useState('')
+  const [messages] = useState(() => buildInitialMessages(auth?.nickname ?? '여행자'))
 
   return (
     <div className="chatbot">
@@ -43,7 +48,7 @@ export default function Chatbot() {
         <h2 className="chatbot__title">RAG 기반 여행 챗봇</h2>
 
         <div className="chatbot__messages">
-          {INITIAL_MESSAGES.map((msg, i) => (
+          {messages.map((msg, i) => (
             <div key={i} className={msg.from === 'user' ? 'chatbot__bubble chatbot__bubble--user' : 'chatbot__bubble chatbot__bubble--bot'}>
               <p>{msg.text}</p>
               {msg.itinerary && (
