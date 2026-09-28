@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
 import MainLayout from './components/MainLayout.jsx'
+import RequireAuth from './components/RequireAuth.jsx'
 import Login from './pages/Login.jsx'
 import Signup from './pages/Signup.jsx'
 import NaverCallback from './pages/NaverCallback.jsx'
@@ -21,14 +22,17 @@ export default function App() {
 
       <Route element={<MainLayout />}>
         <Route path="/" element={<Home />} />
-        <Route path="/schedule" element={<TripSchedule />} />
-        <Route path="/schedule/:tripId" element={<TripSchedule />} />
-        <Route path="/chatbot" element={<Chatbot />} />
-        <Route path="/mytrips" element={<MyTrips />} />
-        <Route path="/mytrips/stats" element={<TripStats />} />
-        <Route path="/mytrips/edit" element={<ProfileEdit />} />
-        <Route path="/trips/new" element={<NewTrip />} />
-        <Route path="/alerts" element={<Alerts />} />
+
+        <Route element={<RequireAuth />}>
+          <Route path="/schedule" element={<TripSchedule />} />
+          <Route path="/schedule/:tripId" element={<TripSchedule />} />
+          <Route path="/chatbot" element={<Chatbot />} />
+          <Route path="/mytrips" element={<MyTrips />} />
+          <Route path="/mytrips/stats" element={<TripStats />} />
+          <Route path="/mytrips/edit" element={<ProfileEdit />} />
+          <Route path="/trips/new" element={<NewTrip />} />
+          <Route path="/alerts" element={<Alerts />} />
+        </Route>
       </Route>
     </Routes>
   )
