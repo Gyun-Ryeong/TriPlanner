@@ -58,6 +58,17 @@ export default function MainLayout() {
       <main className="app-content">
         <Outlet />
       </main>
+
+      <footer className="app-footer">
+        <div className="app-footer__inner">
+          <div>
+            <span className="app-footer__logo">TriPlanner</span>
+            <p className="app-footer__tagline">국내 여행의 모든 순간을 더 안전하고 자유롭게</p>
+          </div>
+          <p className="app-footer__team">팀원 · 이동희 · 김령균 · 이시우</p>
+          <p className="app-footer__copyright">© 2026 TriPlanner</p>
+        </div>
+      </footer>
     </div>
   )
 }
