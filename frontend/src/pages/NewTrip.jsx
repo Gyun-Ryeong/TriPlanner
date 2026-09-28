@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { createTrip } from '../api/trips.js'
 import './NewTrip.css'
 
 const REGIONS = [
@@ -12,10 +13,44 @@ const REGIONS = [
   { id: 'jeju', name: '제주도', desc: '한라산 백록담, 올레길 코스, 곽지 해수욕장 푸른 바다', area: 'jeju' },
 ]
 
+function todayPlus(days) {
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  return date.toISOString().slice(0, 10)
+}
+
 export default function NewTrip() {
   const [selected, setSelected] = useState('jeju')
+  const [title, setTitle] = useState('')
+  const [startDate, setStartDate] = useState(todayPlus(0))
+  const [endDate, setEndDate] = useState(todayPlus(2))
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const navigate = useNavigate()
   const selectedRegion = REGIONS.find((r) => r.id === selected)
+
+  async function handleSubmit() {
+    if (!title.trim()) {
+      setError('여행 제목을 입력해주세요.')
+      return
+    }
+    if (endDate < startDate) {
+      setError('종료일은 시작일보다 빠를 수 없습니다.')
+      return
+    }
+
+    setError('')
+    setSubmitting(true)
+
+    try {
+      const trip = await createTrip({ title, region: selectedRegion.name, startDate, endDate })
+      navigate(`/schedule/${trip.tripId}`)
+    } catch (err) {
+      setError(err.message ?? '여행 생성에 실패했습니다.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   return (
     <div className="newtrip">
@@ -64,9 +99,44 @@ export default function NewTrip() {
         </div>
       </div>
 
+      <div className="card newtrip__details">
+        <div className="newtrip__field">
+          <label htmlFor="trip-title">여행 제목</label>
+          <input
+            id="trip-title"
+            type="text"
+            placeholder="예: 경주 힐링 여행"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+        </div>
+
+        <div className="newtrip__field">
+          <label htmlFor="trip-start">시작일</label>
+          <input
+            id="trip-start"
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+        </div>
+
+        <div className="newtrip__field">
+          <label htmlFor="trip-end">종료일</label>
+          <input
+            id="trip-end"
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {error && <p className="newtrip__error">{error}</p>}
+
       <div className="newtrip__footer">
-        <button type="button" className="btn btn-primary" onClick={() => navigate('/schedule')}>
-          {selectedRegion?.name} 선택 · 다음 단계로 진행 →
+        <button type="button" className="btn btn-primary" disabled={submitting} onClick={handleSubmit}>
+          {submitting ? '생성 중...' : `${selectedRegion?.name} 선택 · 다음 단계로 진행 →`}
         </button>
       </div>
     </div>

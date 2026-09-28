@@ -20,6 +20,7 @@ export default function App() {
       <Route element={<MainLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/schedule" element={<TripSchedule />} />
+        <Route path="/schedule/:tripId" element={<TripSchedule />} />
         <Route path="/chatbot" element={<Chatbot />} />
         <Route path="/mytrips" element={<MyTrips />} />
         <Route path="/mytrips/stats" element={<TripStats />} />
