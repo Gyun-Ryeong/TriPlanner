@@ -1,0 +1,21 @@
+package com.triplanner.backend.controller;
+
+import java.util.Map;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/config")
+public class ConfigController {
+
+    @Value("${naver.map.client-id}")
+    private String naverMapClientId;
+
+    @GetMapping("/naver-map-client-id")
+    public ResponseEntity<Map<String, String>> naverMapClientId() {
+        return ResponseEntity.ok(Map.of("clientId", naverMapClientId));
+    }
+}

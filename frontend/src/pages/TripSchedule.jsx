@@ -1,7 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getMyTrips, getTrip } from '../api/trips.js'
+import { getNaverMapClientId } from '../api/config.js'
+import { loadNaverMapsScript } from '../lib/naverMaps.js'
 import './TripSchedule.css'
+
+const REGION_CENTERS = {
+  '서울 특별시': { lat: 37.5665, lng: 126.9780, zoom: 11 },
+  '경기도 / 인천': { lat: 37.4563, lng: 126.7052, zoom: 10 },
+  '강원도': { lat: 37.8228, lng: 128.1555, zoom: 9 },
+  '충청도': { lat: 36.6357, lng: 127.4917, zoom: 9 },
+  '전라도': { lat: 35.7175, lng: 127.1530, zoom: 9 },
+  '경상도': { lat: 35.8714, lng: 128.6014, zoom: 9 },
+  '제주도': { lat: 33.4996, lng: 126.5312, zoom: 10 },
+}
+const DEFAULT_CENTER = { lat: 36.5, lng: 127.8, zoom: 7 }
 
 function formatDateRange(startDate, endDate) {
   const start = new Date(startDate)
@@ -22,6 +35,10 @@ export default function TripSchedule() {
   const [selectedDayId, setSelectedDayId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [mapError, setMapError] = useState('')
+  const mapContainerRef = useRef(null)
+  const mapInstanceRef = useRef(null)
+  const markersRef = useRef([])
 
   useEffect(() => {
     let cancelled = false
@@ -59,6 +76,67 @@ export default function TripSchedule() {
     }
   }, [tripId])
 
+  const selectedDay = trip?.days.find((day) => day.tripDayId === selectedDayId) ?? trip?.days[0]
+
+  useEffect(() => {
+    if (!trip) return
+    let cancelled = false
+
+    getNaverMapClientId()
+      .then((clientId) => loadNaverMapsScript(clientId))
+      .then((naver) => {
+        if (cancelled || !mapContainerRef.current) return
+
+        const regionCenter = REGION_CENTERS[trip.region] ?? DEFAULT_CENTER
+        const center = new naver.maps.LatLng(regionCenter.lat, regionCenter.lng)
+
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.setCenter(center)
+          mapInstanceRef.current.setZoom(regionCenter.zoom)
+        } else {
+          mapInstanceRef.current = new naver.maps.Map(mapContainerRef.current, {
+            center,
+            zoom: regionCenter.zoom,
+          })
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setMapError('지도를 불러오지 못했습니다.')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [trip?.tripId, trip?.region])
+
+  useEffect(() => {
+    const map = mapInstanceRef.current
+    if (!map || !window.naver || !selectedDay) return
+
+    markersRef.current.forEach((marker) => marker.setMap(null))
+    markersRef.current = []
+
+    const points = selectedDay.items.filter(
+      (item) => item.placeLatitude != null && item.placeLongitude != null
+    )
+
+    points.forEach((item) => {
+      markersRef.current.push(
+        new window.naver.maps.Marker({
+          position: new window.naver.maps.LatLng(item.placeLatitude, item.placeLongitude),
+          map,
+          title: item.placeName ?? '',
+        })
+      )
+    })
+
+    if (points.length > 0) {
+      const bounds = new window.naver.maps.LatLngBounds()
+      points.forEach((item) => bounds.extend(new window.naver.maps.LatLng(item.placeLatitude, item.placeLongitude)))
+      map.fitBounds(bounds)
+    }
+  }, [selectedDay])
+
   if (loading) {
     return (
       <div className="trip-schedule">
@@ -83,8 +161,6 @@ export default function TripSchedule() {
       </div>
     )
   }
-
-  const selectedDay = trip.days.find((day) => day.tripDayId === selectedDayId) ?? trip.days[0]
 
   return (
     <div className="trip-schedule">
@@ -143,10 +219,13 @@ export default function TripSchedule() {
         </div>
 
         <div className="card trip-schedule__map">
-          <div className="trip-schedule__map-placeholder">
-            <p>지도 영역</p>
-            <p className="trip-schedule__map-note">네이버맵 연동 예정 (현재는 정적 화면)</p>
-          </div>
+          {mapError ? (
+            <div className="trip-schedule__map-placeholder">
+              <p>{mapError}</p>
+            </div>
+          ) : (
+            <div ref={mapContainerRef} className="trip-schedule__map-canvas" />
+          )}
         </div>
       </div>
     </div>

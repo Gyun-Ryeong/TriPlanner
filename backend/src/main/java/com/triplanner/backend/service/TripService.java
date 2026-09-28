@@ -229,6 +229,8 @@ public class TripService {
                 item.getTripItemId(),
                 place != null ? place.getPlaceId() : null,
                 place != null ? place.getName() : null,
+                place != null && place.getLatitude() != null ? place.getLatitude().doubleValue() : null,
+                place != null && place.getLongitude() != null ? place.getLongitude().doubleValue() : null,
                 item.getItemType(),
                 item.getVisitOrder(),
                 item.getStartTime(),
