@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { getMyTrips, getTrip } from '../api/trips.js'
+import { addTripItem, deleteTripItem, getMyTrips, getTrip } from '../api/trips.js'
+import { savePlace, searchPlaces } from '../api/places.js'
 import { getNaverMapClientId } from '../api/config.js'
 import { loadNaverMapsScript } from '../lib/naverMaps.js'
 import './TripSchedule.css'
@@ -36,6 +37,12 @@ export default function TripSchedule() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [mapError, setMapError] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [keyword, setKeyword] = useState('')
+  const [searchResults, setSearchResults] = useState(null)
+  const [searching, setSearching] = useState(false)
+  const [editError, setEditError] = useState('')
+  const [busyId, setBusyId] = useState(null)
   const mapContainerRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markersRef = useRef([])
@@ -137,6 +144,60 @@ export default function TripSchedule() {
     }
   }, [selectedDay])
 
+  function updateDayItems(tripDayId, updater) {
+    setTrip((prev) => ({
+      ...prev,
+      days: prev.days.map((day) => (day.tripDayId === tripDayId ? { ...day, items: updater(day.items) } : day)),
+    }))
+  }
+
+  async function handleSearch(event) {
+    event.preventDefault()
+    if (!keyword.trim()) return
+    setSearching(true)
+    setEditError('')
+    try {
+      setSearchResults(await searchPlaces(keyword.trim()))
+    } catch (err) {
+      setEditError(err.message ?? '장소를 검색하지 못했습니다.')
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  async function handleAdd(result) {
+    if (!selectedDay) return
+    setBusyId(result.contentId)
+    setEditError('')
+    try {
+      const place = await savePlace(result)
+      const nextOrder = Math.max(0, ...selectedDay.items.map((item) => item.visitOrder)) + 1
+      const item = await addTripItem(trip.tripId, selectedDay.tripDayId, {
+        placeId: place.placeId,
+        itemType: result.category,
+        visitOrder: nextOrder,
+      })
+      updateDayItems(selectedDay.tripDayId, (items) => [...items, item])
+    } catch (err) {
+      setEditError(err.message ?? '일정에 추가하지 못했습니다.')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function handleDelete(item) {
+    setBusyId(item.tripItemId)
+    setEditError('')
+    try {
+      await deleteTripItem(trip.tripId, selectedDay.tripDayId, item.tripItemId)
+      updateDayItems(selectedDay.tripDayId, (items) => items.filter((it) => it.tripItemId !== item.tripItemId))
+    } catch (err) {
+      setEditError(err.message ?? '일정을 삭제하지 못했습니다.')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   if (loading) {
     return (
       <div className="trip-schedule">
@@ -174,10 +235,12 @@ export default function TripSchedule() {
         </div>
         <div className="trip-schedule__actions">
           <div className="trip-schedule__actions-row">
-            <button type="button" className="btn" disabled title="준비 중인 기능입니다">일정 수정</button>
+            <button type="button" className="btn" onClick={() => setEditing((prev) => !prev)}>
+              {editing ? '수정 완료' : '일정 수정'}
+            </button>
             <button type="button" className="btn btn-primary" disabled title="준비 중인 기능입니다">길찾기 시작</button>
           </div>
-          <p className="trip-schedule__actions-note">일정 수정 · 길찾기 기능은 구현 중입니다.</p>
+          <p className="trip-schedule__actions-note">길찾기 기능은 구현 중입니다.</p>
         </div>
       </div>
 
@@ -209,16 +272,62 @@ export default function TripSchedule() {
             <p className="trip-schedule__meta">아직 등록된 일정이 없습니다.</p>
           )}
 
-          {selectedDay?.items.map((item) => (
+          {selectedDay?.items.map((item, index) => (
             <div key={item.tripItemId} className="trip-schedule__stop">
-              <span className="trip-schedule__stop-index">{item.visitOrder}</span>
-              <div>
+              <span className="trip-schedule__stop-index">{index + 1}</span>
+              <div className="trip-schedule__stop-body">
                 <p className="trip-schedule__stop-label">{item.itemType}</p>
                 <p className="trip-schedule__stop-name">{item.placeName ?? item.memo ?? '이름 미정'}</p>
                 {item.startTime && <p className="trip-schedule__meta">{formatTime(item.startTime)}</p>}
               </div>
+              {editing && (
+                <button
+                  type="button"
+                  className="btn trip-schedule__stop-remove"
+                  disabled={busyId === item.tripItemId}
+                  onClick={() => handleDelete(item)}
+                >
+                  삭제
+                </button>
+              )}
             </div>
           ))}
+
+          {editing && (
+            <div className="trip-schedule__search">
+              <h3>장소 추가</h3>
+              <form className="trip-schedule__search-form" onSubmit={handleSearch}>
+                <input
+                  type="text"
+                  value={keyword}
+                  onChange={(event) => setKeyword(event.target.value)}
+                  placeholder="장소 이름으로 검색 (예: 경복궁)"
+                />
+                <button type="submit" className="btn btn-primary" disabled={searching}>
+                  {searching ? '검색 중...' : '검색'}
+                </button>
+              </form>
+              {editError && <p className="trip-schedule__search-error">{editError}</p>}
+              {searchResults?.length === 0 && <p className="trip-schedule__meta">검색 결과가 없습니다.</p>}
+              {searchResults?.map((result) => (
+                <div key={result.contentId} className="trip-schedule__result">
+                  <div className="trip-schedule__stop-body">
+                    <p className="trip-schedule__stop-label">{result.category}</p>
+                    <p className="trip-schedule__stop-name">{result.name}</p>
+                    <p className="trip-schedule__meta">{result.address}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={busyId === result.contentId}
+                    onClick={() => handleAdd(result)}
+                  >
+                    추가
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="card trip-schedule__map">

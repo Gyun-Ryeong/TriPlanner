@@ -20,3 +20,18 @@ export function getMyTrips() {
 export function getTrip(tripId) {
   return apiRequest(`/api/trips/${tripId}`, { token: authToken() })
 }
+
+export function addTripItem(tripId, tripDayId, { placeId, itemType, visitOrder }) {
+  return apiRequest(`/api/trips/${tripId}/days/${tripDayId}/items`, {
+    method: 'POST',
+    body: { placeId, itemType, visitOrder },
+    token: authToken(),
+  })
+}
+
+export function deleteTripItem(tripId, tripDayId, itemId) {
+  return apiRequest(`/api/trips/${tripId}/days/${tripDayId}/items/${itemId}`, {
+    method: 'DELETE',
+    token: authToken(),
+  })
+}
