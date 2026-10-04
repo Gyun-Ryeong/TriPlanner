@@ -6,6 +6,8 @@ import com.triplanner.backend.dto.TripItemRequest;
 import com.triplanner.backend.dto.TripItemResponse;
 import com.triplanner.backend.dto.TripSummaryResponse;
 import com.triplanner.backend.dto.TripUpdateRequest;
+import com.triplanner.backend.dto.RouteResponse;
+import com.triplanner.backend.service.RouteService;
 import com.triplanner.backend.service.TripService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -25,9 +27,20 @@ import org.springframework.web.bind.annotation.RestController;
 public class TripController {
 
     private final TripService tripService;
+    private final RouteService routeService;
 
-    public TripController(TripService tripService) {
+    public TripController(TripService tripService, RouteService routeService) {
         this.tripService = tripService;
+        this.routeService = routeService;
+    }
+
+    @GetMapping("/{tripId}/days/{tripDayId}/route")
+    public ResponseEntity<RouteResponse> getDayRoute(
+            Authentication authentication,
+            @PathVariable Long tripId,
+            @PathVariable Long tripDayId
+    ) {
+        return ResponseEntity.ok(routeService.getDayRoute(authentication.getName(), tripId, tripDayId));
     }
 
     @PostMapping

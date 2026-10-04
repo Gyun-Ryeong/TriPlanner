@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { addTripItem, deleteTripItem, getMyTrips, getTrip } from '../api/trips.js'
+import { addTripItem, deleteTripItem, getDayRoute, getMyTrips, getTrip } from '../api/trips.js'
 import { savePlace, searchPlaces } from '../api/places.js'
 import { getNaverMapClientId } from '../api/config.js'
 import { loadNaverMapsScript } from '../lib/naverMaps.js'
@@ -30,6 +30,18 @@ function formatTime(time) {
   return time ? time.slice(0, 5) : ''
 }
 
+function formatDistance(meters) {
+  return meters >= 1000 ? `${(meters / 1000).toFixed(1)}km` : `${meters}m`
+}
+
+function formatDuration(seconds) {
+  const totalMinutes = Math.max(1, Math.round(seconds / 60))
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (hours === 0) return `${minutes}분`
+  return minutes === 0 ? `${hours}시간` : `${hours}시간 ${minutes}분`
+}
+
 export default function TripSchedule() {
   const { tripId } = useParams()
   const [trip, setTrip] = useState(null)
@@ -37,6 +49,7 @@ export default function TripSchedule() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [mapError, setMapError] = useState('')
+  const [mapReady, setMapReady] = useState(false)
   const [editing, setEditing] = useState(false)
   const [keyword, setKeyword] = useState('')
   const [searchResults, setSearchResults] = useState(null)
@@ -44,6 +57,9 @@ export default function TripSchedule() {
   const [editError, setEditError] = useState('')
   const [busyId, setBusyId] = useState(null)
   const busyLock = useRef(false)
+  const [route, setRoute] = useState(null)
+  const [routeLoading, setRouteLoading] = useState(false)
+  const [routeError, setRouteError] = useState('')
   const mapContainerRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markersRef = useRef([])
@@ -87,6 +103,22 @@ export default function TripSchedule() {
 
   const selectedDay = trip?.days.find((day) => day.tripDayId === selectedDayId) ?? trip?.days[0]
 
+  // 길찾기 결과는 계산할 때의 날짜·항목 구성에만 유효하다 (항목을 추가/삭제하거나 날짜를 바꾸면 자동으로 무효)
+  const itemsSignature = selectedDay?.items.map((item) => item.tripItemId).join(',') ?? ''
+  const activeRoute =
+    route && route.dayId === selectedDay?.tripDayId && route.signature === itemsSignature ? route.data : null
+  const routeLegs = new Map(activeRoute?.legs.map((leg) => [leg.fromItemId, leg]))
+  // 경로 계산에는 좌표가 서로 다른 장소가 2곳 이상 필요하다
+  const routableCount = new Set(
+    selectedDay?.items
+      .filter((item) => item.placeLatitude != null)
+      .map((item) => `${item.placeLatitude},${item.placeLongitude}`)
+  ).size
+
+  useEffect(() => {
+    setRouteError('')
+  }, [selectedDay?.tripDayId, itemsSignature])
+
   // 같은 장소를 하루에 여러 번 방문할 수 있어서, 장소별 추가 횟수와 각 항목의 n번째 방문을 구분해 보여준다
   const placeVisitCounts = new Map()
   const visitNumbers = new Map()
@@ -118,6 +150,8 @@ export default function TripSchedule() {
             zoom: regionCenter.zoom,
           })
         }
+        // 마커 effect 가 지도 생성보다 먼저 실행되는 경우를 위해, 지도가 준비되면 다시 그리도록 알린다
+        setMapReady(true)
       })
       .catch(() => {
         if (!cancelled) setMapError('지도를 불러오지 못했습니다.')
@@ -167,28 +201,53 @@ export default function TripSchedule() {
       )
     })
 
-    if (path.length > 1) {
+    // 길찾기 결과가 있으면 실제 도로 경로를, 없으면 장소들을 잇는 점선을 그린다
+    const linePath = activeRoute
+      ? activeRoute.path.map(([lat, lng]) => new window.naver.maps.LatLng(lat, lng))
+      : path
+
+    if (linePath.length > 1) {
       polylineRef.current = new window.naver.maps.Polyline({
         map,
-        path,
+        path: linePath,
         strokeColor: '#3b5bdb',
-        strokeOpacity: 0.7,
-        strokeWeight: 4,
+        strokeOpacity: activeRoute ? 0.9 : 0.6,
+        strokeWeight: activeRoute ? 6 : 4,
+        strokeStyle: activeRoute ? 'solid' : 'shortdash',
+        strokeLineJoin: 'round',
       })
     }
 
-    if (path.length > 0) {
+    if (linePath.length > 0) {
       const bounds = new window.naver.maps.LatLngBounds()
-      path.forEach((latLng) => bounds.extend(latLng))
+      linePath.forEach((latLng) => bounds.extend(latLng))
       map.fitBounds(bounds)
     }
-  }, [selectedDay])
+  }, [selectedDay, activeRoute, mapReady])
 
   function updateDayItems(tripDayId, updater) {
     setTrip((prev) => ({
       ...prev,
       days: prev.days.map((day) => (day.tripDayId === tripDayId ? { ...day, items: updater(day.items) } : day)),
     }))
+  }
+
+  async function handleRoute() {
+    if (activeRoute) {
+      setRoute(null)
+      return
+    }
+    if (!selectedDay || routeLoading) return
+    setRouteLoading(true)
+    setRouteError('')
+    try {
+      const data = await getDayRoute(trip.tripId, selectedDay.tripDayId)
+      setRoute({ dayId: selectedDay.tripDayId, signature: itemsSignature, data })
+    } catch (err) {
+      setRouteError(err.message ?? '경로를 불러오지 못했습니다.')
+    } finally {
+      setRouteLoading(false)
+    }
   }
 
   async function handleSearch(event) {
@@ -284,9 +343,21 @@ export default function TripSchedule() {
             <button type="button" className="btn" onClick={() => setEditing((prev) => !prev)}>
               {editing ? '수정 완료' : '일정 수정'}
             </button>
-            <button type="button" className="btn btn-primary" disabled title="준비 중인 기능입니다">길찾기 시작</button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={routeLoading || (!activeRoute && routableCount < 2)}
+              title={routableCount < 2 ? '서로 다른 위치의 장소가 2곳 이상 필요합니다' : undefined}
+              onClick={handleRoute}
+            >
+              {routeLoading ? '경로 계산 중...' : activeRoute ? '길찾기 닫기' : '길찾기 시작'}
+            </button>
           </div>
-          <p className="trip-schedule__actions-note">길찾기 기능은 구현 중입니다.</p>
+          {routeError ? (
+            <p className="trip-schedule__actions-note trip-schedule__search-error">{routeError}</p>
+          ) : (
+            <p className="trip-schedule__actions-note">길찾기는 자동차 기준으로 계산됩니다.</p>
+          )}
         </div>
       </div>
 
@@ -318,8 +389,24 @@ export default function TripSchedule() {
             <p className="trip-schedule__meta">아직 등록된 일정이 없습니다.</p>
           )}
 
+          {activeRoute && (
+            <div className="trip-schedule__route-summary">
+              <div>
+                <p className="trip-schedule__stop-label">총 이동</p>
+                <p className="trip-schedule__route-total">
+                  {formatDistance(activeRoute.totalDistanceMeters)} · {formatDuration(activeRoute.totalDurationSeconds)}
+                </p>
+              </div>
+              <p className="trip-schedule__meta">
+                택시 약 {activeRoute.taxiFare.toLocaleString()}원
+                {activeRoute.tollFare > 0 && ` · 통행료 ${activeRoute.tollFare.toLocaleString()}원`}
+              </p>
+            </div>
+          )}
+
           {selectedDay?.items.map((item, index) => (
-            <div key={item.tripItemId} className="trip-schedule__stop">
+            <Fragment key={item.tripItemId}>
+            <div className="trip-schedule__stop">
               <span className="trip-schedule__stop-index">{index + 1}</span>
               <div className="trip-schedule__stop-body">
                 <p className="trip-schedule__stop-label">{item.itemType}</p>
@@ -342,6 +429,13 @@ export default function TripSchedule() {
                 </button>
               )}
             </div>
+            {routeLegs.has(item.tripItemId) && (
+              <div className="trip-schedule__leg">
+                🚗 {formatDistance(routeLegs.get(item.tripItemId).distanceMeters)} ·{' '}
+                {formatDuration(routeLegs.get(item.tripItemId).durationSeconds)}
+              </div>
+            )}
+            </Fragment>
           ))}
 
           {editing && (

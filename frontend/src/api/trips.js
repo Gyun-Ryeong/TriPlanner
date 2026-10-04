@@ -35,3 +35,7 @@ export function deleteTripItem(tripId, tripDayId, itemId) {
     token: authToken(),
   })
 }
+
+export function getDayRoute(tripId, tripDayId) {
+  return apiRequest(`/api/trips/${tripId}/days/${tripDayId}/route`, { token: authToken() })
+}

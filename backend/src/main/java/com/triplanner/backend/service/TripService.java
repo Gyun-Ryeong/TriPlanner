@@ -123,6 +123,15 @@ public class TripService {
         tripItemRepository.delete(item);
     }
 
+    @Transactional(readOnly = true)
+    public List<TripItemResponse> getDayItems(String email, Long tripId, Long tripDayId) {
+        Trip trip = getOwnedTrip(email, tripId);
+        TripDay day = getDayInTrip(trip, tripDayId);
+        return tripItemRepository.findByTripDay_TripDayIdOrderByVisitOrderAsc(day.getTripDayId()).stream()
+                .map(this::toItemResponse)
+                .toList();
+    }
+
     private User currentUser(String email) {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "사용자를 찾을 수 없습니다."));
