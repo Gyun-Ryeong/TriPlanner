@@ -59,6 +59,7 @@ export default function TripSchedule() {
   const busyLock = useRef(false)
   const [route, setRoute] = useState(null)
   const [routeLoading, setRouteLoading] = useState(false)
+  const routeLock = useRef(false)
   const [routeError, setRouteError] = useState('')
   const mapContainerRef = useRef(null)
   const mapInstanceRef = useRef(null)
@@ -237,7 +238,8 @@ export default function TripSchedule() {
       setRoute(null)
       return
     }
-    if (!selectedDay || routeLoading) return
+    if (!selectedDay || routeLock.current) return
+    routeLock.current = true
     setRouteLoading(true)
     setRouteError('')
     try {
@@ -246,6 +248,7 @@ export default function TripSchedule() {
     } catch (err) {
       setRouteError(err.message ?? '경로를 불러오지 못했습니다.')
     } finally {
+      routeLock.current = false
       setRouteLoading(false)
     }
   }

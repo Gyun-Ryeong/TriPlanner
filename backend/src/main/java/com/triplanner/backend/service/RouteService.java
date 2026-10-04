@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.server.ResponseStatusException;
@@ -98,6 +99,10 @@ public class RouteService {
                     .header("X-NCP-APIGW-API-KEY", clientSecret)
                     .retrieve()
                     .body(JsonNode.class);
+        } catch (HttpClientErrorException.BadRequest e) {
+            // 도로에서 먼 위치(바다·섬·산 등)처럼 Directions 가 경로를 만들 수 없는 경우 - 서버 장애와 구분한다
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "이 장소들 사이의 자동차 경로를 찾을 수 없습니다. 도로에서 먼 위치의 장소가 있는지 확인해 주세요.");
         } catch (RestClientException e) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "길찾기 서버에서 경로를 불러오지 못했습니다.");
         }
