@@ -213,3 +213,37 @@
   padding: 10px 0;
   border-top: 1px solid var(--color-border);
 }
+
+.trip-schedule__marker {
+  min-width: 28px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  white-space: nowrap;
+  height: 28px;
+  border-radius: 14px;
+  background: var(--color-primary);
+  color: #fff;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.trip-schedule__revisit {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: var(--radius-md);
+  background: #eef1f8;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.trip-schedule__added-badge {
+  display: inline-block;
+  margin-top: 4px;
+}

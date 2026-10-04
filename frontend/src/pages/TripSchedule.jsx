@@ -43,9 +43,11 @@ export default function TripSchedule() {
   const [searching, setSearching] = useState(false)
   const [editError, setEditError] = useState('')
   const [busyId, setBusyId] = useState(null)
+  const busyLock = useRef(false)
   const mapContainerRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markersRef = useRef([])
+  const polylineRef = useRef(null)
 
   useEffect(() => {
     let cancelled = false
@@ -85,6 +87,16 @@ export default function TripSchedule() {
 
   const selectedDay = trip?.days.find((day) => day.tripDayId === selectedDayId) ?? trip?.days[0]
 
+  // 같은 장소를 하루에 여러 번 방문할 수 있어서, 장소별 추가 횟수와 각 항목의 n번째 방문을 구분해 보여준다
+  const placeVisitCounts = new Map()
+  const visitNumbers = new Map()
+  selectedDay?.items.forEach((item) => {
+    if (!item.placeContentId) return
+    const count = (placeVisitCounts.get(item.placeContentId) ?? 0) + 1
+    placeVisitCounts.set(item.placeContentId, count)
+    visitNumbers.set(item.tripItemId, count)
+  })
+
   useEffect(() => {
     if (!trip) return
     let cancelled = false
@@ -122,24 +134,52 @@ export default function TripSchedule() {
 
     markersRef.current.forEach((marker) => marker.setMap(null))
     markersRef.current = []
+    polylineRef.current?.setMap(null)
+    polylineRef.current = null
 
-    const points = selectedDay.items.filter(
-      (item) => item.placeLatitude != null && item.placeLongitude != null
-    )
+    // 목록의 번호(1부터)와 지도 마커 번호가 같도록, 좌표 없는 항목을 건너뛰어도 목록 기준 번호를 쓴다
+    const points = selectedDay.items
+      .map((item, index) => ({ item, number: index + 1 }))
+      .filter(({ item }) => item.placeLatitude != null && item.placeLongitude != null)
 
-    points.forEach((item) => {
+    const path = points.map(({ item }) => new window.naver.maps.LatLng(item.placeLatitude, item.placeLongitude))
+
+    // 같은 좌표(재방문 등)의 마커가 겹쳐 가려지지 않도록 "1·3"처럼 번호를 합쳐 하나로 그린다
+    const markerGroups = new Map()
+    points.forEach(({ item, number }, i) => {
+      const key = `${item.placeLatitude},${item.placeLongitude}`
+      const group = markerGroups.get(key) ?? { position: path[i], name: item.placeName ?? '', numbers: [] }
+      group.numbers.push(number)
+      markerGroups.set(key, group)
+    })
+
+    markerGroups.forEach(({ position, name, numbers }) => {
       markersRef.current.push(
         new window.naver.maps.Marker({
-          position: new window.naver.maps.LatLng(item.placeLatitude, item.placeLongitude),
+          position,
           map,
-          title: item.placeName ?? '',
+          title: name,
+          icon: {
+            content: `<div class="trip-schedule__marker">${numbers.join('·')}</div>`,
+            anchor: new window.naver.maps.Point(14, 14),
+          },
         })
       )
     })
 
-    if (points.length > 0) {
+    if (path.length > 1) {
+      polylineRef.current = new window.naver.maps.Polyline({
+        map,
+        path,
+        strokeColor: '#3b5bdb',
+        strokeOpacity: 0.7,
+        strokeWeight: 4,
+      })
+    }
+
+    if (path.length > 0) {
       const bounds = new window.naver.maps.LatLngBounds()
-      points.forEach((item) => bounds.extend(new window.naver.maps.LatLng(item.placeLatitude, item.placeLongitude)))
+      path.forEach((latLng) => bounds.extend(latLng))
       map.fitBounds(bounds)
     }
   }, [selectedDay])
@@ -166,7 +206,9 @@ export default function TripSchedule() {
   }
 
   async function handleAdd(result) {
-    if (!selectedDay) return
+    // state 는 리렌더 전까지 갱신되지 않아 연속 클릭을 못 막으므로, 동기적으로 바뀌는 ref 로 잠근다
+    if (!selectedDay || busyLock.current) return
+    busyLock.current = true
     setBusyId(result.contentId)
     setEditError('')
     try {
@@ -181,11 +223,14 @@ export default function TripSchedule() {
     } catch (err) {
       setEditError(err.message ?? '일정에 추가하지 못했습니다.')
     } finally {
+      busyLock.current = false
       setBusyId(null)
     }
   }
 
   async function handleDelete(item) {
+    if (busyLock.current) return
+    busyLock.current = true
     setBusyId(item.tripItemId)
     setEditError('')
     try {
@@ -194,6 +239,7 @@ export default function TripSchedule() {
     } catch (err) {
       setEditError(err.message ?? '일정을 삭제하지 못했습니다.')
     } finally {
+      busyLock.current = false
       setBusyId(null)
     }
   }
@@ -277,14 +323,19 @@ export default function TripSchedule() {
               <span className="trip-schedule__stop-index">{index + 1}</span>
               <div className="trip-schedule__stop-body">
                 <p className="trip-schedule__stop-label">{item.itemType}</p>
-                <p className="trip-schedule__stop-name">{item.placeName ?? item.memo ?? '이름 미정'}</p>
+                <p className="trip-schedule__stop-name">
+                  {item.placeName ?? item.memo ?? '이름 미정'}
+                  {placeVisitCounts.get(item.placeContentId) > 1 && (
+                    <span className="trip-schedule__revisit">{visitNumbers.get(item.tripItemId)}번째 방문</span>
+                  )}
+                </p>
                 {item.startTime && <p className="trip-schedule__meta">{formatTime(item.startTime)}</p>}
               </div>
               {editing && (
                 <button
                   type="button"
                   className="btn trip-schedule__stop-remove"
-                  disabled={busyId === item.tripItemId}
+                  disabled={busyId !== null}
                   onClick={() => handleDelete(item)}
                 >
                   삭제
@@ -302,6 +353,7 @@ export default function TripSchedule() {
                   value={keyword}
                   onChange={(event) => setKeyword(event.target.value)}
                   placeholder="장소 이름으로 검색 (예: 경복궁)"
+                  maxLength={50}
                 />
                 <button type="submit" className="btn btn-primary" disabled={searching}>
                   {searching ? '검색 중...' : '검색'}
@@ -309,23 +361,31 @@ export default function TripSchedule() {
               </form>
               {editError && <p className="trip-schedule__search-error">{editError}</p>}
               {searchResults?.length === 0 && <p className="trip-schedule__meta">검색 결과가 없습니다.</p>}
-              {searchResults?.map((result) => (
-                <div key={result.contentId} className="trip-schedule__result">
-                  <div className="trip-schedule__stop-body">
-                    <p className="trip-schedule__stop-label">{result.category}</p>
-                    <p className="trip-schedule__stop-name">{result.name}</p>
-                    <p className="trip-schedule__meta">{result.address}</p>
+              {searchResults?.map((result) => {
+                const addedCount = placeVisitCounts.get(result.contentId) ?? 0
+                return (
+                  <div key={result.contentId} className="trip-schedule__result">
+                    <div className="trip-schedule__stop-body">
+                      <p className="trip-schedule__stop-label">{result.category}</p>
+                      <p className="trip-schedule__stop-name">{result.name}</p>
+                      <p className="trip-schedule__meta">{result.address}</p>
+                      {addedCount > 0 && (
+                        <span className="badge badge-safe trip-schedule__added-badge">
+                          이 날 {addedCount}회 추가됨
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      className="btn"
+                      disabled={busyId !== null}
+                      onClick={() => handleAdd(result)}
+                    >
+                      {addedCount > 0 ? '또 추가' : '추가'}
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    className="btn"
-                    disabled={busyId === result.contentId}
-                    onClick={() => handleAdd(result)}
-                  >
-                    추가
-                  </button>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

@@ -5,6 +5,7 @@ import java.time.LocalTime;
 public record TripItemResponse(
         Long tripItemId,
         Long placeId,
+        String placeContentId,
         String placeName,
         Double placeLatitude,
         Double placeLongitude,

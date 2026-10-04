@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.server.ResponseStatusException;
@@ -34,6 +35,7 @@ public class PlaceService {
     );
 
     private static final int MAX_RESULTS = 20;
+    static final int MAX_KEYWORD_LENGTH = 50;
 
     private final RestClient restClient = RestClient.create();
     private final PlaceRepository placeRepository;
@@ -48,6 +50,10 @@ public class PlaceService {
     public List<PlaceSearchResult> search(String keyword) {
         if (keyword == null || keyword.isBlank()) {
             return List.of();
+        }
+
+        if (keyword.trim().length() > MAX_KEYWORD_LENGTH) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "검색어는 " + MAX_KEYWORD_LENGTH + "자 이하로 입력해 주세요.");
         }
 
         JsonNode root;
@@ -66,6 +72,9 @@ public class PlaceService {
                             .build(keyword.trim()))
                     .retrieve()
                     .body(JsonNode.class);
+        } catch (HttpClientErrorException.BadRequest e) {
+            // TourAPI 는 특수문자 등 처리할 수 없는 검색어에 4xx 를 돌려준다 (서버 장애와 구분)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "검색어를 처리할 수 없습니다. 다른 검색어로 시도해 주세요.");
         } catch (RestClientException e) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "관광정보 서버에서 장소를 불러오지 못했습니다.");
         }

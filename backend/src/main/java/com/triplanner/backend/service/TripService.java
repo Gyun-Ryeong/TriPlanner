@@ -228,6 +228,7 @@ public class TripService {
         return new TripItemResponse(
                 item.getTripItemId(),
                 place != null ? place.getPlaceId() : null,
+                place != null ? place.getContentId() : null,
                 place != null ? place.getName() : null,
                 place != null && place.getLatitude() != null ? place.getLatitude().doubleValue() : null,
                 place != null && place.getLongitude() != null ? place.getLongitude().doubleValue() : null,
