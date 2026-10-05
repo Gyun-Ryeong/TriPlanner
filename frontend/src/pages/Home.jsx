@@ -82,6 +82,11 @@ export default function Home() {
             <>
               <p className="home__stat-main">{upcomingTrip.region}</p>
               <p className="home__stat-sub">{formatUpcomingDate(upcomingTrip.startDate, upcomingTrip.endDate)}</p>
+              <div className="home__safety">
+                <p className="home__safety-label">여행 안전 지수</p>
+                <p className="home__safety-value">준비 중</p>
+                <p className="home__stat-sub">이 여행의 실시간 안전 정보 기능은 준비 중입니다.</p>
+              </div>
             </>
           ) : (
             <>
@@ -91,12 +96,6 @@ export default function Home() {
               </p>
             </>
           )}
-        </div>
-
-        <div className="card">
-          <p className="card-label">여행 안전 지수</p>
-          <p className="home__stat-main home__stat-main--accent">연동 예정</p>
-          <p className="home__stat-sub">실시간 안전 정보 기능은 준비 중입니다.</p>
         </div>
 
         <div className="card">
