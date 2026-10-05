@@ -45,7 +45,8 @@ export default function NewTrip() {
 
     try {
       const trip = await createTrip({ title, region: selectedRegion.name, startDate, endDate })
-      navigate(`/schedule/${trip.tripId}`)
+      // 생성 직후 일차별 계획을 바로 입력할 수 있도록 일정 화면을 수정 모드로 연다
+      navigate(`/schedule/${trip.tripId}`, { state: { startEditing: true } })
     } catch (err) {
       setError(err.message ?? '여행 생성에 실패했습니다.')
     } finally {

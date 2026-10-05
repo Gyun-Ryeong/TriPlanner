@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { addTripItem, deleteTripItem, getDayRoute, getMyTrips, getTrip } from '../api/trips.js'
 import { savePlace, searchPlaces } from '../api/places.js'
 import { getNaverMapClientId } from '../api/config.js'
@@ -16,6 +16,8 @@ const REGION_CENTERS = {
   '제주도': { lat: 33.4996, lng: 126.5312, zoom: 10 },
 }
 const DEFAULT_CENTER = { lat: 36.5, lng: 127.8, zoom: 7 }
+const MEMO_ITEM_TYPE = '메모'
+const MEMO_MAX_LENGTH = 255
 
 function formatDateRange(startDate, endDate) {
   const start = new Date(startDate)
@@ -44,13 +46,16 @@ function formatDuration(seconds) {
 
 export default function TripSchedule() {
   const { tripId } = useParams()
+  const location = useLocation()
   const [trip, setTrip] = useState(null)
   const [selectedDayId, setSelectedDayId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [mapError, setMapError] = useState('')
   const [mapReady, setMapReady] = useState(false)
-  const [editing, setEditing] = useState(false)
+  // 새 여행을 만든 직후에는 일차별 계획을 바로 입력할 수 있도록 수정 모드로 시작한다
+  const [editing, setEditing] = useState(Boolean(location.state?.startEditing))
+  const [memoText, setMemoText] = useState('')
   const [keyword, setKeyword] = useState('')
   const [searchResults, setSearchResults] = useState(null)
   const [searching, setSearching] = useState(false)
@@ -290,6 +295,31 @@ export default function TripSchedule() {
     }
   }
 
+  // 장소가 정해지지 않은 계획은 장소 없이 메모만 있는 항목으로 저장한다 (지도·길찾기에는 쓰이지 않음)
+  async function handleAddMemo(event) {
+    event.preventDefault()
+    const text = memoText.trim()
+    if (!text || !selectedDay || busyLock.current) return
+    busyLock.current = true
+    setBusyId('memo')
+    setEditError('')
+    try {
+      const nextOrder = Math.max(0, ...selectedDay.items.map((item) => item.visitOrder)) + 1
+      const item = await addTripItem(trip.tripId, selectedDay.tripDayId, {
+        itemType: MEMO_ITEM_TYPE,
+        visitOrder: nextOrder,
+        memo: text,
+      })
+      updateDayItems(selectedDay.tripDayId, (items) => [...items, item])
+      setMemoText('')
+    } catch (err) {
+      setEditError(err.message ?? '메모를 추가하지 못했습니다.')
+    } finally {
+      busyLock.current = false
+      setBusyId(null)
+    }
+  }
+
   async function handleDelete(item) {
     if (busyLock.current) return
     busyLock.current = true
@@ -382,10 +412,17 @@ export default function TripSchedule() {
                   className={`trip-schedule__day-tab ${day.tripDayId === selectedDay?.tripDayId ? 'trip-schedule__day-tab--active' : ''}`}
                   onClick={() => setSelectedDayId(day.tripDayId)}
                 >
-                  {day.dayNumber}일차
+                  {day.dayNumber}일차 ({day.items.length})
                 </button>
               ))}
             </div>
+          )}
+
+          {editing && (
+            <p className="trip-schedule__edit-guide">
+              {trip.days.length > 1 ? '일차 탭을 눌러 날짜별로 ' : ''}계획을 입력하세요. 장소는 아래에서 검색해 추가하고,
+              장소가 아직 정해지지 않았다면 메모로 적어둘 수 있어요. 다 입력했으면 &lsquo;수정 완료&rsquo;를 눌러주세요.
+            </p>
           )}
 
           {selectedDay?.items.length === 0 && (
@@ -457,6 +494,18 @@ export default function TripSchedule() {
                 </button>
               </form>
               {editError && <p className="trip-schedule__search-error">{editError}</p>}
+              <form className="trip-schedule__search-form trip-schedule__memo-form" onSubmit={handleAddMemo}>
+                <input
+                  type="text"
+                  value={memoText}
+                  onChange={(event) => setMemoText(event.target.value)}
+                  placeholder="메모로 직접 입력 (예: 점심 후 카페에서 휴식)"
+                  maxLength={MEMO_MAX_LENGTH}
+                />
+                <button type="submit" className="btn" disabled={busyId !== null || !memoText.trim()}>
+                  메모 추가
+                </button>
+              </form>
               {searchResults?.length === 0 && <p className="trip-schedule__meta">검색 결과가 없습니다.</p>}
               {searchResults?.map((result) => {
                 const addedCount = placeVisitCounts.get(result.contentId) ?? 0

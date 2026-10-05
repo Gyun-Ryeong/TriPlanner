@@ -200,6 +200,22 @@
   font-size: 14px;
 }
 
+.trip-schedule__memo-form {
+  margin-top: 4px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--color-border);
+}
+
+.trip-schedule__edit-guide {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
 .trip-schedule__search-error {
   font-size: 13px;
   color: var(--color-danger, #d93025);

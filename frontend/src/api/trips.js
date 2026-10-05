@@ -21,10 +21,10 @@ export function getTrip(tripId) {
   return apiRequest(`/api/trips/${tripId}`, { token: authToken() })
 }
 
-export function addTripItem(tripId, tripDayId, { placeId, itemType, visitOrder }) {
+export function addTripItem(tripId, tripDayId, { placeId, itemType, visitOrder, memo }) {
   return apiRequest(`/api/trips/${tripId}/days/${tripDayId}/items`, {
     method: 'POST',
-    body: { placeId, itemType, visitOrder },
+    body: { placeId, itemType, visitOrder, memo },
     token: authToken(),
   })
 }
