@@ -1,5 +1,6 @@
 package com.triplanner.backend.service;
 
+import com.triplanner.backend.common.PhoneNumbers;
 import com.triplanner.backend.domain.User;
 import com.triplanner.backend.dto.AuthResponse;
 import com.triplanner.backend.dto.LoginRequest;
@@ -29,7 +30,9 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 가입된 이메일입니다.");
         }
 
-        User user = new User(request.email(), passwordEncoder.encode(request.password()), request.nickname());
+        String phone = PhoneNumbers.normalize(request.phone());
+        User user = new User(request.email(), passwordEncoder.encode(request.password()), request.nickname().trim());
+        user.changePhone(phone);
         User saved = userRepository.save(user);
 
         String token = jwtProvider.generateToken(saved.getUserId(), saved.getEmail());

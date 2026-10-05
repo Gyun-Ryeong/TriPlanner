@@ -31,6 +31,9 @@ public class User {
     @Column(name = "nickname")
     private String nickname;
 
+    @Column(name = "phone")
+    private String phone;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -43,6 +46,10 @@ public class User {
 
     public void changeNickname(String nickname) {
         this.nickname = nickname;
+    }
+
+    public void changePhone(String phone) {
+        this.phone = phone;
     }
 
     public void changePassword(String encodedPassword) {

@@ -1,5 +1,6 @@
 package com.triplanner.backend.service;
 
+import com.triplanner.backend.common.PhoneNumbers;
 import com.triplanner.backend.domain.User;
 import com.triplanner.backend.dto.PasswordChangeRequest;
 import com.triplanner.backend.dto.ProfileResponse;
@@ -33,7 +34,9 @@ public class ProfileService {
     @Transactional
     public ProfileResponse updateProfile(String email, ProfileUpdateRequest request) {
         User user = findUser(email);
+        String phone = PhoneNumbers.normalize(request.phone());
         user.changeNickname(request.nickname().trim());
+        user.changePhone(phone);
         return toResponse(user);
     }
 
@@ -60,6 +63,6 @@ public class ProfileService {
     }
 
     private ProfileResponse toResponse(User user) {
-        return new ProfileResponse(user.getUserId(), user.getEmail(), user.getNickname());
+        return new ProfileResponse(user.getUserId(), user.getEmail(), user.getNickname(), user.getPhone());
     }
 }

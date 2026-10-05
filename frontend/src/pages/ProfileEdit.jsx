@@ -9,6 +9,8 @@ export default function ProfileEdit() {
   const auth = getAuth()
   const [nickname, setNickname] = useState(auth?.nickname ?? '')
   const [savedNickname, setSavedNickname] = useState(auth?.nickname ?? '')
+  const [phone, setPhone] = useState('')
+  const [savedPhone, setSavedPhone] = useState('')
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileMessage, setProfileMessage] = useState(null)
   const profileLock = useRef(false)
@@ -27,6 +29,8 @@ export default function ProfileEdit() {
         if (cancelled) return
         setNickname(profile.nickname ?? '')
         setSavedNickname(profile.nickname ?? '')
+        setPhone(profile.phone ?? '')
+        setSavedPhone(profile.phone ?? '')
       })
       .catch(() => {})
     return () => {
@@ -35,7 +39,7 @@ export default function ProfileEdit() {
   }, [])
 
   const trimmedNickname = nickname.trim()
-  const profileDirty = trimmedNickname !== savedNickname
+  const profileDirty = trimmedNickname !== savedNickname || phone.trim() !== savedPhone
 
   const handleProfileSave = async (e) => {
     e.preventDefault()
@@ -49,11 +53,13 @@ export default function ProfileEdit() {
     setProfileSaving(true)
     setProfileMessage(null)
     try {
-      const profile = await updateProfile({ nickname: trimmedNickname })
+      const profile = await updateProfile({ nickname: trimmedNickname, phone: phone.trim() })
       const current = getAuth()
       if (current) saveAuth({ ...current, nickname: profile.nickname })
       setNickname(profile.nickname)
       setSavedNickname(profile.nickname)
+      setPhone(profile.phone ?? '')
+      setSavedPhone(profile.phone ?? '')
       setProfileMessage({ type: 'success', text: '저장되었습니다.' })
     } catch (err) {
       setProfileMessage({ type: 'error', text: err.message })
@@ -121,7 +127,14 @@ export default function ProfileEdit() {
 
             <div className="profile-edit__field">
               <label htmlFor="phone">전화번호</label>
-              <input id="phone" type="tel" placeholder="준비 중입니다" disabled />
+              <input
+                id="phone"
+                type="tel"
+                placeholder="010-1234-5678 (선택)"
+                maxLength={20}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
             </div>
 
             {profileMessage && (

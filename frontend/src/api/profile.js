@@ -9,10 +9,10 @@ export function getProfile() {
   return apiRequest('/api/me', { token: authToken() })
 }
 
-export function updateProfile({ nickname }) {
+export function updateProfile({ nickname, phone }) {
   return apiRequest('/api/me', {
     method: 'PUT',
-    body: { nickname },
+    body: { nickname, phone },
     token: authToken(),
   })
 }

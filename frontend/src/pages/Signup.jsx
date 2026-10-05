@@ -9,6 +9,7 @@ export default function Signup() {
   const navigate = useNavigate()
   const [nickname, setNickname] = useState('')
   const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [error, setError] = useState('')
@@ -25,7 +26,7 @@ export default function Signup() {
 
     setSubmitting(true)
     try {
-      const auth = await signup({ email, password, nickname })
+      const auth = await signup({ email, password, nickname, phone: phone.trim() })
       saveAuth(auth)
       navigate('/')
     } catch (err) {
@@ -63,6 +64,18 @@ export default function Signup() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+            />
+          </div>
+
+          <div className="auth-field">
+            <label htmlFor="phone">전화번호 (선택)</label>
+            <input
+              id="phone"
+              type="tel"
+              placeholder="010-1234-5678"
+              maxLength={20}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
             />
           </div>
 

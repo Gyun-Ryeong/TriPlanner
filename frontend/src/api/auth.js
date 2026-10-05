@@ -1,7 +1,7 @@
 import { apiRequest } from './client.js'
 
-export function signup({ email, password, nickname }) {
-  return apiRequest('/api/auth/signup', { method: 'POST', body: { email, password, nickname } })
+export function signup({ email, password, nickname, phone }) {
+  return apiRequest('/api/auth/signup', { method: 'POST', body: { email, password, nickname, phone } })
 }
 
 export function login({ email, password }) {

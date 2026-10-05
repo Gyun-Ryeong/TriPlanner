@@ -70,7 +70,7 @@ export default function Alerts() {
               </div>
               <p className="alerts__temp">{w.temperature != null ? `${w.temperature}°` : '-'}</p>
               <p className="alerts__meta">{w.skyStatus}</p>
-              <p className="alerts__rain">강수확률 {w.precipitationProbability != null ? `${w.precipitationProbability}%` : '-'}</p>
+              <p className="alerts__rain">강수확률 (다음 1시간 기준) {w.precipitationProbability != null ? `${w.precipitationProbability}%` : '-'}</p>
             </div>
           ))}
         </div>
