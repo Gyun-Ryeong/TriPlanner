@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { ComposableMap, Geographies, Geography } from '@vnedyalk0v/react19-simple-maps'
 
 // 지도 경계 데이터(public/korea-provinces.json) 출처: 통계청 SGIS,
@@ -26,7 +26,8 @@ const PROVINCE_TO_REGION = {
   '제주특별자치도': 'jeju',
 }
 
-export default function KoreaMap({ selected, onSelect }) {
+// 부모(NewTrip)의 입력 상태가 바뀔 때마다 지도 전체가 다시 그려져 타이핑이 느려지므로 memo 로 감싼다
+function KoreaMap({ selected, onSelect }) {
   const [topology, setTopology] = useState(null)
   const [error, setError] = useState('')
 
@@ -103,3 +104,5 @@ export default function KoreaMap({ selected, onSelect }) {
     </ComposableMap>
   )
 }
+
+export default memo(KoreaMap)
