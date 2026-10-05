@@ -40,4 +40,12 @@ public class User {
         this.nickname = nickname;
         this.createdAt = LocalDateTime.now();
     }
+
+    public void changeNickname(String nickname) {
+        this.nickname = nickname;
+    }
+
+    public void changePassword(String encodedPassword) {
+        this.password = encodedPassword;
+    }
 }

@@ -1,5 +1,6 @@
+import { useEffect, useReducer } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { getAuth, clearAuth } from '../api/authStorage.js'
+import { AUTH_CHANGED_EVENT, getAuth, clearAuth } from '../api/authStorage.js'
 import './MainLayout.css'
 
 const NAV_ITEMS = [
@@ -12,7 +13,13 @@ const NAV_ITEMS = [
 
 export default function MainLayout() {
   const navigate = useNavigate()
+  const [, refreshAuth] = useReducer((n) => n + 1, 0)
   const auth = getAuth()
+
+  useEffect(() => {
+    window.addEventListener(AUTH_CHANGED_EVENT, refreshAuth)
+    return () => window.removeEventListener(AUTH_CHANGED_EVENT, refreshAuth)
+  }, [])
 
   function handleLogout() {
     clearAuth()
