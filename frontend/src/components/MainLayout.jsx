@@ -1,6 +1,7 @@
 import { useEffect, useReducer } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { AUTH_CHANGED_EVENT, getAuth, clearAuth } from '../api/authStorage.js'
+import ChatbotWidget from './ChatbotWidget.jsx'
 import './MainLayout.css'
 
 const NAV_ITEMS = [
@@ -76,6 +77,8 @@ export default function MainLayout() {
           <p className="app-footer__copyright">© 2026 TriPlanner</p>
         </div>
       </footer>
+
+      {auth && <ChatbotWidget />}
     </div>
   )
 }

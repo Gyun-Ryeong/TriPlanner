@@ -79,19 +79,13 @@
 
 .home__panels {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   gap: 20px;
 }
 
 .home__panel-title {
   margin: 0 0 8px;
   font-size: 16px;
-}
-
-.home__panel-desc {
-  font-size: 13px;
-  color: var(--color-text-muted);
-  margin: 0 0 16px;
 }
 
 .home__alert-item {

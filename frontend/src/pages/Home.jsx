@@ -108,14 +108,6 @@ export default function Home() {
 
       <div className="home__panels">
         <div className="card">
-          <h3 className="home__panel-title">AI 기반 여행 챗봇</h3>
-          <p className="home__panel-desc">
-            최신 여행 데이터에 기반해 실시간으로 맛집 및 동선을 추천해드려요.
-          </p>
-          <Link to="/chatbot" className="btn btn-block">챗봇 시작하기</Link>
-        </div>
-
-        <div className="card">
           <h3 className="home__panel-title">실시간 여행 알림</h3>
           <p className="home__alert-item">여행지의 날씨와 안전 신호를 확인해보세요.</p>
           <Link to="/alerts" className="btn btn-block">알림 전체 보기</Link>
