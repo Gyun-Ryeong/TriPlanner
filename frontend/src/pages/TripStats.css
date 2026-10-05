@@ -46,6 +46,16 @@
   overflow: hidden;
 }
 
+.trip-stats__link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.trip-stats__place-actions {
+  padding: 0 18px 16px;
+}
+
 .trip-stats__photo {
   height: 160px;
   background: linear-gradient(135deg, #93a5f0, #2f5fe0);

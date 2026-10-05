@@ -17,6 +17,10 @@ export function getMyTrips() {
   return apiRequest('/api/trips', { token: authToken() })
 }
 
+export function deleteTrip(tripId) {
+  return apiRequest(`/api/trips/${tripId}`, { method: 'DELETE', token: authToken() })
+}
+
 export function getTrip(tripId) {
   return apiRequest(`/api/trips/${tripId}`, { token: authToken() })
 }

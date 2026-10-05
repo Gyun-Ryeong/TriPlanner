@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { addTripItem, deleteTripItem, getDayRoute, getMyTrips, getTrip } from '../api/trips.js'
 import { savePlace, searchPlaces } from '../api/places.js'
 import { getNaverMapClientId } from '../api/config.js'
 import { loadNaverMapsScript } from '../lib/naverMaps.js'
+import TripDeleteButton from '../components/TripDeleteButton.jsx'
 import './TripSchedule.css'
 
 const REGION_CENTERS = {
@@ -47,6 +48,7 @@ function formatDuration(seconds) {
 export default function TripSchedule() {
   const { tripId } = useParams()
   const location = useLocation()
+  const navigate = useNavigate()
   const [trip, setTrip] = useState(null)
   const [selectedDayId, setSelectedDayId] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -386,6 +388,7 @@ export default function TripSchedule() {
               {routeLoading ? '경로 계산 중...' : activeRoute ? '길찾기 닫기' : '길찾기 시작'}
             </button>
           </div>
+          <TripDeleteButton tripId={trip.tripId} title={trip.title} onDeleted={() => navigate('/mytrips/stats', { replace: true })} />
           {routeError ? (
             <p className="trip-schedule__actions-note trip-schedule__search-error">{routeError}</p>
           ) : (

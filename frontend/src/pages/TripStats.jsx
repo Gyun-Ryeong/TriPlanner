@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getAuth } from '../api/authStorage.js'
 import { getMyTrips } from '../api/trips.js'
+import TripDeleteButton from '../components/TripDeleteButton.jsx'
 import './TripStats.css'
 
 function formatDateRange(startDate, endDate) {
@@ -70,16 +71,25 @@ export default function TripStats() {
         {loading && <p className="trip-stats__place-desc">불러오는 중...</p>}
         {!loading && trips.length === 0 && <p className="trip-stats__place-desc">아직 등록된 여행이 없어요.</p>}
         {trips.map((t) => (
-          <Link key={t.tripId} to={`/schedule/${t.tripId}`} className="trip-stats__place card">
-            <div className="trip-stats__photo" aria-hidden="true" />
-            <div className="trip-stats__place-body">
-              <div className="trip-stats__place-header">
-                <p className="trip-stats__place-name">{t.title}</p>
-                <span className="trip-stats__place-date">{formatDateRange(t.startDate, t.endDate)}</span>
+          <div key={t.tripId} className="trip-stats__place card">
+            <Link to={`/schedule/${t.tripId}`} className="trip-stats__link">
+              <div className="trip-stats__photo" aria-hidden="true" />
+              <div className="trip-stats__place-body">
+                <div className="trip-stats__place-header">
+                  <p className="trip-stats__place-name">{t.title}</p>
+                  <span className="trip-stats__place-date">{formatDateRange(t.startDate, t.endDate)}</span>
+                </div>
+                <p className="trip-stats__place-desc">{t.region}</p>
               </div>
-              <p className="trip-stats__place-desc">{t.region}</p>
+            </Link>
+            <div className="trip-stats__place-actions">
+              <TripDeleteButton
+                tripId={t.tripId}
+                title={t.title}
+                onDeleted={(id) => setTrips((prev) => prev.filter((trip) => trip.tripId !== id))}
+              />
             </div>
-          </Link>
+          </div>
         ))}
       </div>
     </div>

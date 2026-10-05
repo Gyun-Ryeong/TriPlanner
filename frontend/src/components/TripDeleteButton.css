@@ -1,0 +1,51 @@
+.trip-delete__trigger {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.trip-delete__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  background: #fef2f2;
+  max-width: 320px;
+  text-align: left;
+}
+
+.trip-delete__message {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  background: transparent;
+}
+
+.trip-delete__error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-danger);
+  background: transparent;
+}
+
+.trip-delete__buttons {
+  display: flex;
+  gap: 8px;
+  background: transparent;
+}
+
+.trip-delete__confirm-btn {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #fff;
+}
+
+.trip-delete__confirm-btn:hover {
+  background: #b91c1c;
+}
+
+.trip-delete__confirm .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
