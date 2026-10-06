@@ -1,4 +1,6 @@
-export const API_BASE_URL = 'http://localhost:8080'
+// 빈 값이면 현재 접속한 주소(5173)로 요청하고, Vite 프록시가 /api 를 백엔드(8080)로 전달한다
+// (ngrok 등 외부 주소로 접속해도 동작하도록 localhost:8080 을 직접 부르지 않는다)
+export const API_BASE_URL = ''
 
 export async function apiRequest(path, { method = 'GET', body, token } = {}) {
   const headers = { 'Content-Type': 'application/json' }

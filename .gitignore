@@ -30,3 +30,7 @@ out/
 *.class
 .gradle/
 .mvn/wrapper/maven-wrapper.jar
+
+# ngrok (local tunnel binary and launcher)
+/ngrok.exe
+/start-ngrok.bat
