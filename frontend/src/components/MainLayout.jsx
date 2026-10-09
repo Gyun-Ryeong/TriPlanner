@@ -1,7 +1,9 @@
 import { useEffect, useReducer } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { AUTH_CHANGED_EVENT, getAuth, clearAuth } from '../api/authStorage.js'
+import AlertBell from './AlertBell.jsx'
 import ChatbotWidget from './ChatbotWidget.jsx'
+import TripAlertsProvider from './TripAlertsProvider.jsx'
 import './MainLayout.css'
 
 const NAV_ITEMS = [
@@ -28,57 +30,62 @@ export default function MainLayout() {
   }
 
   return (
-    <div className="layout">
-      <header className="app-header">
-        <div className="app-header__inner">
-          <span className="app-header__logo">TriPlanner</span>
+    <TripAlertsProvider token={auth?.token}>
+      <div className="layout">
+        <header className="app-header">
+          <div className="app-header__inner">
+            <span className="app-header__logo">TriPlanner</span>
 
-          <nav className="app-header__nav">
-            {NAV_ITEMS.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  isActive ? 'app-header__link app-header__link--active' : 'app-header__link'
-                }
-              >
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
+            <nav className="app-header__nav">
+              {NAV_ITEMS.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className={({ isActive }) =>
+                    isActive ? 'app-header__link app-header__link--active' : 'app-header__link'
+                  }
+                >
+                  {item.label}
+                </NavLink>
+              ))}
+            </nav>
 
-          <div className="app-header__user">
-            {auth ? (
-              <>
-                <span className="app-header__user-name">{auth.nickname}님</span>
-                <button type="button" className="app-header__logout" onClick={handleLogout}>
-                  로그아웃
-                </button>
-              </>
-            ) : (
-              <NavLink to="/login" className="app-header__login-link">로그인</NavLink>
-            )}
+            <div className="app-header__user">
+              {auth ? (
+                <>
+                  <AlertBell />
+                  <Link to="/mytrips/edit" className="app-header__user-name">
+                    {auth.nickname}님
+                  </Link>
+                  <button type="button" className="app-header__logout" onClick={handleLogout}>
+                    로그아웃
+                  </button>
+                </>
+              ) : (
+                <NavLink to="/login" className="app-header__login-link">로그인</NavLink>
+              )}
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="app-content">
-        <Outlet />
-      </main>
+        <main className="app-content">
+          <Outlet />
+        </main>
 
-      <footer className="app-footer">
-        <div className="app-footer__inner">
-          <div>
-            <span className="app-footer__logo">TriPlanner</span>
-            <p className="app-footer__tagline">국내 여행의 모든 순간을 더 안전하고 자유롭게</p>
+        <footer className="app-footer">
+          <div className="app-footer__inner">
+            <div>
+              <span className="app-footer__logo">TriPlanner</span>
+              <p className="app-footer__tagline">국내 여행의 모든 순간을 더 안전하고 자유롭게</p>
+            </div>
+            <p className="app-footer__team">팀원 · 이동희 · 김령균 · 이시우</p>
+            <p className="app-footer__copyright">© 2026 TriPlanner</p>
           </div>
-          <p className="app-footer__team">팀원 · 이동희 · 김령균 · 이시우</p>
-          <p className="app-footer__copyright">© 2026 TriPlanner</p>
-        </div>
-      </footer>
+        </footer>
 
-      {auth && <ChatbotWidget />}
-    </div>
+        {auth && <ChatbotWidget />}
+      </div>
+    </TripAlertsProvider>
   )
 }

@@ -64,6 +64,16 @@
   color: var(--color-primary);
 }
 
+.app-header__user-name {
+  color: var(--color-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.app-header__user-name:hover {
+  color: var(--color-primary);
+}
+
 .app-header__user {
   display: flex;
   align-items: center;

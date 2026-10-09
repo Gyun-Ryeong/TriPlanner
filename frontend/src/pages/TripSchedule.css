@@ -47,6 +47,10 @@
   margin: 0;
 }
 
+.trip-schedule__alerts {
+  margin-bottom: 20px;
+}
+
 .trip-schedule__body {
   display: grid;
   grid-template-columns: 380px 1fr;

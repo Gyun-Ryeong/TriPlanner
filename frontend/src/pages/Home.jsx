@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getAuth } from '../api/authStorage.js'
 import { getMyTrips } from '../api/trips.js'
+import { TripAlertsOverview, TripAlertSummary } from '../components/TripAlertList.jsx'
+import { useTripAlerts } from '../lib/tripAlertsContext.js'
 import './Home.css'
 
 function formatUpcomingDate(startDate, endDate) {
@@ -13,10 +15,28 @@ function formatUpcomingDate(startDate, endDate) {
   return `${startLabel} — ${endLabel} · ${nights}박 ${nights + 1}일`
 }
 
+function localToday() {
+  const now = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+}
+
+// '다가오는 여행' 카드에서 알림 요약을 보여줄 수 없을 때의 안내 문구
+function upcomingAlertsMessage(trip, alertData, alertLoading) {
+  if (alertData && !alertData.alertsEnabled) return '여행 알림이 꺼져 있어요. 프로필 수정에서 다시 켤 수 있어요.'
+  if (trip.endDate < localToday()) return '이미 지난 여행이라 알림이 없어요.'
+  if (alertLoading && !alertData) return '불러오는 중...'
+  return '알림 정보를 불러오지 못했어요.'
+}
+
 export default function Home() {
   const auth = getAuth()
   const [upcomingTrip, setUpcomingTrip] = useState(null)
   const [loadingTrip, setLoadingTrip] = useState(true)
+  const { data: alertData, loading: alertLoading, error: alertError } = useTripAlerts()
+  const upcomingAlerts = upcomingTrip
+    ? alertData?.trips.find((t) => t.tripId === upcomingTrip.tripId)
+    : null
 
   useEffect(() => {
     if (!auth) {
@@ -83,9 +103,12 @@ export default function Home() {
               <p className="home__stat-main">{upcomingTrip.region}</p>
               <p className="home__stat-sub">{formatUpcomingDate(upcomingTrip.startDate, upcomingTrip.endDate)}</p>
               <div className="home__safety">
-                <p className="home__safety-label">여행 안전 지수</p>
-                <p className="home__safety-value">준비 중</p>
-                <p className="home__stat-sub">이 여행의 실시간 안전 정보 기능은 준비 중입니다.</p>
+                <p className="home__safety-label">여행 임박 알림</p>
+                {upcomingAlerts ? (
+                  <TripAlertSummary trip={upcomingAlerts} />
+                ) : (
+                  <p className="home__stat-sub">{upcomingAlertsMessage(upcomingTrip, alertData, alertLoading)}</p>
+                )}
               </div>
             </>
           ) : (
@@ -108,7 +131,9 @@ export default function Home() {
       <div className="home__panels">
         <div className="card">
           <h3 className="home__panel-title">실시간 여행 알림</h3>
-          <p className="home__alert-item">여행지의 날씨와 안전 신호를 확인해보세요.</p>
+          <div className="home__alert-body">
+            <TripAlertsOverview data={alertData} loading={alertLoading} error={alertError} />
+          </div>
           <Link to="/alerts" className="btn btn-block">알림 전체 보기</Link>
         </div>
       </div>

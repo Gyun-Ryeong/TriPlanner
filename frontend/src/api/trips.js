@@ -40,6 +40,11 @@ export function deleteTripItem(tripId, tripDayId, itemId) {
   })
 }
 
+// 내 여행별 임박 알림 (여행 시작이 오늘 포함 3일 이내일 때 날씨·대기질·기상특보 기반 주의/위험)
+export function getTripAlerts() {
+  return apiRequest('/api/trips/alerts', { token: authToken() })
+}
+
 export function getDayRoute(tripId, tripDayId) {
   return apiRequest(`/api/trips/${tripId}/days/${tripDayId}/route`, { token: authToken() })
 }

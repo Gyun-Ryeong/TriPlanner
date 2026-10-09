@@ -7,3 +7,7 @@ export function getRegionWeather() {
 export function getWeatherWarnings() {
   return apiRequest('/api/weather/warnings')
 }
+
+export function getRegionAirQuality() {
+  return apiRequest('/api/air-quality')
+}

@@ -5,6 +5,8 @@ import { savePlace, searchPlaces } from '../api/places.js'
 import { getNaverMapClientId } from '../api/config.js'
 import { loadNaverMapsScript } from '../lib/naverMaps.js'
 import TripDeleteButton from '../components/TripDeleteButton.jsx'
+import { TripAlertBlock } from '../components/TripAlertList.jsx'
+import { useTripAlerts } from '../lib/tripAlertsContext.js'
 import './TripSchedule.css'
 
 const REGION_CENTERS = {
@@ -51,6 +53,7 @@ export default function TripSchedule({ mode = 'view' }) {
   const planning = mode === 'plan'
   const { tripId } = useParams()
   const navigate = useNavigate()
+  const { data: alertData } = useTripAlerts()
   const [trip, setTrip] = useState(null)
   const [selectedDayId, setSelectedDayId] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -341,6 +344,8 @@ export default function TripSchedule({ mode = 'view' }) {
     }
   }
 
+  const tripAlert = trip ? alertData?.trips.find((t) => t.tripId === trip.tripId) : null
+
   if (loading) {
     return (
       <div className="trip-schedule">
@@ -412,6 +417,13 @@ export default function TripSchedule({ mode = 'view' }) {
           </div>
         )}
       </div>
+
+      {!planning && tripAlert && tripAlert.alerts.length > 0 && (
+        <div className="card trip-schedule__alerts">
+          <p className="card-label">이 여행의 임박 알림</p>
+          <TripAlertBlock trip={tripAlert} />
+        </div>
+      )}
 
       <div className="trip-schedule__body">
         <div className="card trip-schedule__list">

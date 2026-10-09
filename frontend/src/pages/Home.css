@@ -64,13 +64,6 @@
   color: var(--color-text-muted);
 }
 
-.home__safety-value {
-  margin: 0 0 4px;
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--color-primary);
-}
-
 .home__stat-main {
   font-size: 26px;
   font-weight: 700;
@@ -107,12 +100,7 @@
   font-size: 16px;
 }
 
-.home__alert-item {
-  background: #eef2ff;
-  color: var(--color-primary);
-  font-size: 13px;
-  padding: 12px 14px;
-  border-radius: var(--radius-md);
+.home__alert-body {
   margin: 0 0 16px;
 }
 

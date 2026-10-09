@@ -1,5 +1,6 @@
 package com.triplanner.backend.controller;
 
+import com.triplanner.backend.dto.TripAlertsResponse;
 import com.triplanner.backend.dto.TripCreateRequest;
 import com.triplanner.backend.dto.TripDetailResponse;
 import com.triplanner.backend.dto.TripItemRequest;
@@ -8,6 +9,7 @@ import com.triplanner.backend.dto.TripSummaryResponse;
 import com.triplanner.backend.dto.TripUpdateRequest;
 import com.triplanner.backend.dto.RouteResponse;
 import com.triplanner.backend.service.RouteService;
+import com.triplanner.backend.service.TripAlertService;
 import com.triplanner.backend.service.TripService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -28,10 +30,17 @@ public class TripController {
 
     private final TripService tripService;
     private final RouteService routeService;
+    private final TripAlertService tripAlertService;
 
-    public TripController(TripService tripService, RouteService routeService) {
+    public TripController(TripService tripService, RouteService routeService, TripAlertService tripAlertService) {
         this.tripService = tripService;
         this.routeService = routeService;
+        this.tripAlertService = tripAlertService;
+    }
+
+    @GetMapping("/alerts")
+    public ResponseEntity<TripAlertsResponse> getTripAlerts(Authentication authentication) {
+        return ResponseEntity.ok(tripAlertService.getAlerts(authentication.getName()));
     }
 
     @GetMapping("/{tripId}/days/{tripDayId}/route")

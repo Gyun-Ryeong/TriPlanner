@@ -64,6 +64,11 @@
   color: var(--color-warn);
 }
 
+.badge-info {
+  background: #e0e7ff;
+  color: var(--color-primary);
+}
+
 .badge-danger {
   background: #fee2e2;
   color: var(--color-danger);
