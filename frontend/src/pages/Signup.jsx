@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout.jsx'
 import { signup } from '../api/auth.js'
-import { saveAuth } from '../api/authStorage.js'
+import { CONSENT_ITEMS, EMPTY_CONSENTS } from '../lib/consentTexts.js'
+import { formatPhone } from '../lib/phoneFormat.js'
 import './auth-form.css'
 
 export default function Signup() {
@@ -14,6 +15,15 @@ export default function Signup() {
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [consents, setConsents] = useState(EMPTY_CONSENTS)
+  const [openConsent, setOpenConsent] = useState(null)
+
+  const requiredAgreed = CONSENT_ITEMS.every((item) => !item.required || consents[item.key])
+  const allChecked = CONSENT_ITEMS.every((item) => consents[item.key])
+
+  function handleToggleAll(e) {
+    setConsents(Object.fromEntries(CONSENT_ITEMS.map((item) => [item.key, e.target.checked])))
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -23,12 +33,15 @@ export default function Signup() {
       setError('비밀번호가 일치하지 않습니다.')
       return
     }
+    if (!requiredAgreed) {
+      setError('필수 약관에 동의해 주세요.')
+      return
+    }
 
     setSubmitting(true)
     try {
-      const auth = await signup({ email, password, nickname, phone: phone.trim() })
-      saveAuth(auth)
-      navigate('/')
+      await signup({ email, password, nickname, phone: phone.trim(), consents })
+      navigate('/login', { state: { signedUp: true } })
     } catch (err) {
       setError(err.message ?? '회원가입에 실패했습니다.')
     } finally {
@@ -44,7 +57,7 @@ export default function Signup() {
 
         <form onSubmit={handleSubmit}>
           <div className="auth-field">
-            <label htmlFor="name">이름</label>
+            <label htmlFor="name">이름<span className="auth-required" aria-hidden="true">*</span></label>
             <input
               id="name"
               type="text"
@@ -56,7 +69,7 @@ export default function Signup() {
           </div>
 
           <div className="auth-field">
-            <label htmlFor="email">이메일 주소</label>
+            <label htmlFor="email">이메일 주소<span className="auth-required" aria-hidden="true">*</span></label>
             <input
               id="email"
               type="email"
@@ -73,14 +86,15 @@ export default function Signup() {
               id="phone"
               type="tel"
               placeholder="010-1234-5678"
-              maxLength={20}
+              inputMode="numeric"
+              maxLength={13}
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(formatPhone(e.target.value))}
             />
           </div>
 
           <div className="auth-field">
-            <label htmlFor="password">비밀번호</label>
+            <label htmlFor="password">비밀번호<span className="auth-required" aria-hidden="true">*</span></label>
             <input
               id="password"
               type="password"
@@ -92,7 +106,7 @@ export default function Signup() {
           </div>
 
           <div className="auth-field">
-            <label htmlFor="passwordConfirm">비밀번호 확인</label>
+            <label htmlFor="passwordConfirm">비밀번호 확인<span className="auth-required" aria-hidden="true">*</span></label>
             <input
               id="passwordConfirm"
               type="password"
@@ -103,9 +117,47 @@ export default function Signup() {
             />
           </div>
 
+          <fieldset className="auth-consent">
+            <legend className="auth-consent__legend">약관 동의</legend>
+
+            <label className="auth-consent__all">
+              <input type="checkbox" checked={allChecked} onChange={handleToggleAll} />
+              <span>전체 동의 (선택 항목 포함)</span>
+            </label>
+
+            {CONSENT_ITEMS.map((item) => (
+              <div key={item.key} className="auth-consent__item">
+                <div className="auth-consent__row">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={consents[item.key]}
+                      onChange={(e) => setConsents((prev) => ({ ...prev, [item.key]: e.target.checked }))}
+                    />
+                    <span className={`auth-consent__tag ${item.required ? 'auth-consent__tag--required' : ''}`}>
+                      {item.required ? '필수' : '선택'}
+                    </span>
+                    <span>{item.label}</span>
+                  </label>
+                  <button
+                    type="button"
+                    className="auth-consent__view"
+                    aria-expanded={openConsent === item.key}
+                    onClick={() => setOpenConsent((prev) => (prev === item.key ? null : item.key))}
+                  >
+                    {openConsent === item.key ? '접기' : '보기'}
+                  </button>
+                </div>
+                {openConsent === item.key && <p className="auth-consent__text">{item.text}</p>}
+              </div>
+            ))}
+
+            <p className="auth-consent__note">약관 내용은 개발용 임시 문구이며, 정식 오픈 전에 검토를 거쳐 교체됩니다.</p>
+          </fieldset>
+
           {error && <p className="auth-error">{error}</p>}
 
-          <button type="submit" className="auth-submit" disabled={submitting}>
+          <button type="submit" className="auth-submit" disabled={submitting || !requiredAgreed}>
             {submitting ? '가입 중...' : '회원가입'}
           </button>
         </form>

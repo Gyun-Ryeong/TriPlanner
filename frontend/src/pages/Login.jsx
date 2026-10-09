@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout.jsx'
 import { login } from '../api/auth.js'
 import { saveAuth } from '../api/authStorage.js'
@@ -9,6 +9,7 @@ import './auth-form.css'
 export default function Login() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const signedUp = useLocation().state?.signedUp === true
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(searchParams.get('error') ?? '')
@@ -61,6 +62,9 @@ export default function Login() {
             />
           </div>
 
+          {signedUp && !error && (
+            <p className="auth-success">회원가입이 완료되었습니다. 새 계정으로 로그인해주세요.</p>
+          )}
           {error && <p className="auth-error">{error}</p>}
 
           <button type="submit" className="auth-submit" disabled={submitting}>

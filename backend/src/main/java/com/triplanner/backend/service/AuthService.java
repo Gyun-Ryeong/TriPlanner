@@ -30,9 +30,18 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 가입된 이메일입니다.");
         }
 
+        if (!Boolean.TRUE.equals(request.agreeTerms()) || !Boolean.TRUE.equals(request.agreePrivacy())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "필수 약관에 동의해 주세요.");
+        }
+
         String phone = PhoneNumbers.normalize(request.phone());
         User user = new User(request.email(), passwordEncoder.encode(request.password()), request.nickname().trim());
         user.changePhone(phone);
+        user.recordSignupConsent(
+                Boolean.TRUE.equals(request.agreeTripAlerts()),
+                Boolean.TRUE.equals(request.agreeThirdParty()),
+                Boolean.TRUE.equals(request.agreeMarketing())
+        );
         User saved = userRepository.save(user);
 
         String token = jwtProvider.generateToken(saved.getUserId(), saved.getEmail());
