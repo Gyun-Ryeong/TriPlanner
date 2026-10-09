@@ -1,5 +1,6 @@
 package com.triplanner.backend.controller;
 
+import com.triplanner.backend.dto.NotificationSettingsRequest;
 import com.triplanner.backend.dto.PasswordChangeRequest;
 import com.triplanner.backend.dto.ProfileResponse;
 import com.triplanner.backend.dto.ProfileUpdateRequest;
@@ -34,6 +35,14 @@ public class ProfileController {
             @Valid @RequestBody ProfileUpdateRequest request
     ) {
         return ResponseEntity.ok(profileService.updateProfile(authentication.getName(), request));
+    }
+
+    @PutMapping("/notifications")
+    public ResponseEntity<ProfileResponse> updateNotifications(
+            Authentication authentication,
+            @Valid @RequestBody NotificationSettingsRequest request
+    ) {
+        return ResponseEntity.ok(profileService.updateNotifications(authentication.getName(), request));
     }
 
     @PutMapping("/password")

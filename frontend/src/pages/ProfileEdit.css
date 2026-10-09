@@ -95,7 +95,17 @@
   border-bottom: none;
 }
 
+.profile-edit__toggle-row > div {
+  flex: 1;
+  padding-right: 16px;
+}
+
+.profile-edit__toggle-hint {
+  margin: 4px 0 0;
+}
+
 .toggle {
+  flex-shrink: 0;
   width: 42px;
   height: 24px;
   border-radius: 999px;

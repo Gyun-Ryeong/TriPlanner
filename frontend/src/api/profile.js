@@ -17,6 +17,14 @@ export function updateProfile({ nickname, phone }) {
   })
 }
 
+export function updateNotifications({ tripAlertsEnabled }) {
+  return apiRequest('/api/me/notifications', {
+    method: 'PUT',
+    body: { tripAlertsEnabled },
+    token: authToken(),
+  })
+}
+
 export function changePassword({ currentPassword, newPassword }) {
   return apiRequest('/api/me/password', {
     method: 'PUT',

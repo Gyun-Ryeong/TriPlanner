@@ -2,6 +2,7 @@ package com.triplanner.backend.service;
 
 import com.triplanner.backend.common.PhoneNumbers;
 import com.triplanner.backend.domain.User;
+import com.triplanner.backend.dto.NotificationSettingsRequest;
 import com.triplanner.backend.dto.PasswordChangeRequest;
 import com.triplanner.backend.dto.ProfileResponse;
 import com.triplanner.backend.dto.ProfileUpdateRequest;
@@ -41,6 +42,13 @@ public class ProfileService {
     }
 
     @Transactional
+    public ProfileResponse updateNotifications(String email, NotificationSettingsRequest request) {
+        User user = findUser(email);
+        user.changeNotifyTripAlerts(request.tripAlertsEnabled());
+        return toResponse(user);
+    }
+
+    @Transactional
     public void changePassword(String email, PasswordChangeRequest request) {
         User user = findUser(email);
 
@@ -63,6 +71,6 @@ public class ProfileService {
     }
 
     private ProfileResponse toResponse(User user) {
-        return new ProfileResponse(user.getUserId(), user.getEmail(), user.getNickname(), user.getPhone());
+        return new ProfileResponse(user.getUserId(), user.getEmail(), user.getNickname(), user.getPhone(), user.isNotifyTripAlerts());
     }
 }

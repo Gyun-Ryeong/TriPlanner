@@ -1,0 +1,71 @@
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 96px;
+  z-index: 1100;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 32px);
+  padding: 12px 20px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.92);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.25);
+  pointer-events: none;
+  transform: translateX(-50%);
+  opacity: 0;
+  animation-name: toast-in-out;
+  animation-timing-function: ease;
+  animation-fill-mode: forwards;
+}
+
+.toast__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-safe);
+  font-size: 11px;
+  line-height: 1;
+}
+
+/* 전체 시간(1.5초) 중 처음 12%는 나타나고, 마지막 17%는 사라진다 */
+@keyframes toast-in-out {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+  12%,
+  83% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation-name: toast-fade;
+  }
+
+  @keyframes toast-fade {
+    0%,
+    100% {
+      opacity: 0;
+      transform: translateX(-50%);
+    }
+    12%,
+    83% {
+      opacity: 1;
+      transform: translateX(-50%);
+    }
+  }
+}

@@ -1,6 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getAuth, saveAuth } from '../api/authStorage.js'
-import { changePassword, getProfile, updateProfile } from '../api/profile.js'
+import { changePassword, getProfile, updateNotifications, updateProfile } from '../api/profile.js'
+import Toast from '../components/Toast.jsx'
+import { formatPhone } from '../lib/phoneFormat.js'
+import { TRIP_ALERTS_REFRESH_EVENT } from '../lib/tripAlertsContext.js'
 import './ProfileEdit.css'
 
 const NICKNAME_MAX = 50
@@ -14,6 +17,13 @@ export default function ProfileEdit() {
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileMessage, setProfileMessage] = useState(null)
   const profileLock = useRef(false)
+
+  const [tripAlertsEnabled, setTripAlertsEnabled] = useState(true)
+  const [notificationsSaving, setNotificationsSaving] = useState(false)
+  const [notificationsMessage, setNotificationsMessage] = useState(null)
+  const [toast, setToast] = useState(null)
+  const clearToast = useCallback(() => setToast(null), [])
+  const notificationsLock = useRef(false)
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -31,6 +41,7 @@ export default function ProfileEdit() {
         setSavedNickname(profile.nickname ?? '')
         setPhone(profile.phone ?? '')
         setSavedPhone(profile.phone ?? '')
+        setTripAlertsEnabled(profile.tripAlertsEnabled)
       })
       .catch(() => {})
     return () => {
@@ -66,6 +77,29 @@ export default function ProfileEdit() {
     } finally {
       profileLock.current = false
       setProfileSaving(false)
+    }
+  }
+
+  // 토글은 누르는 즉시 저장한다 (저장 중에는 다시 누를 수 없다)
+  const handleToggleTripAlerts = async () => {
+    if (notificationsLock.current) return
+    notificationsLock.current = true
+    setNotificationsSaving(true)
+    setNotificationsMessage(null)
+    try {
+      const profile = await updateNotifications({ tripAlertsEnabled: !tripAlertsEnabled })
+      setTripAlertsEnabled(profile.tripAlertsEnabled)
+      window.dispatchEvent(new Event(TRIP_ALERTS_REFRESH_EVENT))
+      // 성공 안내는 1.5초만 떴다 사라지는 토스트로, 실패는 읽을 시간이 필요하므로 아래 빨간 글씨로 남긴다
+      setToast({
+        id: Date.now(),
+        text: profile.tripAlertsEnabled ? '여행 알림을 켰어요.' : '여행 알림을 껐어요.',
+      })
+    } catch (err) {
+      setNotificationsMessage({ type: 'error', text: err.message })
+    } finally {
+      notificationsLock.current = false
+      setNotificationsSaving(false)
     }
   }
 
@@ -131,9 +165,10 @@ export default function ProfileEdit() {
                 id="phone"
                 type="tel"
                 placeholder="010-1234-5678 (선택)"
-                maxLength={20}
+                inputMode="numeric"
+                maxLength={13}
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => setPhone(formatPhone(e.target.value))}
               />
             </div>
 
@@ -208,13 +243,37 @@ export default function ProfileEdit() {
         <div className="card">
           <p className="card-label">알림 및 업데이트 설정</p>
 
-          <ToggleRow label="여행 위험 실시간 알림" />
+          <div className="profile-edit__toggle-row">
+            <div>
+              <span>여행 위험 실시간 알림</span>
+              <p className="profile-edit__hint profile-edit__toggle-hint">
+                여행 3일 전부터 날씨·대기질·기상특보 알림을 받아요. 끄면 종 알림과 알림 목록이 표시되지 않아요.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={tripAlertsEnabled}
+              aria-label="여행 위험 실시간 알림"
+              className={`toggle ${tripAlertsEnabled ? 'toggle--on' : ''}`}
+              disabled={notificationsSaving}
+              onClick={handleToggleTripAlerts}
+            >
+              <span className="toggle__thumb" />
+            </button>
+          </div>
           <ToggleRow label="일정 변경 및 준비 알림" />
           <ToggleRow label="마케팅 정보 수신" />
 
-          <p className="profile-edit__hint">알림 설정은 구현 중입니다.</p>
+          {notificationsMessage && (
+            <p className={`profile-edit__message profile-edit__message--${notificationsMessage.type}`}>
+              {notificationsMessage.text}
+            </p>
+          )}
+          <p className="profile-edit__hint">일정 변경 및 준비 알림, 마케팅 정보 수신은 기능 준비 중입니다.</p>
         </div>
       </div>
+      <Toast message={toast} onClose={clearToast} />
     </div>
   )
 }
