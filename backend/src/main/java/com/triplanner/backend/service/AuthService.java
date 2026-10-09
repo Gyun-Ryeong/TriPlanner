@@ -6,6 +6,7 @@ import com.triplanner.backend.dto.AuthResponse;
 import com.triplanner.backend.dto.LoginRequest;
 import com.triplanner.backend.dto.SignupRequest;
 import com.triplanner.backend.repository.UserRepository;
+import com.triplanner.backend.security.AdminAccounts;
 import com.triplanner.backend.security.JwtProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -18,11 +19,18 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
+    private final AdminAccounts adminAccounts;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtProvider jwtProvider) {
+    public AuthService(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            JwtProvider jwtProvider,
+            AdminAccounts adminAccounts
+    ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtProvider = jwtProvider;
+        this.adminAccounts = adminAccounts;
     }
 
     public AuthResponse signup(SignupRequest request) {
@@ -45,7 +53,7 @@ public class AuthService {
         User saved = userRepository.save(user);
 
         String token = jwtProvider.generateToken(saved.getUserId(), saved.getEmail());
-        return new AuthResponse(token, saved.getUserId(), saved.getEmail(), saved.getNickname());
+        return new AuthResponse(token, saved.getUserId(), saved.getEmail(), saved.getNickname(), adminAccounts.isAdmin(saved.getEmail()));
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -57,6 +65,6 @@ public class AuthService {
         }
 
         String token = jwtProvider.generateToken(user.getUserId(), user.getEmail());
-        return new AuthResponse(token, user.getUserId(), user.getEmail(), user.getNickname());
+        return new AuthResponse(token, user.getUserId(), user.getEmail(), user.getNickname(), adminAccounts.isAdmin(user.getEmail()));
     }
 }

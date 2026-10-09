@@ -1,5 +1,6 @@
 package com.triplanner.backend.controller;
 
+import com.triplanner.backend.dto.ChatPlanImportRequest;
 import com.triplanner.backend.dto.TripAlertsResponse;
 import com.triplanner.backend.dto.TripCreateRequest;
 import com.triplanner.backend.dto.TripDetailResponse;
@@ -58,6 +59,15 @@ public class TripController {
             @Valid @RequestBody TripCreateRequest request
     ) {
         return ResponseEntity.ok(tripService.createTrip(authentication.getName(), request));
+    }
+
+    // 챗봇이 만든 일정을 '내 여행'으로 저장
+    @PostMapping("/import")
+    public ResponseEntity<TripSummaryResponse> importChatPlan(
+            Authentication authentication,
+            @Valid @RequestBody ChatPlanImportRequest request
+    ) {
+        return ResponseEntity.ok(tripService.importChatPlan(authentication.getName(), request));
     }
 
     @GetMapping

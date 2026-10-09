@@ -16,9 +16,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtProvider jwtProvider;
+    private final AdminAccounts adminAccounts;
 
-    public JwtAuthenticationFilter(JwtProvider jwtProvider) {
+    public JwtAuthenticationFilter(JwtProvider jwtProvider, AdminAccounts adminAccounts) {
         this.jwtProvider = jwtProvider;
+        this.adminAccounts = adminAccounts;
     }
 
     @Override
@@ -34,9 +36,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             if (jwtProvider.isValid(token)) {
                 String email = jwtProvider.getEmail(token);
-                var authentication = new UsernamePasswordAuthenticationToken(
-                        email, null, List.of(new SimpleGrantedAuthority("ROLE_USER"))
-                );
+                List<SimpleGrantedAuthority> authorities = adminAccounts.isAdmin(email)
+                        ? List.of(new SimpleGrantedAuthority("ROLE_USER"), new SimpleGrantedAuthority(AdminAccounts.ROLE_ADMIN))
+                        : List.of(new SimpleGrantedAuthority("ROLE_USER"));
+                var authentication = new UsernamePasswordAuthenticationToken(email, null, authorities);
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         }

@@ -5,6 +5,7 @@ import com.triplanner.backend.domain.Trip;
 import com.triplanner.backend.domain.TripDay;
 import com.triplanner.backend.domain.TripItem;
 import com.triplanner.backend.domain.User;
+import com.triplanner.backend.dto.ChatPlanImportRequest;
 import com.triplanner.backend.dto.TripCreateRequest;
 import com.triplanner.backend.dto.TripDayResponse;
 import com.triplanner.backend.dto.TripDetailResponse;
@@ -17,8 +18,12 @@ import com.triplanner.backend.repository.TripDayRepository;
 import com.triplanner.backend.repository.TripItemRepository;
 import com.triplanner.backend.repository.TripRepository;
 import com.triplanner.backend.repository.UserRepository;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +34,27 @@ import org.springframework.web.server.ResponseStatusException;
 public class TripService {
 
     private static final String DEFAULT_STATUS = "PLANNED";
+    private static final int MAX_IMPORT_DAYS = 31;
+
+    private static final Map<String, String> APP_REGIONS = Map.ofEntries(
+            Map.entry("서울", "서울 특별시"),
+            Map.entry("경기", "경기도 / 인천"),
+            Map.entry("인천", "경기도 / 인천"),
+            Map.entry("강원", "강원도"),
+            Map.entry("충북", "충청도"),
+            Map.entry("충남", "충청도"),
+            Map.entry("대전", "충청도"),
+            Map.entry("세종", "충청도"),
+            Map.entry("전북", "전라도"),
+            Map.entry("전남", "전라도"),
+            Map.entry("광주", "전라도"),
+            Map.entry("경북", "경상도"),
+            Map.entry("경남", "경상도"),
+            Map.entry("부산", "경상도"),
+            Map.entry("대구", "경상도"),
+            Map.entry("울산", "경상도"),
+            Map.entry("제주", "제주도")
+    );
 
     private final TripRepository tripRepository;
     private final TripDayRepository tripDayRepository;
@@ -59,6 +85,39 @@ public class TripService {
         generateDays(saved, request.startDate(), request.endDate());
 
         return toSummary(saved);
+    }
+
+    // 챗봇이 만든 일정을 새 여행으로 저장한다. 저장한 뒤에는 일반 여행과 똑같이 항목을 고치거나 지울 수 있다
+    public TripSummaryResponse importChatPlan(String email, ChatPlanImportRequest request) {
+        User user = currentUser(email);
+        validateDateRange(request.startDate(), request.endDate());
+        if (request.startDate().plusDays(MAX_IMPORT_DAYS - 1).isBefore(request.endDate())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "한 번에 " + MAX_IMPORT_DAYS + "일까지 저장할 수 있습니다.");
+        }
+
+        Trip trip = tripRepository.save(new Trip(
+                user, request.title().trim(), toAppRegion(request.sido()), request.startDate(), request.endDate(), DEFAULT_STATUS));
+        generateDays(trip, request.startDate(), request.endDate());
+
+        Map<LocalDate, TripDay> daysByDate = new HashMap<>();
+        for (TripDay day : tripDayRepository.findByTrip_TripIdOrderByDayNumberAsc(trip.getTripId())) {
+            daysByDate.put(day.getDate(), day);
+        }
+
+        for (ChatPlanImportRequest.Day planDay : request.days()) {
+            TripDay day = daysByDate.get(planDay.date());
+            if (day == null || planDay.items() == null) {
+                continue; // 여행 기간 밖의 날짜는 건너뛴다
+            }
+            int order = 1;
+            for (ChatPlanImportRequest.Item planItem : planDay.items()) {
+                Place place = planItem.place() == null ? null : findOrCreatePlace(planItem.place());
+                tripItemRepository.save(new TripItem(
+                        day, place, planItem.itemType(), order++, planItem.startTime(), blankToNull(planItem.memo())));
+            }
+        }
+
+        return toSummary(trip);
     }
 
     public List<TripSummaryResponse> getMyTrips(String email) {
@@ -174,6 +233,34 @@ public class TripService {
         }
         return placeRepository.findById(placeId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "장소를 찾을 수 없습니다."));
+    }
+
+    // 같은 TourAPI 장소는 place 테이블에 한 번만 저장한다 (PlaceService.save 와 같은 기준)
+    private Place findOrCreatePlace(ChatPlanImportRequest.PlaceInfo info) {
+        return placeRepository.findByContentId(info.contentId())
+                .orElseGet(() -> placeRepository.save(new Place(
+                        info.contentId(),
+                        info.name(),
+                        info.category(),
+                        info.address(),
+                        toDecimal(info.latitude()),
+                        toDecimal(info.longitude()),
+                        null
+                )));
+    }
+
+    // 챗봇의 시도명 → 새 여행 화면에서 고르는 권역 이름 (실시간 알림이 이 이름으로 지역을 찾는다)
+    private String toAppRegion(String sido) {
+        String name = sido == null ? "" : sido.trim();
+        return APP_REGIONS.getOrDefault(name, name);
+    }
+
+    private BigDecimal toDecimal(Double value) {
+        return value == null ? null : BigDecimal.valueOf(value).setScale(7, RoundingMode.HALF_UP);
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private void validateDateRange(LocalDate startDate, LocalDate endDate) {
