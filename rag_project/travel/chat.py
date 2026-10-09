@@ -658,7 +658,9 @@ def _generate_multi(session: ChatSession, start: date, text: str, today: date, r
     first = next(iter(subs.values()))
     session.slots = dict(first.slots)
     session.view = {
-        "trips": [{"region": label, "plan": (sub.view or {}).get("plan"), "conditions": (sub.view or {}).get("conditions"),
+        "trips": [{"region": label, "sido": sub.slots["region"], "area": sub.slots["area"],
+                   "start_date": sub.slots["start_date"], "end_date": sub.slots["end_date"],
+                   "plan": (sub.view or {}).get("plan"), "conditions": (sub.view or {}).get("conditions"),
                    "risks": (sub.view or {}).get("risks", [])} for label, sub in subs.items()],
         "caveats": list(dict.fromkeys(c for sub in subs.values() for c in (sub.view or {}).get("caveats", []))),
     }
@@ -692,7 +694,7 @@ def _route_trip(session: ChatSession, text: str, today: date, ranker) -> dict | 
     for sido, area in regs:
         for sub in session.trips.values():
             if sub.slots["region"] == sido and (not area or not sub.slots["area"] or area == sub.slots["area"]):
-                res = handle_message(sub, text, today, ranker)
+                res = _handle_message(sub, text, today, ranker)
                 session.history.append({"role": "assistant", "content": res["reply"].split(FOOTER_TITLE)[0].rstrip("-\n ")})
                 return {**res, "session_id": session.session_id}
     if regs:
@@ -720,12 +722,10 @@ def _pack(session: ChatSession, stage: str, reply: str, extra_caveats: list[str]
         "intent": "plan", "places": None, "news": None, "place": None, "trips": view.get("trips"),
         **(extra or {}),
     }
-    if not DEV_MODE:  # 서비스에서는 API 오류·제약사항·소요 시간 같은 내부 정보를 응답에 싣지 않는다
-        result.update(caveats=[], timings=None, llm_stats=None)
     return result
 
 
-def handle_message(session: ChatSession, text: str, today: date | None = None, ranker=None) -> dict:
+def handle_message(session: ChatSession, text: str, today: date | None = None, ranker=None, debug: bool = False) -> dict:
     """
     사용자 메시지 한 건을 처리하고 챗봇 응답을 돌려줍니다.
 
@@ -733,7 +733,15 @@ def handle_message(session: ChatSession, text: str, today: date | None = None, r
         {"session_id", "stage": "asking"|"planned", "reply"(마크다운), "slots", "missing",
          "plan"(일자별 구조), "conditions"(일자별 날씨·미세먼지), "risks", "caveats", "used_sources"}
     LLM이나 외부 API가 실패해도 예외를 던지지 않고, 가능한 범위에서 응답하며 caveats에 사유를 남깁니다.
+    debug=True 이면 DEV_MODE 가 꺼져 있어도 이 응답에만 caveats·timings·llm_stats 를 싣습니다 (관리자 화면용).
     """
+    result = _handle_message(session, text, today, ranker)
+    if not (DEV_MODE or debug):  # 서비스에서는 API 오류·제약사항·소요 시간 같은 내부 정보를 응답에 싣지 않는다
+        result.update(caveats=[], timings=None, llm_stats=None)
+    return result
+
+
+def _handle_message(session: ChatSession, text: str, today: date | None, ranker) -> dict:
     today = today or date.today()
     text = (text or "").strip()
     with session.lock:

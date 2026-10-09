@@ -189,6 +189,14 @@ class HideInternalsTests(unittest.TestCase):
             r = self.say("성남시 요즘 소식 있어?")
         self.assertTrue(r["caveats"])  # 개발 모드에서는 사유가 남는다
 
+    def test_debug_request_carries_internals_even_when_dev_mode_is_off(self):
+        self.session.slots.update(region="경기", area="성남")
+        with patch.object(self.chat, "DEV_MODE", False), patch("travel.news.search_news", side_effect=RuntimeError("boom")):
+            r = self.chat.handle_message(self.session, "성남시 요즘 소식 있어?", today=TODAY, ranker=FakeRanker(), debug=True)
+            self.assertTrue(r["caveats"])  # 관리자 디버그 요청에만 사유가 실린다
+            r = self.say("성남시 요즘 소식 있어?")
+            self.assertEqual(r["caveats"], [])
+
     def test_plan_reply_has_no_news_followup_or_internal_phrases(self):
         import time
         from tests.test_chat import ChatFlowTests

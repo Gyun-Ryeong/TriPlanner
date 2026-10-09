@@ -57,6 +57,7 @@ SESSION_TTL_SEC = 2 * 60 * 60
 class ChatRequest(BaseModel):
     session_id: str | None = Field(None, description="이전 응답의 session_id. 비우면 새 대화를 시작")
     message: str = Field("", description="사용자 메시지. 비워서 보내면 인사말을 돌려줌")
+    debug: bool = Field(False, description="true면 이 응답에 caveats·timings·llm_stats 포함 (백엔드가 관리자에게만 허용)")
 
 
 def _get_session(session_id: str | None) -> ChatSession:
@@ -80,7 +81,7 @@ def chat(req: ChatRequest):
           plan(일자별 일정), conditions(일자별 날씨·미세먼지), risks(이슈 뉴스), caveats(제약사항)
     """
     sess = _get_session(req.session_id)
-    return handle_message(sess, req.message)
+    return handle_message(sess, req.message, debug=req.debug)
 
 
 @app.delete("/chat/{session_id}")
