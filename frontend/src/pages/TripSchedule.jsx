@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { addTripItem, deleteTripItem, getDayRoute, getMyTrips, getTrip } from '../api/trips.js'
 import { savePlace, searchPlaces } from '../api/places.js'
 import { getNaverMapClientId } from '../api/config.js'
@@ -45,9 +45,11 @@ function formatDuration(seconds) {
   return minutes === 0 ? `${hours}시간` : `${hours}시간 ${minutes}분`
 }
 
-export default function TripSchedule() {
+// mode="plan": 새 여행을 만든 직후 일차별 계획을 입력하는 전용 화면 (항상 입력 상태, 길찾기·삭제 없음)
+// mode="view": 기존 일정을 보고 필요할 때만 '일정 수정'으로 고치는 화면
+export default function TripSchedule({ mode = 'view' }) {
+  const planning = mode === 'plan'
   const { tripId } = useParams()
-  const location = useLocation()
   const navigate = useNavigate()
   const [trip, setTrip] = useState(null)
   const [selectedDayId, setSelectedDayId] = useState(null)
@@ -55,8 +57,8 @@ export default function TripSchedule() {
   const [error, setError] = useState('')
   const [mapError, setMapError] = useState('')
   const [mapReady, setMapReady] = useState(false)
-  // 새 여행을 만든 직후에는 일차별 계획을 바로 입력할 수 있도록 수정 모드로 시작한다
-  const [editing, setEditing] = useState(Boolean(location.state?.startEditing))
+  const [viewEditing, setViewEditing] = useState(false)
+  const editing = planning || viewEditing
   const [memoText, setMemoText] = useState('')
   const [keyword, setKeyword] = useState('')
   const [searchResults, setSearchResults] = useState(null)
@@ -172,7 +174,8 @@ export default function TripSchedule() {
 
   useEffect(() => {
     const map = mapInstanceRef.current
-    if (!map || !window.naver || !selectedDay) return
+    // 등록되지 않은 주소에서는 지도 인증이 실패해 naver.maps 가 비어 있으므로, 그때는 마커를 그리지 않는다
+    if (!map || !window.naver?.maps || !selectedDay) return
 
     markersRef.current.forEach((marker) => marker.setMap(null))
     markersRef.current = []
@@ -367,34 +370,47 @@ export default function TripSchedule() {
     <div className="trip-schedule">
       <div className="trip-schedule__header">
         <div>
-          <p className="trip-schedule__eyebrow">다가오는 여행</p>
-          <h1 className="trip-schedule__title">{trip.title}</h1>
+          <p className="trip-schedule__eyebrow">{planning ? '새 여행 · 일정 만들기' : '다가오는 여행'}</p>
+          <h1 className="trip-schedule__title">{planning ? `${trip.title} 일정 만들기` : trip.title}</h1>
           <p className="trip-schedule__meta">
             {trip.region} · {formatDateRange(trip.startDate, trip.endDate)}
           </p>
         </div>
-        <div className="trip-schedule__actions">
-          <div className="trip-schedule__actions-row">
-            <button type="button" className="btn" onClick={() => setEditing((prev) => !prev)}>
-              {editing ? '수정 완료' : '일정 수정'}
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={routeLoading || (!activeRoute && routableCount < 2)}
-              title={routableCount < 2 ? '서로 다른 위치의 장소가 2곳 이상 필요합니다' : undefined}
-              onClick={handleRoute}
-            >
-              {routeLoading ? '경로 계산 중...' : activeRoute ? '길찾기 닫기' : '길찾기 시작'}
-            </button>
+        {planning ? (
+          <div className="trip-schedule__actions">
+            <div className="trip-schedule__actions-row">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => navigate(`/schedule/${trip.tripId}`, { replace: true })}
+              >
+                작성 완료
+              </button>
+            </div>
+            <p className="trip-schedule__actions-note">
+              추가한 장소와 메모는 바로 저장돼요. 완료 후에도 일정 화면의 &lsquo;일정 수정&rsquo;으로 고칠 수 있어요.
+            </p>
           </div>
-          <TripDeleteButton tripId={trip.tripId} title={trip.title} onDeleted={() => navigate('/mytrips/stats', { replace: true })} />
-          {routeError ? (
-            <p className="trip-schedule__actions-note trip-schedule__search-error">{routeError}</p>
-          ) : (
-            <p className="trip-schedule__actions-note">길찾기는 자동차 기준으로 계산됩니다.</p>
-          )}
-        </div>
+        ) : (
+          <div className="trip-schedule__actions">
+            <div className="trip-schedule__actions-row">
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={routeLoading || (!activeRoute && routableCount < 2)}
+                title={routableCount < 2 ? '서로 다른 위치의 장소가 2곳 이상 필요합니다' : undefined}
+                onClick={handleRoute}
+              >
+                {routeLoading ? '경로 계산 중...' : activeRoute ? '길찾기 닫기' : '길찾기 시작'}
+              </button>
+            </div>
+            {routeError ? (
+              <p className="trip-schedule__actions-note trip-schedule__search-error">{routeError}</p>
+            ) : (
+              <p className="trip-schedule__actions-note">길찾기는 자동차 기준으로 계산됩니다.</p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="trip-schedule__body">
@@ -406,25 +422,37 @@ export default function TripSchedule() {
             <span className="badge badge-safe">{selectedDay?.items.length ?? 0}개 장소</span>
           </div>
 
-          {trip.days.length > 1 && (
+          {(trip.days.length > 1 || !planning) && (
             <div className="trip-schedule__day-tabs">
-              {trip.days.map((day) => (
+              <div className="trip-schedule__day-tab-list">
+                {trip.days.length > 1 &&
+                  trip.days.map((day) => (
+                    <button
+                      key={day.tripDayId}
+                      type="button"
+                      className={`trip-schedule__day-tab ${day.tripDayId === selectedDay?.tripDayId ? 'trip-schedule__day-tab--active' : ''}`}
+                      onClick={() => setSelectedDayId(day.tripDayId)}
+                    >
+                      {day.dayNumber}일차 ({day.items.length})
+                    </button>
+                  ))}
+              </div>
+              {!planning && (
                 <button
-                  key={day.tripDayId}
                   type="button"
-                  className={`trip-schedule__day-tab ${day.tripDayId === selectedDay?.tripDayId ? 'trip-schedule__day-tab--active' : ''}`}
-                  onClick={() => setSelectedDayId(day.tripDayId)}
+                  className="trip-schedule__day-tab trip-schedule__edit-toggle"
+                  onClick={() => setViewEditing((prev) => !prev)}
                 >
-                  {day.dayNumber}일차 ({day.items.length})
+                  {viewEditing ? '수정 완료' : '일정 수정'}
                 </button>
-              ))}
+              )}
             </div>
           )}
 
           {editing && (
             <p className="trip-schedule__edit-guide">
               {trip.days.length > 1 ? '일차 탭을 눌러 날짜별로 ' : ''}계획을 입력하세요. 장소는 아래에서 검색해 추가하고,
-              장소가 아직 정해지지 않았다면 메모로 적어둘 수 있어요. 다 입력했으면 &lsquo;수정 완료&rsquo;를 눌러주세요.
+              장소가 아직 정해지지 않았다면 메모로 적어둘 수 있어요. 다 입력했으면 &lsquo;{planning ? '작성 완료' : '수정 완료'}&rsquo;를 눌러주세요.
             </p>
           )}
 
@@ -549,6 +577,16 @@ export default function TripSchedule() {
           )}
         </div>
       </div>
+
+      {!planning && (
+        <div className="trip-schedule__danger-zone">
+          <TripDeleteButton
+            tripId={trip.tripId}
+            title={trip.title}
+            onDeleted={() => navigate('/mytrips/stats', { replace: true })}
+          />
+        </div>
+      )}
     </div>
   )
 }

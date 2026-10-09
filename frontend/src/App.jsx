@@ -31,6 +31,7 @@ export default function App() {
           <Route path="/mytrips/stats" element={<TripStats />} />
           <Route path="/mytrips/edit" element={<ProfileEdit />} />
           <Route path="/trips/new" element={<NewTrip />} />
+          <Route path="/trips/:tripId/plan" element={<TripSchedule mode="plan" />} />
           <Route path="/alerts" element={<Alerts />} />
         </Route>
       </Route>

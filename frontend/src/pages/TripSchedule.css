@@ -69,12 +69,40 @@
 
 .trip-schedule__day-tabs {
   display: flex;
+  align-items: center;
   gap: 8px;
   margin-bottom: 12px;
 }
 
+/* 일차가 많으면 탭만 가로로 스크롤되고, '일정 수정' 버튼은 항상 같은 줄 오른쪽에 남는다 */
+.trip-schedule__day-tab-list {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.trip-schedule__day-tab-list .trip-schedule__day-tab {
+  flex-shrink: 0;
+}
+
+.trip-schedule__edit-toggle {
+  flex-shrink: 0;
+  color: var(--color-primary);
+}
+
+.trip-schedule__danger-zone {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+}
+
 .trip-schedule__day-tab {
-  padding: 6px 12px;
+  padding: 6px 10px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
