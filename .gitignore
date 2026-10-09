@@ -11,6 +11,7 @@ desktop.ini
 
 # Local AI assistant workspace (kept out of the repo)
 .c*de/
+.cur*r/
 
 # Personal reference files (not part of the repo)
 Ref/
