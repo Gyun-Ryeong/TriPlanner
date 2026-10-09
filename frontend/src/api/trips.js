@@ -33,6 +33,19 @@ export function addTripItem(tripId, tripDayId, { placeId, itemType, visitOrder, 
   })
 }
 
+export function updateTripItem(tripId, tripDayId, itemId, { placeId, itemType, visitOrder, startTime, memo }) {
+  return apiRequest(`/api/trips/${tripId}/days/${tripDayId}/items/${itemId}`, {
+    method: 'PUT',
+    body: { placeId, itemType, visitOrder, startTime, memo },
+    token: authToken(),
+  })
+}
+
+// 챗봇이 만든 일정을 새 여행으로 저장 (요청 형식은 chat/planExport.js 참고)
+export function importChatPlan(request) {
+  return apiRequest('/api/trips/import', { method: 'POST', body: request, token: authToken() })
+}
+
 export function deleteTripItem(tripId, tripDayId, itemId) {
   return apiRequest(`/api/trips/${tripId}/days/${tripDayId}/items/${itemId}`, {
     method: 'DELETE',

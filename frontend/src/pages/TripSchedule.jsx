@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { addTripItem, deleteTripItem, getDayRoute, getMyTrips, getTrip } from '../api/trips.js'
+import { addTripItem, deleteTripItem, getDayRoute, getMyTrips, getTrip, updateTripItem } from '../api/trips.js'
 import { savePlace, searchPlaces } from '../api/places.js'
 import { getNaverMapClientId } from '../api/config.js'
 import { loadNaverMapsScript } from '../lib/naverMaps.js'
@@ -69,6 +69,8 @@ export default function TripSchedule({ mode = 'view' }) {
   const [editError, setEditError] = useState('')
   const [busyId, setBusyId] = useState(null)
   const busyLock = useRef(false)
+  // 항목 하나의 시간·메모를 고치는 중이면 그 항목 id 와 입력값
+  const [itemEdit, setItemEdit] = useState(null)
   const [route, setRoute] = useState(null)
   const [routeLoading, setRouteLoading] = useState(false)
   const routeLock = useRef(false)
@@ -344,6 +346,79 @@ export default function TripSchedule({ mode = 'view' }) {
     }
   }
 
+  function itemRequest(item, changes) {
+    return {
+      placeId: item.placeId,
+      itemType: item.itemType,
+      visitOrder: item.visitOrder,
+      startTime: item.startTime,
+      memo: item.memo,
+      ...changes,
+    }
+  }
+
+  function startItemEdit(item) {
+    setEditError('')
+    setItemEdit({ itemId: item.tripItemId, time: formatTime(item.startTime), memo: item.memo ?? '' })
+  }
+
+  async function handleSaveItem(event, item) {
+    event.preventDefault()
+    if (busyLock.current) return
+    // 메모 항목은 메모가 곧 이름이라 비울 수 없다
+    if (!item.placeId && !itemEdit.memo.trim()) {
+      setEditError('메모 항목은 내용을 비울 수 없어요. 필요 없으면 삭제해 주세요.')
+      return
+    }
+    busyLock.current = true
+    setBusyId(item.tripItemId)
+    setEditError('')
+    try {
+      const updated = await updateTripItem(trip.tripId, selectedDay.tripDayId, item.tripItemId, itemRequest(item, {
+        startTime: itemEdit.time ? `${itemEdit.time}:00` : null,
+        memo: itemEdit.memo.trim() || null,
+      }))
+      updateDayItems(selectedDay.tripDayId, (items) =>
+        items.map((it) => (it.tripItemId === item.tripItemId ? updated : it)),
+      )
+      setItemEdit(null)
+    } catch (err) {
+      setEditError(err.message ?? '일정을 수정하지 못했습니다.')
+    } finally {
+      busyLock.current = false
+      setBusyId(null)
+    }
+  }
+
+  // 위/아래 항목과 자리를 바꾸고, 하루 전체 순서를 1부터 다시 매긴다 (바뀐 항목만 저장)
+  async function handleMove(index, direction) {
+    const items = selectedDay.items
+    const target = index + direction
+    if (busyLock.current || target < 0 || target >= items.length) return
+    busyLock.current = true
+    setBusyId(items[index].tripItemId)
+    setEditError('')
+    const reordered = [...items]
+    ;[reordered[index], reordered[target]] = [reordered[target], reordered[index]]
+    try {
+      const saved = await Promise.all(
+        reordered.map((item, i) =>
+          item.visitOrder === i + 1
+            ? item
+            : updateTripItem(trip.tripId, selectedDay.tripDayId, item.tripItemId, itemRequest(item, { visitOrder: i + 1 })),
+        ),
+      )
+      updateDayItems(selectedDay.tripDayId, () => saved)
+    } catch (err) {
+      setEditError(err.message ?? '순서를 바꾸지 못했습니다.')
+      // 일부만 저장됐을 수 있으므로 서버 기준으로 다시 불러온다
+      getTrip(trip.tripId).then(setTrip).catch(() => {})
+    } finally {
+      busyLock.current = false
+      setBusyId(null)
+    }
+  }
+
   const tripAlert = trip ? alertData?.trips.find((t) => t.tripId === trip.tripId) : null
 
   if (loading) {
@@ -453,7 +528,10 @@ export default function TripSchedule({ mode = 'view' }) {
                 <button
                   type="button"
                   className="trip-schedule__day-tab trip-schedule__edit-toggle"
-                  onClick={() => setViewEditing((prev) => !prev)}
+                  onClick={() => {
+                    setViewEditing((prev) => !prev)
+                    setItemEdit(null)
+                  }}
                 >
                   {viewEditing ? '수정 완료' : '일정 수정'}
                 </button>
@@ -464,7 +542,8 @@ export default function TripSchedule({ mode = 'view' }) {
           {editing && (
             <p className="trip-schedule__edit-guide">
               {trip.days.length > 1 ? '일차 탭을 눌러 날짜별로 ' : ''}계획을 입력하세요. 장소는 아래에서 검색해 추가하고,
-              장소가 아직 정해지지 않았다면 메모로 적어둘 수 있어요. 다 입력했으면 &lsquo;{planning ? '작성 완료' : '수정 완료'}&rsquo;를 눌러주세요.
+              장소가 아직 정해지지 않았다면 메모로 적어둘 수 있어요. 각 항목의 ↑↓로 순서를, &lsquo;수정&rsquo;으로 시간·메모를 바꿀 수 있어요.
+              다 입력했으면 &lsquo;{planning ? '작성 완료' : '수정 완료'}&rsquo;를 눌러주세요.
             </p>
           )}
 
@@ -500,16 +579,75 @@ export default function TripSchedule({ mode = 'view' }) {
                   )}
                 </p>
                 {item.startTime && <p className="trip-schedule__meta">{formatTime(item.startTime)}</p>}
+                {item.placeName && item.memo && <p className="trip-schedule__meta">{item.memo}</p>}
+                {editing && itemEdit?.itemId === item.tripItemId && (
+                  <form className="trip-schedule__item-edit" onSubmit={(event) => handleSaveItem(event, item)}>
+                    <label>
+                      시간
+                      <input
+                        type="time"
+                        value={itemEdit.time}
+                        onChange={(event) => setItemEdit((prev) => ({ ...prev, time: event.target.value }))}
+                      />
+                    </label>
+                    <label>
+                      {item.placeId ? '메모' : '내용'}
+                      <input
+                        type="text"
+                        value={itemEdit.memo}
+                        maxLength={MEMO_MAX_LENGTH}
+                        placeholder={item.placeId ? '예: 입장권 미리 예매' : '메모 내용'}
+                        onChange={(event) => setItemEdit((prev) => ({ ...prev, memo: event.target.value }))}
+                      />
+                    </label>
+                    <div className="trip-schedule__item-edit-actions">
+                      <button type="submit" className="btn btn-primary" disabled={busyId !== null}>
+                        저장
+                      </button>
+                      <button type="button" className="btn" disabled={busyId !== null} onClick={() => setItemEdit(null)}>
+                        취소
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
-              {editing && (
-                <button
-                  type="button"
-                  className="btn trip-schedule__stop-remove"
-                  disabled={busyId !== null}
-                  onClick={() => handleDelete(item)}
-                >
-                  삭제
-                </button>
+              {editing && itemEdit?.itemId !== item.tripItemId && (
+                <div className="trip-schedule__stop-actions">
+                  <button
+                    type="button"
+                    className="btn trip-schedule__stop-move"
+                    aria-label="위로 이동"
+                    disabled={busyId !== null || index === 0}
+                    onClick={() => handleMove(index, -1)}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="btn trip-schedule__stop-move"
+                    aria-label="아래로 이동"
+                    disabled={busyId !== null || index === selectedDay.items.length - 1}
+                    onClick={() => handleMove(index, 1)}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    className="btn trip-schedule__stop-remove"
+                    disabled={busyId !== null}
+                    onClick={() => startItemEdit(item)}
+                  >
+                    수정
+                  </button>
+                  <button
+                    type="button"
+                    className="btn trip-schedule__stop-remove"
+                    disabled={busyId !== null}
+                    onClick={() => handleDelete(item)}
+                  >
+                    삭제
+                  </button>
+                </div>
               )}
             </div>
             {routeLegs.has(item.tripItemId) && (

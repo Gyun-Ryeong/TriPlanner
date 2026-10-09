@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
 import MainLayout from './components/MainLayout.jsx'
 import RequireAuth from './components/RequireAuth.jsx'
+import RequireAdmin from './components/RequireAdmin.jsx'
 import Login from './pages/Login.jsx'
 import Signup from './pages/Signup.jsx'
 import NaverCallback from './pages/NaverCallback.jsx'
@@ -12,6 +13,7 @@ import MyTrips from './pages/MyTrips.jsx'
 import TripStats from './pages/TripStats.jsx'
 import ProfileEdit from './pages/ProfileEdit.jsx'
 import Alerts from './pages/Alerts.jsx'
+import Admin from './pages/Admin.jsx'
 
 export default function App() {
   return (
@@ -33,6 +35,10 @@ export default function App() {
           <Route path="/trips/new" element={<NewTrip />} />
           <Route path="/trips/:tripId/plan" element={<TripSchedule mode="plan" />} />
           <Route path="/alerts" element={<Alerts />} />
+        </Route>
+
+        <Route element={<RequireAdmin />}>
+          <Route path="/admin" element={<Admin />} />
         </Route>
       </Route>
     </Routes>
