@@ -206,6 +206,63 @@
   font-size: 12px;
 }
 
+.trip-schedule__stop-actions {
+  align-self: center;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.trip-schedule__stop-move {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.trip-schedule__stop-actions .btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.trip-schedule__item-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.trip-schedule__item-edit label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.trip-schedule__item-edit label:nth-child(2) {
+  flex: 1;
+  min-width: 160px;
+}
+
+.trip-schedule__item-edit input {
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: 13px;
+}
+
+.trip-schedule__item-edit-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.trip-schedule__item-edit-actions .btn {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
 .trip-schedule__search {
   margin-top: 16px;
   padding-top: 16px;

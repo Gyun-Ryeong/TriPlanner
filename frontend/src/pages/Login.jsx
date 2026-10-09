@@ -40,9 +40,12 @@ export default function Login() {
         <form onSubmit={handleSubmit}>
           <div className="auth-field">
             <label htmlFor="email">이메일 주소</label>
+            {/* 관리자 아이디(test)는 이메일 형식이 아니라서 type="email" 대신 text 를 쓴다 */}
             <input
               id="email"
-              type="email"
+              type="text"
+              inputMode="email"
+              autoComplete="username"
               placeholder="이메일입력"
               value={email}
               onChange={(e) => setEmail(e.target.value)}

@@ -14,6 +14,8 @@ const NAV_ITEMS = [
   { to: '/alerts', label: '실시간 알림' },
 ]
 
+const ADMIN_NAV_ITEM = { to: '/admin', label: '관리자' }
+
 export default function MainLayout() {
   const navigate = useNavigate()
   const [, refreshAuth] = useReducer((n) => n + 1, 0)
@@ -37,7 +39,7 @@ export default function MainLayout() {
             <span className="app-header__logo">TriPlanner</span>
 
             <nav className="app-header__nav">
-              {NAV_ITEMS.map((item) => (
+              {(auth?.admin ? [...NAV_ITEMS, ADMIN_NAV_ITEM] : NAV_ITEMS).map((item) => (
                 <NavLink
                   key={item.to}
                   to={item.to}
@@ -79,7 +81,6 @@ export default function MainLayout() {
               <span className="app-footer__logo">TriPlanner</span>
               <p className="app-footer__tagline">국내 여행의 모든 순간을 더 안전하고 자유롭게</p>
             </div>
-            <p className="app-footer__team">팀원 · 이동희 · 김령균 · 이시우</p>
             <p className="app-footer__copyright">© 2026 TriPlanner</p>
           </div>
         </footer>
