@@ -1,0 +1,11 @@
+# Streamlit 설정 (프로젝트 폴더에서 `streamlit run`을 실행할 때 자동으로 적용됩니다)
+
+[client]
+# 화면 오른쪽 위의 'Deploy' 버튼과 개발자 메뉴(Rerun, Clear cache 등)를 숨깁니다.
+# 다른 값: "viewer"(Deploy는 숨기고 인쇄·테마 같은 보기 옵션은 남김), "developer"(전부 표시)
+toolbarMode = "minimal"
+# 사용자 화면에 파이썬 오류 상세(traceback)를 보여주지 않습니다. 개발 중에 보려면 "full"로 바꾸세요.
+showErrorDetails = "none"
+
+[browser]
+gatherUsageStats = false

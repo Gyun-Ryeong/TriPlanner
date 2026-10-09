@@ -1,0 +1,9 @@
+requests
+python-dotenv
+xmltodict
+chromadb
+sentence-transformers
+streamlit
+fastapi
+uvicorn
+numpy
