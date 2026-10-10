@@ -141,3 +141,34 @@
     grid-template-columns: 1fr;
   }
 }
+
+.profile-edit__withdraw {
+  margin-top: 20px;
+}
+
+.profile-edit__withdraw-list {
+  margin: 0 0 14px;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--color-text-muted);
+}
+
+.profile-edit__withdraw-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.profile-edit__withdraw-button {
+  margin-top: 14px;
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.profile-edit__withdraw-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -1,6 +1,6 @@
 import { apiRequest } from './client.js'
 
-// consents: { terms, privacy } 는 필수 동의, { tripAlerts, thirdParty, marketing } 는 선택 동의
+// consents: { terms, privacy } 는 필수 동의, { tripAlerts, marketing } 는 선택 동의
 export function signup({ email, password, nickname, phone, consents }) {
   return apiRequest('/api/auth/signup', {
     method: 'POST',
@@ -12,7 +12,6 @@ export function signup({ email, password, nickname, phone, consents }) {
       agreeTerms: consents.terms,
       agreePrivacy: consents.privacy,
       agreeTripAlerts: consents.tripAlerts,
-      agreeThirdParty: consents.thirdParty,
       agreeMarketing: consents.marketing,
     },
   })

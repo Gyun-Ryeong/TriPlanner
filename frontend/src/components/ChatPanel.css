@@ -252,3 +252,9 @@
 .chat-panel--compact .chat-panel__send {
   padding: 8px 12px;
 }
+
+/* 홈 하단 챗봇 위젯: 입력창을 3줄 높이로 키우고 글씨는 본 화면보다 2px 작게 */
+.chat-panel--compact .chat-panel__input {
+  font-size: 12px;
+  line-height: 1.5;
+}

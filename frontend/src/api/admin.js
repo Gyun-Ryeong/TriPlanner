@@ -8,3 +8,7 @@ export function getAdminStatus() {
 export function getAdminUsers() {
   return apiRequest('/api/admin/users', { token: getAuth()?.token })
 }
+
+export function restoreAdminUser(userId) {
+  return apiRequest(`/api/admin/users/${userId}/restore`, { method: 'POST', token: getAuth()?.token })
+}

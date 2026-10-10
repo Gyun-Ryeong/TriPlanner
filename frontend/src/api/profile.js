@@ -25,10 +25,22 @@ export function updateNotifications({ tripAlertsEnabled }) {
   })
 }
 
+export function updateMarketingConsent({ marketingConsent }) {
+  return apiRequest('/api/me/marketing', {
+    method: 'PUT',
+    body: { marketingConsent },
+    token: authToken(),
+  })
+}
+
 export function changePassword({ currentPassword, newPassword }) {
   return apiRequest('/api/me/password', {
     method: 'PUT',
     body: { currentPassword, newPassword },
     token: authToken(),
   })
+}
+
+export function withdraw() {
+  return apiRequest('/api/me', { method: 'DELETE', token: authToken() })
 }

@@ -39,7 +39,7 @@ TriPlanner/
 
 ### 구현 완료
 - **회원/인증**: 회원가입(필수·선택 약관 동의 포함)/로그인(JWT), 프로필 수정(이름·전화번호·비밀번호 변경), 여행 알림 켜기/끄기. 네이버 로그인 코드는 있으나 실제 로그인 흐름은 아직 검증되지 않았습니다.
-- **여행 일정**: 지역(지도에서 선택) · 날짜로 여행 생성, 일차별 일정 입력 전용 화면과 조회 화면 분리, 장소 검색(한국관광공사 TourAPI)·메모 추가/삭제, 여행 삭제.
+- **여행 일정**: 지역(지도에서 선택) · 날짜로 여행 생성, 일차별 일정 입력 전용 화면과 조회 화면 분리, 장소 검색(네이버 지역 검색)·메모 추가/삭제, 여행 삭제.
 - **지도/길찾기**: 네이버 지도에 장소 마커와 동선 표시, 하루 동선의 자동차 길찾기(네이버 Directions).
 - **실시간 알림**: 권역(서울/경기·인천/강원/충청/전라/경상/제주)별 날씨(기상청 단기예보, 기온 범위 + 가장 주의할 도시, '도시별 보기'로 부산·대구 등 도시별 확인), 기상특보 현황, 권역별 대기질 현황(에어코리아, 시도별 값 펼쳐 보기). 여행 시작이 3일 이내이면 날씨·대기질 예보·기상특보로 **주의/참고** 알림을 만들어 헤더 종 아이콘, Home, 알림 탭, 일정 화면에 보여줍니다. (예보는 여행일 기준 3일 이내만 제공)
 - **공통 화면**: 로그인 상태에 따른 라우트 보호, 플로팅 챗봇 위젯.
@@ -54,7 +54,7 @@ TriPlanner/
 - **대한민국 시도 경계 지도 데이터** (`frontend/public/korea-provinces.json`): 통계청 통계지리정보서비스(SGIS)가 공개한 자료를 [southkorea/southkorea-maps](https://github.com/southkorea/southkorea-maps) 저장소가 정리해 배포한 것을 사용했습니다. [공공누리 제1유형](http://www.kogl.or.kr/info/license.do) 라이선스.
 - **날씨·기상특보**: 기상청 단기예보·기상특보 조회서비스 (공공데이터포털)
 - **대기질**: 한국환경공단 에어코리아 대기오염정보 (공공데이터포털)
-- **장소 검색**: 한국관광공사 TourAPI (공공데이터포털)
+- **장소 검색**: 네이버 지역 검색 API (NAVER API HUB, `naver.app` 키 사용, 한 번에 최대 5건)
 - **지도·길찾기**: 네이버 클라우드 플랫폼 Maps (Dynamic Map, Directions)
 
 ## 전체 실행 순서
@@ -118,10 +118,15 @@ ALTER TABLE `user`
   ADD COLUMN consent_at DATETIME NULL,
   ADD COLUMN consent_third_party TINYINT(1) NOT NULL DEFAULT 0,
   ADD COLUMN consent_marketing TINYINT(1) NOT NULL DEFAULT 0;
+
+-- user: 회원 탈퇴 시각 (탈퇴 후 14일이 지나면 회원과 관련 데이터 파기)
+ALTER TABLE `user` ADD COLUMN withdrawn_at DATETIME NULL AFTER consent_marketing;
 ```
 
 - `notify_trip_alerts`: 프로필에서 켜고 끄는 여행 알림 설정 (기본값 켜짐)
 - `consent_at`: 필수 약관(이용약관, 개인정보 수집·이용) 동의 시각 — 회원가입 화면을 거치지 않은 계정은 `NULL`
-- `consent_third_party`, `consent_marketing`: 선택 동의 여부
+- `consent_third_party`: 제3자 제공 동의 — 회원가입 항목에서 삭제되어 새 가입자는 항상 `0` (기존 데이터 호환용으로 컬럼만 유지)
+- `consent_marketing`: 마케팅 정보 수신 동의 여부
+- `withdrawn_at`: 회원 탈퇴 시각 — 값이 있으면 로그인·API 사용이 막히고, 14일이 지나면 매시 정각에 회원·여행·일정·챗봇 기록을 파기 (관리자 페이지에서 그 전에 복구 가능)
 
-> 회원가입 화면의 약관 본문은 개발용 임시 문구입니다. 정식 서비스 전에 검토된 약관으로 교체해야 합니다.
+> 회원가입 약관 문구의 정본은 루트의 `약관동의.md` 이며, 화면 문구는 `frontend/src/lib/consentTexts.js` 에서 관리합니다.

@@ -202,7 +202,7 @@ export default function ChatPanel({ compact = false }) {
       >
         <textarea
           className="chat-panel__input"
-          rows={compact ? 1 : 2}
+          rows={compact ? 3 : 2}
           maxLength={1000}
           placeholder="예: 다음 주 강릉 1박 2일, 바다 보면서 쉬고 싶어요"
           value={input}

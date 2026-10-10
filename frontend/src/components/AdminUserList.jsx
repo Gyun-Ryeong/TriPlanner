@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getAdminUsers } from '../api/admin.js'
+import { getAdminUsers, restoreAdminUser } from '../api/admin.js'
 
 function formatDate(value) {
   if (!value) return '-'
@@ -20,6 +20,17 @@ export default function AdminUserList() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
+  }
+
+  // 탈퇴 회원 복구: 보관 기간 안에만 가능하다
+  async function handleRestore(user) {
+    if (!window.confirm(`${user.email} 회원의 탈퇴를 취소하고 계정을 복구할까요?`)) return
+    try {
+      await restoreAdminUser(user.userId)
+      reloadUsers()
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
   function reloadUsers() {
@@ -75,6 +86,7 @@ export default function AdminUserList() {
               <th>여행 수</th>
               <th>여행 알림</th>
               <th>마케팅 동의</th>
+              <th>상태</th>
             </tr>
           </thead>
           <tbody>
@@ -91,11 +103,24 @@ export default function AdminUserList() {
                 <td>{user.tripCount}</td>
                 <td>{user.tripAlertsEnabled ? '켜짐' : '꺼짐'}</td>
                 <td>{user.marketingConsent ? '동의' : '-'}</td>
+                <td>
+                  {user.withdrawnAt ? (
+                    <>
+                      <span className="badge badge-danger">탈퇴</span>
+                      <span className="admin__hint"> {formatDate(user.purgeAt)} 파기 예정 </span>
+                      <button type="button" className="btn" onClick={() => handleRestore(user)}>
+                        복구
+                      </button>
+                    </>
+                  ) : (
+                    '정상'
+                  )}
+                </td>
               </tr>
             ))}
             {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={8} className="admin__empty">
+                <td colSpan={9} className="admin__empty">
                   {query ? '검색 결과가 없습니다.' : '회원이 없습니다.'}
                 </td>
               </tr>

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AuthLayout from '../components/AuthLayout.jsx'
 import { signup } from '../api/auth.js'
-import { CONSENT_ITEMS, EMPTY_CONSENTS } from '../lib/consentTexts.js'
+import { CONSENT_ITEMS, CONSENT_NOTE, EMPTY_CONSENTS } from '../lib/consentTexts.js'
 import { formatPhone } from '../lib/phoneFormat.js'
 import './auth-form.css'
 
@@ -152,7 +152,7 @@ export default function Signup() {
               </div>
             ))}
 
-            <p className="auth-consent__note">약관 내용은 개발용 임시 문구이며, 정식 오픈 전에 검토를 거쳐 교체됩니다.</p>
+            <p className="auth-consent__note">{CONSENT_NOTE}</p>
           </fieldset>
 
           {error && <p className="auth-error">{error}</p>}
