@@ -12,6 +12,8 @@ public record AdminUserResponse(
         boolean tripAlertsEnabled,
         boolean marketingConsent,
         long tripCount,
-        boolean admin
+        boolean admin,
+        LocalDateTime withdrawnAt,
+        LocalDateTime purgeAt
 ) {
 }

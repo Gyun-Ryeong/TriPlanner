@@ -102,6 +102,9 @@ public class NaverAuthService {
 
         User user = userRepository.findByEmail(email)
                 .orElseGet(() -> userRepository.save(new User(email, passwordEncoder.encode(UUID.randomUUID().toString()), nickname)));
+        if (user.isWithdrawn()) {
+            return errorRedirect(AuthService.WITHDRAWN_ACCOUNT_MESSAGE);
+        }
 
         String jwt = jwtProvider.generateToken(user.getUserId(), user.getEmail());
 

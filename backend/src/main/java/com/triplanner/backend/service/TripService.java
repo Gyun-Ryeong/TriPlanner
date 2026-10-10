@@ -235,7 +235,7 @@ public class TripService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "장소를 찾을 수 없습니다."));
     }
 
-    // 같은 TourAPI 장소는 place 테이블에 한 번만 저장한다 (PlaceService.save 와 같은 기준)
+    // 같은 장소(contentId 기준)는 place 테이블에 한 번만 저장한다 (PlaceService.save 와 같은 기준)
     private Place findOrCreatePlace(ChatPlanImportRequest.PlaceInfo info) {
         return placeRepository.findByContentId(info.contentId())
                 .orElseGet(() -> placeRepository.save(new Place(

@@ -20,6 +20,8 @@ naver:
   login:
     client-id: your_naver_login_client_id
     client-secret: your_naver_login_client_secret
+  # NAVER API HUB(네이버 클라우드 콘솔 > NAVER API HUB) 앱 키 - 일정 장소 검색(지역 검색)에 사용
+  # HUB 앱을 만들 때 '지역 검색' API 를 선택해야 한다 (개발자센터 검색 API 는 HUB 로 이관됨)
   app:
     client-id: your_naver_app_client_id
     client-secret: your_naver_app_client_secret
@@ -27,6 +29,6 @@ naver:
     client-id: your_naver_map_client_id
     client-secret: your_naver_map_client_secret
 
-# data.go.kr(공공데이터포털) 발급 키 - TourAPI(한국관광공사), 에어코리아(한국환경공단) 공용
+# data.go.kr(공공데이터포털) 발급 키 - 기상청, 에어코리아(한국환경공단) 공용
 public-data:
   service-key: your_data_go_kr_service_key
