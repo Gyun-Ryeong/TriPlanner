@@ -48,7 +48,9 @@ public class AdminService {
                 user.isNotifyTripAlerts(),
                 user.isConsentMarketing(),
                 tripCount,
-                adminAccounts.isAdmin(user.getEmail())
+                adminAccounts.isAdmin(user.getEmail()),
+                user.getWithdrawnAt(),
+                user.isWithdrawn() ? user.getWithdrawnAt().plusDays(WithdrawalService.RETENTION_DAYS) : null
         );
     }
 }

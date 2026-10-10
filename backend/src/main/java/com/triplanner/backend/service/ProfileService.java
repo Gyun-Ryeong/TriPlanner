@@ -2,6 +2,7 @@ package com.triplanner.backend.service;
 
 import com.triplanner.backend.common.PhoneNumbers;
 import com.triplanner.backend.domain.User;
+import com.triplanner.backend.dto.MarketingConsentRequest;
 import com.triplanner.backend.dto.NotificationSettingsRequest;
 import com.triplanner.backend.dto.PasswordChangeRequest;
 import com.triplanner.backend.dto.ProfileResponse;
@@ -48,6 +49,14 @@ public class ProfileService {
         return toResponse(user);
     }
 
+    // 마케팅 정보 수신 동의·철회 (약관: 프로필 수정에서 언제든 철회 가능)
+    @Transactional
+    public ProfileResponse updateMarketingConsent(String email, MarketingConsentRequest request) {
+        User user = findUser(email);
+        user.changeConsentMarketing(request.marketingConsent());
+        return toResponse(user);
+    }
+
     @Transactional
     public void changePassword(String email, PasswordChangeRequest request) {
         User user = findUser(email);
@@ -71,6 +80,7 @@ public class ProfileService {
     }
 
     private ProfileResponse toResponse(User user) {
-        return new ProfileResponse(user.getUserId(), user.getEmail(), user.getNickname(), user.getPhone(), user.isNotifyTripAlerts());
+        return new ProfileResponse(user.getUserId(), user.getEmail(), user.getNickname(), user.getPhone(),
+                user.isNotifyTripAlerts(), user.isConsentMarketing());
     }
 }

@@ -45,11 +45,16 @@ public class User {
     @Column(name = "consent_at")
     private LocalDateTime consentAt;
 
+    // 제3자 제공 동의 항목은 회원가입에서 삭제됨 (제3자 제공을 하지 않음). 기존 DB 컬럼 호환을 위해 남겨 두며 새 가입자는 항상 false
     @Column(name = "consent_third_party", nullable = false)
     private boolean consentThirdParty;
 
     @Column(name = "consent_marketing", nullable = false)
     private boolean consentMarketing;
+
+    // 회원 탈퇴 시각. null 이면 정상 회원이고, 값이 있으면 로그인·API 사용이 막히며 보관 기간이 지나면 관련 데이터와 함께 파기된다
+    @Column(name = "withdrawn_at")
+    private LocalDateTime withdrawnAt;
 
     public User(String email, String password, String nickname) {
         this.email = email;
@@ -74,10 +79,25 @@ public class User {
         this.notifyTripAlerts = enabled;
     }
 
-    public void recordSignupConsent(boolean tripAlerts, boolean thirdParty, boolean marketing) {
+    public void changeConsentMarketing(boolean consent) {
+        this.consentMarketing = consent;
+    }
+
+    public void recordSignupConsent(boolean tripAlerts, boolean marketing) {
         this.consentAt = LocalDateTime.now();
         this.notifyTripAlerts = tripAlerts;
-        this.consentThirdParty = thirdParty;
         this.consentMarketing = marketing;
+    }
+
+    public void withdraw() {
+        this.withdrawnAt = LocalDateTime.now();
+    }
+
+    public void restore() {
+        this.withdrawnAt = null;
+    }
+
+    public boolean isWithdrawn() {
+        return withdrawnAt != null;
     }
 }
