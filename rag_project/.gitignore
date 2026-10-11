@@ -4,3 +4,4 @@ cache/
 .agents/
 .env
 .env.example
+eval/results/

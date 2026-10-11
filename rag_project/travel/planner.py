@@ -64,7 +64,8 @@ def _s(v) -> str:
     return str(v).strip() if v not in (None,) else ""
 
 
-def normalize_plan(parsed, cand_map: dict[str, dict], dates: list[str]) -> tuple[dict | None, list[str]]:
+def normalize_plan(parsed, cand_map: dict[str, dict], dates: list[str],
+                   stats: dict | None = None) -> tuple[dict | None, list[str]]:
     """
     LLM 응답을 검증·정리합니다.
 
@@ -72,6 +73,7 @@ def normalize_plan(parsed, cand_map: dict[str, dict], dates: list[str]) -> tuple
         (plan, warnings)
         plan = {"message", "days": [{"theme","items":[{"slot","candidate_id","note"}]}] | None, "follow_up"}
         days가 None이면 일정 변경 없이 message만 있는 응답. 파싱 불가/전부 비었으면 plan 자체가 None.
+    stats 를 넘기면 품질 지표용으로 {"proposed": AI가 제안한 장소 수, "dropped": 후보에 없어 버린 수}를 채운다.
     """
     warnings: list[str] = []
     if not isinstance(parsed, dict):
@@ -82,7 +84,7 @@ def normalize_plan(parsed, cand_map: dict[str, dict], dates: list[str]) -> tuple
         return ({"message": message, "days": None, "follow_up": follow} if message else None), warnings
 
     used: set[str] = set()
-    dropped = 0
+    dropped = proposed = 0
     entries: list[tuple[str | None, dict]] = []
     for d in days_raw:
         if not isinstance(d, dict):
@@ -96,6 +98,7 @@ def normalize_plan(parsed, cand_map: dict[str, dict], dates: list[str]) -> tuple
             cid = _s(cid) if cid not in (None, "", "null", "None") else None
             note, slot = _s(it.get("note")), _s(it.get("slot"))
             if cid is not None:
+                proposed += 1
                 if cid not in cand_map:
                     dropped += 1  # 후보에 없는 장소 = 지어낸 장소
                     continue
@@ -121,6 +124,8 @@ def normalize_plan(parsed, cand_map: dict[str, dict], dates: list[str]) -> tuple
     for date_ in dates:
         days.append(assigned.get(date_) or (leftovers.pop(0) if leftovers else {"theme": "", "items": []}))
 
+    if stats is not None:
+        stats.update(proposed=proposed, dropped=dropped)
     if dropped:
         warnings.append(f"AI가 후보에 없는 장소 {dropped}곳을 제안해 제외했습니다.")
     if all(not d["items"] for d in days):
