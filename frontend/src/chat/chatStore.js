@@ -66,11 +66,16 @@ window.addEventListener(AUTH_CHANGED_EVENT, () => {
   }
 })
 
-// 개발자 모드 응답에만 들어 있는 내부 정보 (API 오류·소요 시간·AI 속도)
+// 개발자 모드 응답에만 들어 있는 내부 정보 (API 오류·소요 시간·AI 속도·일정 품질 지표)
 function debugInfo(data) {
   const caveats = data.caveats ?? []
-  if (caveats.length === 0 && !data.timings && !data.llm_stats) return null
-  return { caveats, timings: data.timings ?? null, llmStats: data.llm_stats ?? null }
+  if (caveats.length === 0 && !data.timings && !data.llm_stats && !data.evaluation) return null
+  return {
+    caveats,
+    timings: data.timings ?? null,
+    llmStats: data.llm_stats ?? null,
+    evaluation: data.evaluation ?? null,
+  }
 }
 
 async function request(message) {

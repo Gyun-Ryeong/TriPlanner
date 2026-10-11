@@ -60,6 +60,11 @@
   flex-wrap: wrap;
 }
 
+.mytrips__risk-body {
+  flex: 1;
+  min-width: 0;
+}
+
 .mytrips__risk-title {
   font-size: 18px;
   font-weight: 700;

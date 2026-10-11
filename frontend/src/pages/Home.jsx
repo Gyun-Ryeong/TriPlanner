@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getAuth } from '../api/authStorage.js'
 import { getMyTrips } from '../api/trips.js'
-import { TripAlertsOverview, TripAlertSummary } from '../components/TripAlertList.jsx'
+import { TripAlertsOverview, TripAlertSummary, upcomingAlertsMessage } from '../components/TripAlertList.jsx'
 import { useTripAlerts } from '../lib/tripAlertsContext.js'
 import './Home.css'
 
@@ -13,20 +13,6 @@ function formatUpcomingDate(startDate, endDate) {
   const startLabel = `${start.getFullYear()}. ${start.getMonth() + 1}. ${start.getDate()}`
   const endLabel = `${end.getMonth() + 1}. ${end.getDate()}`
   return `${startLabel} — ${endLabel} · ${nights}박 ${nights + 1}일`
-}
-
-function localToday() {
-  const now = new Date()
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
-}
-
-// '다가오는 여행' 카드에서 알림 요약을 보여줄 수 없을 때의 안내 문구
-function upcomingAlertsMessage(trip, alertData, alertLoading) {
-  if (alertData && !alertData.alertsEnabled) return '여행 알림이 꺼져 있어요. 프로필 수정에서 다시 켤 수 있어요.'
-  if (trip.endDate < localToday()) return '이미 지난 여행이라 알림이 없어요.'
-  if (alertLoading && !alertData) return '불러오는 중...'
-  return '알림 정보를 불러오지 못했어요.'
 }
 
 export default function Home() {

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getAuth } from '../api/authStorage.js'
 import { getMyTrips } from '../api/trips.js'
+import { TripAlertBlock, upcomingAlertsMessage } from '../components/TripAlertList.jsx'
+import { useTripAlerts } from '../lib/tripAlertsContext.js'
 import './MyTrips.css'
 
 function formatDate(dateString) {
@@ -13,6 +15,7 @@ export default function MyTrips() {
   const auth = getAuth()
   const [trips, setTrips] = useState([])
   const [loading, setLoading] = useState(true)
+  const { data: alertData, loading: alertLoading } = useTripAlerts()
 
   useEffect(() => {
     let cancelled = false
@@ -35,6 +38,9 @@ export default function MyTrips() {
 
   const regionCount = new Set(trips.map((t) => t.region)).size
   const upcomingTrip = trips[0] ?? null
+  const upcomingAlerts = upcomingTrip
+    ? alertData?.trips.find((t) => t.tripId === upcomingTrip.tripId)
+    : null
 
   return (
     <div className="mytrips">
@@ -67,11 +73,15 @@ export default function MyTrips() {
             <p className="mytrips__meta">불러오는 중...</p>
           ) : upcomingTrip ? (
             <>
-              <div>
+              <div className="mytrips__risk-body">
                 <p className="mytrips__risk-title">{upcomingTrip.region} · {formatDate(upcomingTrip.startDate)}</p>
-                <p className="mytrips__meta">여행 안전 정보 연동 예정</p>
+                {upcomingAlerts ? (
+                  <TripAlertBlock trip={upcomingAlerts} />
+                ) : (
+                  <p className="mytrips__meta">{upcomingAlertsMessage(upcomingTrip, alertData, alertLoading)}</p>
+                )}
               </div>
-              <span className="badge">연동 예정</span>
+              <Link to="/alerts" className="btn">알림 전체 보기</Link>
             </>
           ) : (
             <p className="mytrips__meta">예정된 여행이 없어요.</p>
