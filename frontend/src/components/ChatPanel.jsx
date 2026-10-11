@@ -32,11 +32,58 @@ function formatTimings(timings) {
   return parts.length ? parts.join(' · ') : JSON.stringify(timings)
 }
 
+function formatRate(value) {
+  return value === null || value === undefined ? '-' : `${Math.round(value * 100)}%`
+}
+
+// 일정 품질 지표 (rag_project/travel/evaluation.py 와 같은 기준, 일괄 평가는 evaluate.py)
+function EvaluationTable({ evaluation, title }) {
+  const rows = [
+    ['일정 출처', evaluation.source === 'llm' ? 'AI 생성' : '규칙 기반 대체 (AI 실패)'],
+    [
+      '지어낸 장소',
+      evaluation.source === 'llm'
+        ? `${evaluation.hallucinated_places}/${evaluation.proposed_places} (${formatRate(evaluation.hallucination_rate)})`
+        : '-',
+    ],
+    [
+      '궂은 날 실내 비율',
+      evaluation.bad_weather_days
+        ? `${formatRate(evaluation.weather_fit_rate)} (궂은 날 ${evaluation.bad_weather_days}일, 실외 ${evaluation.bad_weather_outdoor_visits}곳)`
+        : '궂은 날 없음',
+    ],
+    ['하루 이동 거리', `${(evaluation.daily_distance_km ?? []).join(' / ')} km (직선)`],
+    ['채워진 날', `${formatRate(evaluation.filled_day_rate)} · 하루 평균 ${evaluation.avg_visits_per_day ?? '-'}곳`],
+    ['방문지 유형 수', evaluation.place_type_count],
+    ['생성 시간', evaluation.response_sec === null ? '-' : `${evaluation.response_sec}초`],
+  ]
+  return (
+    <div className="chat-panel__eval">
+      <p className="chat-panel__eval-title">📊 일정 품질 지표{title ? ` · ${title}` : ''}</p>
+      <table>
+        <tbody>
+          {rows.map(([label, value]) => (
+            <tr key={label}>
+              <th>{label}</th>
+              <td>{value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function DebugInfo({ debug }) {
   const timings = formatTimings(debug.timings)
   return (
     <details className="chat-panel__debug">
       <summary>🧪 디버그 정보 (개발자 모드)</summary>
+      {debug.evaluation?.regions
+        ? Object.entries(debug.evaluation.regions).map(
+            ([region, evaluation]) => evaluation && <EvaluationTable key={region} evaluation={evaluation} title={region} />,
+          )
+        : debug.evaluation && <EvaluationTable evaluation={debug.evaluation} />}
       {debug.caveats.length > 0 && (
         <ul>
           {debug.caveats.map((caveat, index) => (

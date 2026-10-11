@@ -258,3 +258,31 @@
   font-size: 12px;
   line-height: 1.5;
 }
+
+.chat-panel__eval {
+  margin: 6px 0 8px;
+}
+
+.chat-panel__eval-title {
+  font-weight: 600;
+}
+
+.chat-panel__eval table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.chat-panel__eval th,
+.chat-panel__eval td {
+  padding: 2px 6px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.chat-panel__eval th {
+  width: 40%;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}

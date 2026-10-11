@@ -16,6 +16,20 @@ function isStrong(alert) {
   return alert.level === 'DANGER'
 }
 
+function localToday() {
+  const now = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+}
+
+// '다가오는 여행' 카드(Home, 내 프로필)에서 알림을 보여줄 수 없을 때의 안내 문구
+export function upcomingAlertsMessage(trip, alertData, alertLoading) {
+  if (alertData && !alertData.alertsEnabled) return '여행 알림이 꺼져 있어요. 프로필 수정에서 다시 켤 수 있어요.'
+  if (trip.endDate < localToday()) return '이미 지난 여행이라 알림이 없어요.'
+  if (alertLoading && !alertData) return '불러오는 중...'
+  return '알림 정보를 불러오지 못했어요.'
+}
+
 // 프로필에서 여행 알림을 꺼둔 상태의 안내
 export function TripAlertsOff() {
   return (
