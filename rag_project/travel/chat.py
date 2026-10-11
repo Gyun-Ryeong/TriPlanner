@@ -32,6 +32,7 @@ from travel.lists import answer_list
 from travel.places import SIGHT_TYPES
 from travel.news import NEWS_RE, answer_news, parse_news_request
 from travel.placeinfo import answer_place, is_place_info_request
+from travel.evaluation import evaluate_plan
 from travel.multi import parse_multi_trips
 from travel.pipeline import FORECAST_DAYS, _collect_candidates, _collect_festivals, _collect_type, wants_food
 from travel.planner import (
@@ -478,7 +479,9 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
         warnings.append(f"AI 연결 문제로 일정 생성/수정을 하지 못했어요 ({type(e).__name__}: {str(e)[:500]})")
     t_llm_done = time.perf_counter()
     llm_stats = dict(LAST_STATS)
-    plan, w = normalize_plan(parsed, cand_map, dates)
+    grounding: dict = {}
+    plan, w = normalize_plan(parsed, cand_map, dates, grounding)
+    plan_source = "llm"
     warnings += w
     if not llm_error and plan is None:
         # 오류 없이 응답했는데 못 쓰는 경우: 무슨 응답이었는지 보여준다 (원인 파악용)
@@ -503,6 +506,7 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
             # 액티비티를 원한다고 하지 않았으면 레포츠(28)는 뒤로 (순위는 그대로 유지)
             order.sort(key=lambda cid: str(cand_map[cid].get("content_type_id")) == "28")
         plan = fallback_plan(dates, conditions, order, cand_map)
+        plan_source = "fallback"
         warnings.append("AI 일정 대신 규칙 기반 기본 일정을 보여드려요.")
 
     if plan["days"] is None:  # 질문·감사 등: 일정은 그대로, 답만 한다
@@ -523,9 +527,12 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
         sources.append("weather")
     if raw["air"]["by_date"]:
         sources.append("air_quality")
+    timings = {"collect_sec": round(t_gathered - t_start, 1), "rank_sec": round(t_ranked - t_gathered, 1),
+               "llm_sec": round(t_llm_done - t_ranked, 1), "tasks": raw.get("timings", {})}
     session.view = {
-        "timings": {"collect_sec": round(t_gathered - t_start, 1), "rank_sec": round(t_ranked - t_gathered, 1),
-                    "llm_sec": round(t_llm_done - t_ranked, 1), "tasks": raw.get("timings", {})},
+        "timings": timings,
+        # 일정 품질 지표 (개발자 모드·evaluate.py). 이 일정을 만든 응답에만 한 번 싣는다 (_pack 에서 꺼냄)
+        "evaluation": evaluate_plan(days_view, grounding, plan_source, timings),
         "llm_stats": llm_stats,
         "plan": days_view, "conditions": conditions, "used_sources": sources,
         "risks": [{"category": n["category"], "title": n["title"], "link": n["link"], "pub_date": n["pub_date"]} for n in raw["news"]],
@@ -663,6 +670,8 @@ def _generate_multi(session: ChatSession, start: date, text: str, today: date, r
                    "plan": (sub.view or {}).get("plan"), "conditions": (sub.view or {}).get("conditions"),
                    "risks": (sub.view or {}).get("risks", [])} for label, sub in subs.items()],
         "caveats": list(dict.fromkeys(c for sub in subs.values() for c in (sub.view or {}).get("caveats", []))),
+        # 지역별 품질 지표 (하위 세션에서 꺼내 두어야 나중 응답에 다시 실리지 않는다)
+        "evaluation": {"regions": {label: (sub.view or {}).pop("evaluation", None) for label, sub in subs.items()}},
     }
     reply = "\n\n---\n\n".join(replies)
     session.history.append({"role": "assistant", "content": reply})
@@ -709,6 +718,7 @@ def _route_trip(session: ChatSession, text: str, today: date, ranker) -> dict | 
 def _pack(session: ChatSession, stage: str, reply: str, extra_caveats: list[str] | None = None,
           extra: dict | None = None, replace_caveats: bool = False, with_footer: bool = True) -> dict:
     view = session.view or {}
+    evaluation = view.pop("evaluation", None)
     caveats = [] if replace_caveats else list(view.get("caveats", []))
     for c in extra_caveats or []:
         if c not in caveats:
@@ -718,7 +728,7 @@ def _pack(session: ChatSession, stage: str, reply: str, extra_caveats: list[str]
         "slots": dict(session.slots), "missing": _missing(session.slots),
         "plan": view.get("plan"), "conditions": view.get("conditions"), "risks": view.get("risks", []),
         "caveats": caveats, "used_sources": view.get("used_sources", []),
-        "timings": view.get("timings"), "llm_stats": view.get("llm_stats"),
+        "timings": view.get("timings"), "llm_stats": view.get("llm_stats"), "evaluation": evaluation,
         "intent": "plan", "places": None, "news": None, "place": None, "trips": view.get("trips"),
         **(extra or {}),
     }
@@ -737,7 +747,7 @@ def handle_message(session: ChatSession, text: str, today: date | None = None, r
     """
     result = _handle_message(session, text, today, ranker)
     if not (DEV_MODE or debug):  # 서비스에서는 API 오류·제약사항·소요 시간 같은 내부 정보를 응답에 싣지 않는다
-        result.update(caveats=[], timings=None, llm_stats=None)
+        result.update(caveats=[], timings=None, llm_stats=None, evaluation=None)
     return result
 
 

@@ -1,0 +1,22 @@
+[
+  {"id": "busan-couple-sea", "tags": ["광역시", "커플"], "messages": ["이번 주말 부산 1박 2일, 커플이고 조용한 바다 산책하고 싶어요"]},
+  {"id": "seoul-family-kids", "tags": ["수도권", "가족"], "messages": ["내일 서울 당일치기 아이 둘 데리고 가족 여행이요"]},
+  {"id": "jeju-friends", "tags": ["제주", "친구"], "messages": ["모레부터 제주 2박 3일 친구들이랑, 사진 명소랑 맛집 위주로"]},
+  {"id": "gangneung-solo", "tags": ["강원", "혼자"], "messages": ["내일 강릉 1박 2일 혼자 쉬러 가요, 카페랑 바다"]},
+  {"id": "gyeongju-history", "tags": ["경북", "역사"], "messages": ["이번 주말 경주 1박 2일 부모님 모시고 역사 유적 위주로"]},
+  {"id": "jeonju-food", "tags": ["전북", "맛집"], "messages": ["내일 전주 당일치기 맛집이랑 한옥마을"]},
+  {"id": "yeosu-night", "tags": ["전남", "커플"], "messages": ["모레 여수 1박 2일 커플 여행 야경 보고 싶어요"]},
+  {"id": "daegu-indoor", "tags": ["광역시", "실내"], "messages": ["내일 대구 당일치기, 실내 위주로 짜줘"]},
+  {"id": "incheon-kids", "tags": ["수도권", "가족"], "messages": ["이번 주말 인천 당일 아이랑 체험 위주"]},
+  {"id": "sokcho-nature", "tags": ["강원", "자연"], "messages": ["내일부터 속초 2박 3일 친구랑 등산이랑 바다"]},
+  {"id": "tongyeong-quiet", "tags": ["경남", "조용"], "messages": ["모레 통영 1박 2일 조용한 곳 위주로 혼자"]},
+  {"id": "suwon-culture", "tags": ["수도권", "문화"], "messages": ["내일 수원 당일치기 화성이랑 전시"]},
+  {"id": "multi-turn-busan", "tags": ["다단계 대화"], "messages": ["부산 가려고요", "이번 주말이요", "1박 2일", "친구랑 맛집 위주로"]},
+  {"id": "multi-turn-gwangju", "tags": ["다단계 대화"], "messages": ["광주 여행 일정 짜줘", "내일", "당일치기요", "상관없어요"]},
+  {"id": "refine-indoor", "tags": ["수정 요청"], "messages": ["내일 부산 1박 2일 커플 바다 산책", "1일차는 실내로 바꿔줘"]},
+  {"id": "refine-food", "tags": ["수정 요청"], "messages": ["이번 주말 서울 1박 2일 혼자 전시 위주", "맛집도 넣어줘"]},
+  {"id": "multi-region", "tags": ["여러 지역"], "messages": ["내일부터 대구 1박2일, 부산 1박2일 짜줘"]},
+  {"id": "danyang-activity", "tags": ["충북", "액티비티"], "messages": ["모레 단양 1박 2일 친구들이랑 레포츠 액티비티"]},
+  {"id": "andong-parents", "tags": ["경북", "부모님"], "messages": ["내일 안동 당일치기 부모님이랑 전통 문화"]},
+  {"id": "pohang-sea", "tags": ["경북", "바다"], "messages": ["이번 주말 포항 1박 2일 가족 바다 여행"]}
+]
