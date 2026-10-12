@@ -1,7 +1,9 @@
 package com.triplanner.backend.service;
 
 import com.triplanner.backend.domain.User;
+import com.triplanner.backend.repository.ChatbotErrorLogRepository;
 import com.triplanner.backend.repository.RagQueryLogRepository;
+import com.triplanner.backend.repository.TripChecklistItemRepository;
 import com.triplanner.backend.repository.TripDayRepository;
 import com.triplanner.backend.repository.TripItemRepository;
 import com.triplanner.backend.repository.TripRepository;
@@ -30,19 +32,25 @@ public class WithdrawalService {
     private final TripDayRepository tripDayRepository;
     private final TripItemRepository tripItemRepository;
     private final RagQueryLogRepository ragQueryLogRepository;
+    private final TripChecklistItemRepository checklistRepository;
+    private final ChatbotErrorLogRepository chatbotErrorLogRepository;
 
     public WithdrawalService(
             UserRepository userRepository,
             TripRepository tripRepository,
             TripDayRepository tripDayRepository,
             TripItemRepository tripItemRepository,
-            RagQueryLogRepository ragQueryLogRepository
+            RagQueryLogRepository ragQueryLogRepository,
+            TripChecklistItemRepository checklistRepository,
+            ChatbotErrorLogRepository chatbotErrorLogRepository
     ) {
+        this.chatbotErrorLogRepository = chatbotErrorLogRepository;
         this.userRepository = userRepository;
         this.tripRepository = tripRepository;
         this.tripDayRepository = tripDayRepository;
         this.tripItemRepository = tripItemRepository;
         this.ragQueryLogRepository = ragQueryLogRepository;
+        this.checklistRepository = checklistRepository;
     }
 
     @Transactional
@@ -64,7 +72,7 @@ public class WithdrawalService {
         user.restore();
     }
 
-    // 매시 정각에 보관 기간이 지난 탈퇴 회원을 파기한다 (FK 순서: 챗봇 로그 → 일정 항목 → 일차 → 여행 → 회원)
+    // 매시 정각에 보관 기간이 지난 탈퇴 회원을 파기한다 (FK 순서: 챗봇 로그·오류 기록 → 체크리스트 → 일정 항목 → 일차 → 여행 → 회원)
     @Scheduled(cron = "0 0 * * * *")
     @Transactional
     public void purgeExpired() {
@@ -72,6 +80,8 @@ public class WithdrawalService {
         for (User user : expired) {
             Long userId = user.getUserId();
             ragQueryLogRepository.deleteAllOfUser(userId);
+            chatbotErrorLogRepository.deleteAllOfUser(userId);
+            checklistRepository.deleteAllOfUser(userId);
             tripItemRepository.deleteAllOfUser(userId);
             tripDayRepository.deleteAllOfUser(userId);
             tripRepository.deleteAllOfUser(userId);

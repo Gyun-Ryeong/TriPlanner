@@ -48,6 +48,10 @@ public class Trip {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    // 출발 전 체크리스트 기본 항목을 만들었는지 (사용자가 항목을 모두 지워도 다시 채워지지 않게 한다)
+    @Column(name = "checklist_initialized", nullable = false)
+    private boolean checklistInitialized = false;
+
     public Trip(User user, String title, String region, LocalDate startDate, LocalDate endDate, String status) {
         this.user = user;
         this.title = title;
@@ -56,6 +60,10 @@ public class Trip {
         this.endDate = endDate;
         this.status = status;
         this.createdAt = LocalDateTime.now();
+    }
+
+    public void markChecklistInitialized() {
+        this.checklistInitialized = true;
     }
 
     public void updateDetails(String title, String region, LocalDate startDate, LocalDate endDate, String status) {

@@ -41,6 +41,10 @@ public class User {
     @Column(name = "notify_trip_alerts", nullable = false)
     private boolean notifyTripAlerts = true;
 
+    // 일정 변경·준비 알림(체크리스트 기한, 비어 있는 일정 등) 수신 여부 (프로필에서 켜고 끈다)
+    @Column(name = "notify_schedule_alerts", nullable = false)
+    private boolean notifyScheduleAlerts = true;
+
     // 회원가입 때 필수 약관(이용약관, 개인정보 수집·이용)에 동의한 시각 (회원가입 폼을 거치지 않은 계정은 null)
     @Column(name = "consent_at")
     private LocalDateTime consentAt;
@@ -77,6 +81,10 @@ public class User {
 
     public void changeNotifyTripAlerts(boolean enabled) {
         this.notifyTripAlerts = enabled;
+    }
+
+    public void changeNotifyScheduleAlerts(boolean enabled) {
+        this.notifyScheduleAlerts = enabled;
     }
 
     public void changeConsentMarketing(boolean consent) {
