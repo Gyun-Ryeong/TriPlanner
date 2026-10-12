@@ -29,6 +29,7 @@ export default function ProfileEdit() {
   const profileLock = useRef(false)
 
   const [tripAlertsEnabled, setTripAlertsEnabled] = useState(true)
+  const [scheduleAlertsEnabled, setScheduleAlertsEnabled] = useState(true)
   const [marketingConsent, setMarketingConsent] = useState(false)
   const [notificationsSaving, setNotificationsSaving] = useState(false)
   const [notificationsMessage, setNotificationsMessage] = useState(null)
@@ -57,6 +58,7 @@ export default function ProfileEdit() {
         setPhone(profile.phone ?? '')
         setSavedPhone(profile.phone ?? '')
         setTripAlertsEnabled(profile.tripAlertsEnabled)
+        setScheduleAlertsEnabled(profile.scheduleAlertsEnabled)
         setMarketingConsent(profile.marketingConsent)
       })
       .catch(() => {})
@@ -110,6 +112,27 @@ export default function ProfileEdit() {
       setToast({
         id: Date.now(),
         text: profile.tripAlertsEnabled ? '여행 알림을 켰어요.' : '여행 알림을 껐어요.',
+      })
+    } catch (err) {
+      setNotificationsMessage({ type: 'error', text: err.message })
+    } finally {
+      notificationsLock.current = false
+      setNotificationsSaving(false)
+    }
+  }
+
+  const handleToggleScheduleAlerts = async () => {
+    if (notificationsLock.current) return
+    notificationsLock.current = true
+    setNotificationsSaving(true)
+    setNotificationsMessage(null)
+    try {
+      const profile = await updateNotifications({ scheduleAlertsEnabled: !scheduleAlertsEnabled })
+      setScheduleAlertsEnabled(profile.scheduleAlertsEnabled)
+      window.dispatchEvent(new Event(TRIP_ALERTS_REFRESH_EVENT))
+      setToast({
+        id: Date.now(),
+        text: profile.scheduleAlertsEnabled ? '일정 변경·준비 알림을 켰어요.' : '일정 변경·준비 알림을 껐어요.',
       })
     } catch (err) {
       setNotificationsMessage({ type: 'error', text: err.message })
@@ -318,7 +341,26 @@ export default function ProfileEdit() {
               <span className="toggle__thumb" />
             </button>
           </div>
-          <ToggleRow label="일정 변경 및 준비 알림" />
+          <div className="profile-edit__toggle-row">
+            <div>
+              <span>일정 변경 및 준비 알림</span>
+              <p className="profile-edit__hint profile-edit__toggle-hint">
+                출발 전 체크리스트 기한이 지났거나 오늘까지인 항목, 출발 7일 이내인데 비어 있는 일정을 알려줘요. 끄면 종 알림과
+                알림 목록에서 준비 알림이 사라져요.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={scheduleAlertsEnabled}
+              aria-label="일정 변경 및 준비 알림"
+              className={`toggle ${scheduleAlertsEnabled ? 'toggle--on' : ''}`}
+              disabled={notificationsSaving}
+              onClick={handleToggleScheduleAlerts}
+            >
+              <span className="toggle__thumb" />
+            </button>
+          </div>
           <div className="profile-edit__toggle-row">
             <div>
               <span>마케팅 정보 수신</span>
@@ -344,7 +386,7 @@ export default function ProfileEdit() {
               {notificationsMessage.text}
             </p>
           )}
-          <p className="profile-edit__hint">일정 변경 및 준비 알림은 기능 준비 중입니다.</p>
+          <p className="profile-edit__hint">알림은 앱 안에서만 보여드리며, 문자·이메일 발송은 준비 중입니다.</p>
         </div>
       </div>
 
@@ -384,17 +426,6 @@ export default function ProfileEdit() {
         </button>
       </section>
       <Toast message={toast} onClose={clearToast} />
-    </div>
-  )
-}
-
-function ToggleRow({ label }) {
-  return (
-    <div className="profile-edit__toggle-row">
-      <span>{label}</span>
-      <button type="button" className="toggle" disabled aria-disabled="true" aria-label={`${label} (준비 중)`}>
-        <span className="toggle__thumb" />
-      </button>
     </div>
   )
 }

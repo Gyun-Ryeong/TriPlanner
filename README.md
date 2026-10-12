@@ -40,14 +40,16 @@ TriPlanner/
 ### 구현 완료
 - **회원/인증**: 회원가입(필수·선택 약관 동의 포함)/로그인(JWT), 프로필 수정(이름·전화번호·비밀번호 변경), 여행 알림 켜기/끄기. 네이버 로그인 코드는 있으나 실제 로그인 흐름은 아직 검증되지 않았습니다.
 - **여행 일정**: 지역(지도에서 선택) · 날짜로 여행 생성, 일차별 일정 입력 전용 화면과 조회 화면 분리, 장소 검색(네이버 지역 검색)·메모 추가/삭제, 여행 삭제.
-- **지도/길찾기**: 네이버 지도에 장소 마커와 동선 표시, 하루 동선의 자동차 길찾기(네이버 Directions).
+- **지도/길찾기**: 네이버 지도에 장소 마커와 동선 표시, 하루 동선의 자동차(네이버 Directions) / 도보(Tmap 보행자 경로, 장소 사이 구간별 호출) 길찾기.
 - **실시간 알림**: 권역(서울/경기·인천/강원/충청/전라/경상/제주)별 날씨(기상청 단기예보, 기온 범위 + 가장 주의할 도시, '도시별 보기'로 부산·대구 등 도시별 확인), 기상특보 현황, 권역별 대기질 현황(에어코리아, 시도별 값 펼쳐 보기). 여행 시작이 3일 이내이면 날씨·대기질 예보·기상특보로 **주의/참고** 알림을 만들어 헤더 종 아이콘, Home, 알림 탭, 일정 화면에 보여줍니다. (예보는 여행일 기준 3일 이내만 제공)
+- **출발 전 체크리스트**: 여행을 처음 열 때 기간(당일/숙박)·지역(제주 항공·렌터카)·출발 계절에 맞는 준비 항목이 D-7(예약)·D-3(확인)·D-1(짐)·출발 당일 기한으로 자동 생성됩니다. Home 카드에서 진행률과 지금 챙길 항목을 체크하고, `/trips/:id/checklist` 에서 전체 보기·직접 추가·삭제를 합니다. Home·내 프로필의 '다가오는 여행'은 종료일이 오늘 이후인 가장 빠른 여행입니다.
+- **일정 변경·준비 알림**: 프로필의 토글로 켜고 끕니다(기본 켜짐). 아직 출발하지 않은 여행에 대해 체크리스트에서 기한이 지났거나 오늘까지인 미완료 항목, 출발 7일 이내인데 비어 있는 일차를 알려줍니다. 요청 때마다 계산하며(`GET /api/trips/prep-alerts`) 헤더 종·Home·알림 탭에 여행 위험 알림과 함께 표시됩니다. 앱 안 알림만 제공합니다.
 - **공통 화면**: 로그인 상태에 따른 라우트 보호, 플로팅 챗봇 위젯.
-- **AI 여행 챗봇(RAG)**: 챗봇 페이지와 플로팅 위젯에서 대화로 일정·맛집·숙소·축제·지역 소식을 받습니다. 프론트 → 백엔드 `/api/chat`(로그인 필요) → `rag_project` FastAPI 서버 순으로 전달되며, 페이지와 위젯은 같은 대화를 이어갑니다. 챗봇이 만든 일정은 '내 여행에 저장' 버튼으로 내 여행에 저장되고(장소·시간·메모 포함), 일정 화면의 '일정 수정'에서 시간·메모 수정, 순서 변경, 추가·삭제를 할 수 있습니다. 자세한 기능은 [`rag_project/README.md`](rag_project/README.md) 참고.
+- **AI 여행 챗봇(RAG)**: 챗봇 페이지와 플로팅 위젯에서 대화로 일정·맛집·숙소·축제·지역 소식을 받습니다. 프론트 → 백엔드 `/api/chat`(로그인 필요) → `rag_project` FastAPI 서버 순으로 전달되며, 페이지와 위젯은 같은 대화를 이어갑니다. 대화는 목록(페이지는 왼쪽, 위젯은 '대화 목록' 화면)으로 보관되며 이 브라우저(localStorage)에만 저장됩니다. 📌로 고정하지 않은 대화는 만든 지 24시간 뒤 사라지고(전체 10개, 고정 최대 5개), 제목은 첫 질문입니다. 챗봇이 만든 일정은 '내 여행에 저장' 버튼으로 내 여행에 저장되고(장소·시간·메모 포함), 일정 화면의 '일정 수정'에서 시간·메모 수정, 순서 변경, 추가·삭제를 할 수 있습니다. 자세한 기능은 [`rag_project/README.md`](rag_project/README.md) 참고.
 
 ### 구현 전 / 준비 중
 - **알림 발송**: 문자·이메일 등 외부 발송은 없고 앱 안 알림만 제공합니다. (프로필의 '일정 변경 및 준비 알림', '마케팅 정보 수신' 토글은 비활성)
-- 체크리스트, 3일을 넘는 날짜의 예보(기상청 중기예보 미연동) 등.
+- 3일을 넘는 날짜의 예보(기상청 중기예보 미연동) 등.
 
 ## 데이터 출처
 
@@ -55,7 +57,7 @@ TriPlanner/
 - **날씨·기상특보**: 기상청 단기예보·기상특보 조회서비스 (공공데이터포털)
 - **대기질**: 한국환경공단 에어코리아 대기오염정보 (공공데이터포털)
 - **장소 검색**: 네이버 지역 검색 API (NAVER API HUB, `naver.app` 키 사용, 한 번에 최대 5건)
-- **지도·길찾기**: 네이버 클라우드 플랫폼 Maps (Dynamic Map, Directions)
+- **지도·길찾기**: 네이버 클라우드 플랫폼 Maps (Dynamic Map, Directions), SK open API Tmap (보행자 경로)
 
 ## 전체 실행 순서
 
@@ -87,6 +89,7 @@ npm run build
 2. `backend/src/main/resources/application-local.yml.example` 을 참고해서 **본인 로컬 DB 계정 정보와 API 키**로 `application-local.yml`(같은 폴더, 이미 생성되어 있고 gitignore 처리됨)을 채워주세요. 이 파일은 절대 Git에 올라가지 않습니다.
    - `public-data.service-key`: 공공데이터포털 키 (TourAPI, 기상청 단기예보·기상특보, 에어코리아 대기오염정보 활용신청 필요)
    - `naver.login.*`, `naver.map.*`: 네이버 로그인 / 네이버 클라우드 Maps 키
+   - `tmap.app-key`: SK open API Tmap 앱 키 (도보 길찾기)
 3. DB 스키마가 최신인지 확인합니다. (아래 "DB 스키마 변경 사항" 참고 — 컬럼이 없으면 백엔드가 기동되지 않습니다.)
 4. 실행:
 
@@ -121,12 +124,49 @@ ALTER TABLE `user`
 
 -- user: 회원 탈퇴 시각 (탈퇴 후 14일이 지나면 회원과 관련 데이터 파기)
 ALTER TABLE `user` ADD COLUMN withdrawn_at DATETIME NULL AFTER consent_marketing;
+
+-- user: 일정 변경·준비 알림 수신 여부
+ALTER TABLE `user` ADD COLUMN notify_schedule_alerts TINYINT(1) NOT NULL DEFAULT 1 AFTER notify_trip_alerts;
+
+-- 홈 체크리스트: 여행별 출발 전 준비 항목
+ALTER TABLE `trip` ADD COLUMN checklist_initialized TINYINT(1) NOT NULL DEFAULT 0;
+
+CREATE TABLE `trip_checklist_item` (
+  item_id BIGINT NOT NULL AUTO_INCREMENT,
+  trip_id BIGINT NOT NULL,
+  content VARCHAR(100) NOT NULL,
+  category VARCHAR(20) NOT NULL,
+  due_offset_days INT NOT NULL,
+  checked TINYINT(1) NOT NULL DEFAULT 0,
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at DATETIME NULL,
+  PRIMARY KEY (item_id),
+  KEY idx_checklist_trip (trip_id),
+  CONSTRAINT fk_checklist_trip FOREIGN KEY (trip_id) REFERENCES `trip` (trip_id)
+);
+
+CREATE TABLE `chatbot_error_log` (
+  error_id BIGINT NOT NULL AUTO_INCREMENT,
+  user_id BIGINT NULL,
+  category VARCHAR(20) NOT NULL,
+  http_status INT NULL,
+  detail VARCHAR(500) NULL,
+  query_preview VARCHAR(100) NULL,
+  created_at DATETIME NOT NULL,
+  PRIMARY KEY (error_id),
+  KEY idx_chatbot_error_created (created_at),
+  KEY idx_chatbot_error_category (category, created_at)
+);
 ```
 
 - `notify_trip_alerts`: 프로필에서 켜고 끄는 여행 알림 설정 (기본값 켜짐)
 - `consent_at`: 필수 약관(이용약관, 개인정보 수집·이용) 동의 시각 — 회원가입 화면을 거치지 않은 계정은 `NULL`
 - `consent_third_party`: 제3자 제공 동의 — 회원가입 항목에서 삭제되어 새 가입자는 항상 `0` (기존 데이터 호환용으로 컬럼만 유지)
 - `consent_marketing`: 마케팅 정보 수신 동의 여부
+- `notify_schedule_alerts`: 프로필에서 켜고 끄는 일정 변경·준비 알림 설정 (기본값 켜짐)
+- `trip.checklist_initialized`: 체크리스트 기본 항목을 만들었는지 — 여행을 처음 열 때 한 번만 채우고, 이후 사용자가 항목을 모두 지워도 다시 채우지 않음
+- `trip_checklist_item.due_offset_days`: 출발일 며칠 전까지 끝낼 일인지 (0 = 출발 당일) — 날짜를 저장하지 않아 여행 날짜를 바꿔도 기한이 따라감
+- `chatbot_error_log`: 챗봇(RAG 서버) 호출이 실패할 때 남기는 관리자용 오류 기록 — `category`는 CONNECTION(연결 실패)·TIMEOUT(응답 시간 초과)·AI_MODEL(AI 모델 연결 실패)·SERVER_ERROR(챗봇 서버 오류)·BAD_REQUEST(요청 오류)·OTHER, `user_id`는 FK 없이 보관(회원 파기 때 함께 삭제), 30일이 지나면 매시 30분에 자동 삭제. 관리자 페이지(`/admin`)의 '챗봇 오류 기록'에서 확인
 - `withdrawn_at`: 회원 탈퇴 시각 — 값이 있으면 로그인·API 사용이 막히고, 14일이 지나면 매시 정각에 회원·여행·일정·챗봇 기록을 파기 (관리자 페이지에서 그 전에 복구 가능)
 
 > 회원가입 약관 문구의 정본은 루트의 `약관동의.md` 이며, 화면 문구는 `frontend/src/lib/consentTexts.js` 에서 관리합니다.

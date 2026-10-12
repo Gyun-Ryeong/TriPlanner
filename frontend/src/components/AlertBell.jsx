@@ -1,7 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { countAlerts, hasStrongAlert, useTripAlerts } from '../lib/tripAlertsContext.js'
-import { TripAlertsOff, TripAlertsOverview } from './TripAlertList.jsx'
+import {
+  countAlerts,
+  countPrepAlerts,
+  hasStrongAlert,
+  hasStrongPrepAlert,
+  useTripAlerts,
+} from '../lib/tripAlertsContext.js'
+import { getAuth } from '../api/authStorage.js'
+import {
+  allAlertKeys,
+  prepAlertKey,
+  useDismissedAlerts,
+  weatherAlertKey,
+  withoutDismissed,
+} from '../lib/dismissedAlerts.js'
+import { PrepAlertsSection, TripAlertsOff, TripAlertsOverview } from './TripAlertList.jsx'
 import './AlertBell.css'
 
 // 종 드롭다운에는 알림이 있는 여행만 보여준다 (이상 없는 여행의 안내 문구는 생략)
@@ -10,12 +24,16 @@ function alertTripsOnly(data) {
 }
 
 export default function AlertBell() {
-  const { data, loading, error } = useTripAlerts()
+  const { data: allData, prep: allPrep, loading, error } = useTripAlerts()
   const [open, setOpen] = useState(false)
   const rootRef = useRef(null)
+  const { dismissed, dismiss } = useDismissedAlerts(getAuth()?.userId)
+  // 종에서는 지운 알림을 빼고 보여준다 (알림 탭·홈에는 전체가 그대로 남아 있다)
+  const { data, prep } = withoutDismissed(allData, allPrep, dismissed)
 
-  const count = countAlerts(data)
-  const strong = hasStrongAlert(data)
+  const weatherCount = countAlerts(data)
+  const count = weatherCount + countPrepAlerts(prep)
+  const strong = hasStrongAlert(data) || hasStrongPrepAlert(prep)
 
   useEffect(() => {
     if (!open) return undefined
@@ -36,7 +54,10 @@ export default function AlertBell() {
   }, [open])
 
   function renderBody() {
-    if (data && !data.alertsEnabled) {
+    const weatherOff = Boolean(data && !data.alertsEnabled)
+    const prepOff = Boolean(prep && !prep.alertsEnabled)
+    // 두 알림을 모두 꺼두면 꺼짐 안내만 보여준다
+    if (weatherOff && prepOff) {
       return <div className="alert-bell__empty"><TripAlertsOff /></div>
     }
     if (data && count === 0) {
@@ -47,7 +68,21 @@ export default function AlertBell() {
         </div>
       )
     }
-    return <TripAlertsOverview data={alertTripsOnly(data)} loading={loading} error={error} />
+    // 위험 알림이 없고 준비 알림만 있을 때 '예정된 여행이 없어요' 안내가 뜨지 않도록 위험 알림 영역은 건너뛴다
+    const showWeather = !weatherOff && (!data || weatherCount > 0)
+    return (
+      <div className="trip-alert-overview">
+        {showWeather && (
+          <TripAlertsOverview
+            data={alertTripsOnly(data)}
+            loading={loading}
+            error={error}
+            onDismiss={(trip, alert) => dismiss([weatherAlertKey(trip, alert)])}
+          />
+        )}
+        <PrepAlertsSection prep={prep} onDismiss={(trip, alert) => dismiss([prepAlertKey(trip, alert)])} />
+      </div>
+    )
   }
 
   return (
@@ -71,7 +106,14 @@ export default function AlertBell() {
       {open && (
         // 안의 링크를 눌러 다른 페이지로 이동하면 드롭다운도 닫는다
         <div className="alert-bell__panel" onClick={(event) => event.target.closest('a') && setOpen(false)}>
-          <p className="alert-bell__heading">내 여행 알림</p>
+          <div className="alert-bell__head">
+            <p className="alert-bell__heading">내 여행 알림</p>
+            {count > 0 && (
+              <button type="button" className="alert-bell__clear" onClick={() => dismiss(allAlertKeys(data, prep))}>
+                모두 지우기
+              </button>
+            )}
+          </div>
           {renderBody()}
           <Link to="/alerts" className="alert-bell__more">실시간 알림 전체 보기</Link>
         </div>

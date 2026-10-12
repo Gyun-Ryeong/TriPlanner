@@ -58,6 +58,39 @@ export function getTripAlerts() {
   return apiRequest('/api/trips/alerts', { token: authToken() })
 }
 
-export function getDayRoute(tripId, tripDayId) {
-  return apiRequest(`/api/trips/${tripId}/days/${tripDayId}/route`, { token: authToken() })
+// mode: 'driving'(자동차, 기본값) / 'walking'(도보)
+export function getDayRoute(tripId, tripDayId, mode = 'driving') {
+  return apiRequest(`/api/trips/${tripId}/days/${tripDayId}/route?mode=${encodeURIComponent(mode)}`, {
+    token: authToken(),
+  })
+}
+
+// 출발 전 준비 체크리스트 (여행을 처음 열 때 기간·지역·계절에 맞는 기본 항목이 만들어진다)
+export function getChecklist(tripId) {
+  return apiRequest(`/api/trips/${tripId}/checklist`, { token: authToken() })
+}
+
+export function addChecklistItem(tripId, { content, dueOffsetDays }) {
+  return apiRequest(`/api/trips/${tripId}/checklist`, {
+    method: 'POST',
+    body: { content, dueOffsetDays },
+    token: authToken(),
+  })
+}
+
+export function setChecklistItemChecked(tripId, itemId, checked) {
+  return apiRequest(`/api/trips/${tripId}/checklist/${itemId}`, {
+    method: 'PUT',
+    body: { checked },
+    token: authToken(),
+  })
+}
+
+export function deleteChecklistItem(tripId, itemId) {
+  return apiRequest(`/api/trips/${tripId}/checklist/${itemId}`, { method: 'DELETE', token: authToken() })
+}
+
+// 일정 변경·준비 알림: 체크리스트 기한이 지났거나 오늘까지인 항목, 출발 7일 이내인데 비어 있는 일정
+export function getPrepAlerts() {
+  return apiRequest('/api/trips/prep-alerts', { token: authToken() })
 }

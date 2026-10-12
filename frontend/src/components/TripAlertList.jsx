@@ -39,8 +39,17 @@ export function TripAlertsOff() {
   )
 }
 
-// 한 여행의 알림 (제목을 보여줄지 선택)
-export function TripAlertBlock({ trip, showTitle = false }) {
+// 알림 한 줄의 '지우기' 버튼 (종 알림에서만 쓴다)
+function DismissButton({ onClick }) {
+  return (
+    <button type="button" className="trip-alert__dismiss" aria-label="이 알림 지우기" title="이 알림 지우기" onClick={onClick}>
+      ✕
+    </button>
+  )
+}
+
+// 한 여행의 알림 (제목을 보여줄지 선택). onDismiss(trip, alert) 를 넘기면 알림마다 지우기 버튼이 붙는다
+export function TripAlertBlock({ trip, showTitle = false, onDismiss }) {
   return (
     <div className="trip-alert">
       {showTitle && (
@@ -67,6 +76,7 @@ export function TripAlertBlock({ trip, showTitle = false }) {
                 {ALERT_LEVEL_LABEL[alert.level] ?? alert.level}
               </span>
               <span className="trip-alert__message">{alert.message}</span>
+              {onDismiss && <DismissButton onClick={() => onDismiss(trip, alert)} />}
             </li>
           ))}
         </ul>
@@ -95,7 +105,7 @@ export function TripAlertSummary({ trip }) {
 }
 
 // 모든 여행의 알림 목록 (Home 패널, 알림 탭, 헤더 종 드롭다운에서 공용)
-export function TripAlertsOverview({ data, loading, error }) {
+export function TripAlertsOverview({ data, loading, error, onDismiss }) {
   if (!data) {
     if (loading) return <p className="trip-alert__note">불러오는 중...</p>
     if (error) return <p className="trip-alert__note">여행 알림을 불러오지 못했어요.</p>
@@ -113,7 +123,7 @@ export function TripAlertsOverview({ data, loading, error }) {
           진행 중이거나 예정된 여행이 없어요. <Link to="/trips/new">새 여행을 만들어보세요</Link>
         </p>
       ) : (
-        data.trips.map((trip) => <TripAlertBlock key={trip.tripId} trip={trip} showTitle />)
+        data.trips.map((trip) => <TripAlertBlock key={trip.tripId} trip={trip} showTitle onDismiss={onDismiss} />)
       )}
 
       {data.unavailableSources.length > 0 && (
@@ -123,6 +133,68 @@ export function TripAlertsOverview({ data, loading, error }) {
       )}
       {error && <p className="trip-alert__note">최신 정보를 갱신하지 못했어요. 마지막으로 불러온 내용을 보여드려요.</p>}
       <p className="trip-alert__footnote">{FORECAST_NOTICE}</p>
+    </div>
+  )
+}
+
+const PREP_LINKS = {
+  CHECKLIST: { to: (tripId) => `/trips/${tripId}/checklist`, label: '체크리스트 보기' },
+  EMPTY_DAY: { to: (tripId) => `/trips/${tripId}/plan`, label: '일정 채우기' },
+}
+
+// 프로필에서 일정 변경·준비 알림을 꺼둔 상태의 안내
+export function PrepAlertsOff() {
+  return (
+    <p className="trip-alert__note">
+      일정 변경·준비 알림이 꺼져 있어요. <Link to="/mytrips/edit">프로필 수정</Link>에서 다시 켤 수 있어요.
+    </p>
+  )
+}
+
+// 일정 변경·준비 알림 (체크리스트 기한, 비어 있는 일정). showEmpty: 알림이 없을 때와 꺼져 있을 때도 안내 문구를 보여줄지
+export function PrepAlertsSection({ prep, showEmpty = false, onDismiss }) {
+  if (!prep) return null
+  if (!prep.alertsEnabled) return showEmpty ? <PrepAlertsOff /> : null
+  if (prep.trips.length === 0) {
+    return showEmpty ? <p className="trip-alert__clear">준비할 일이 모두 정리됐어요.</p> : null
+  }
+
+  return (
+    <div className="trip-alert-overview">
+      {prep.trips.map((trip) => (
+        <div key={trip.tripId} className="trip-alert">
+          <p className="trip-alert__title">
+            <Link to={`/schedule/${trip.tripId}`}>{trip.title}</Link>
+            <span className="trip-alert__meta">
+              {trip.region} · {formatDday(trip.daysUntilStart)} · 준비 알림
+            </span>
+          </p>
+          <ul className="trip-alert__list">
+            {trip.alerts.map((alert) => {
+              const link = PREP_LINKS[alert.kind]
+              return (
+                <li
+                  key={alert.kind}
+                  className={`trip-alert__item ${isStrong(alert) ? 'trip-alert__item--strong' : 'trip-alert__item--light'}`}
+                >
+                  <span className={`badge ${isStrong(alert) ? 'badge-warn' : 'badge-info'}`}>
+                    {ALERT_LEVEL_LABEL[alert.level] ?? alert.level}
+                  </span>
+                  <div className="trip-alert__body">
+                    <span className="trip-alert__message">{alert.message}</span>
+                    {link && (
+                      <Link to={link.to(trip.tripId)} className="trip-alert__action">
+                        {link.label} <span aria-hidden="true">→</span>
+                      </Link>
+                    )}
+                  </div>
+                  {onDismiss && <DismissButton onClick={() => onDismiss(trip, alert)} />}
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      ))}
     </div>
   )
 }

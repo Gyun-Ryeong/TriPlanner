@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { getAdminStatus } from '../api/admin.js'
 import { getAuth } from '../api/authStorage.js'
 import { setDevMode, useRagChat } from '../chat/chatStore.js'
+import AdminChatbotErrors from '../components/AdminChatbotErrors.jsx'
 import AdminUserList from '../components/AdminUserList.jsx'
 import './Admin.css'
 
@@ -78,6 +79,8 @@ export default function Admin() {
           </p>
         )}
       </section>
+
+      <AdminChatbotErrors />
 
       <AdminUserList />
     </div>

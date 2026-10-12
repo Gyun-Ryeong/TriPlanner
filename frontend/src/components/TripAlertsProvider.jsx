@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { getTripAlerts } from '../api/trips.js'
+import { getPrepAlerts, getTripAlerts } from '../api/trips.js'
 import { TRIP_ALERTS_REFRESH_EVENT, TripAlertsContext } from '../lib/tripAlertsContext.js'
 
 // 예보는 계속 바뀌므로 페이지를 옮길 때와 10분마다 다시 불러온다 (서버가 짧게 캐시하므로 부담이 적다)
@@ -10,6 +10,7 @@ export default function TripAlertsProvider({ token, children }) {
   const { pathname } = useLocation()
   const [tick, setTick] = useState(0)
   const [state, setState] = useState({ data: null, loading: Boolean(token), error: false })
+  const [prep, setPrep] = useState(null)
 
   useEffect(() => {
     const refresh = () => setTick((n) => n + 1)
@@ -24,10 +25,17 @@ export default function TripAlertsProvider({ token, children }) {
   useEffect(() => {
     if (!token) {
       setState({ data: null, loading: false, error: false })
+      setPrep(null)
       return undefined
     }
 
     let cancelled = false
+    // 준비 알림은 위험 알림과 따로 불러온다. 실패하면 이전 값을 그대로 두고 조용히 넘어간다
+    getPrepAlerts()
+      .then((data) => {
+        if (!cancelled) setPrep(data)
+      })
+      .catch(() => {})
     getTripAlerts()
       .then((data) => {
         if (!cancelled) setState({ data, loading: false, error: false })
@@ -42,6 +50,6 @@ export default function TripAlertsProvider({ token, children }) {
     }
   }, [token, pathname, tick])
 
-  const value = useMemo(() => state, [state])
+  const value = useMemo(() => ({ ...state, prep }), [state, prep])
   return <TripAlertsContext.Provider value={value}>{children}</TripAlertsContext.Provider>
 }

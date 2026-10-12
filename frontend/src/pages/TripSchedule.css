@@ -33,7 +33,44 @@
 
 .trip-schedule__actions-row {
   display: flex;
+  align-items: center;
   gap: 10px;
+}
+
+.trip-schedule__mode {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.trip-schedule__mode-option {
+  padding: 8px 12px;
+  border: 0;
+  background: var(--color-surface);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.trip-schedule__mode-option + .trip-schedule__mode-option {
+  border-left: 1px solid var(--color-border);
+}
+
+.trip-schedule__mode-option--active {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+/* 경로가 표시된 상태의 버튼: '길찾기 시작'(파란 채움)과 한눈에 구분되도록 흰 바탕 + 붉은 테두리 */
+.trip-schedule__route-close {
+  background: var(--color-surface);
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.trip-schedule__route-close:hover {
+  background: #fef2f2;
 }
 
 .trip-schedule__actions button:disabled {
@@ -141,6 +178,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.trip-schedule__stop-index--memo {
+  background: #eef1f8;
+  color: var(--color-text-muted);
+  font-size: 13px;
 }
 
 .trip-schedule__stop-label {
@@ -357,7 +400,8 @@
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   padding: 12px 14px;
   margin-bottom: 8px;
   border-radius: var(--radius-md);
@@ -373,7 +417,7 @@
 .trip-schedule__leg {
   margin-left: 13px;
   padding: 2px 0 2px 24px;
-  border-left: 2px dashed var(--color-primary);
+  border-left: 2px dashed var(--leg-color, var(--color-primary));
   font-size: 12px;
   color: var(--color-text-muted);
 }

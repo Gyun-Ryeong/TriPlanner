@@ -64,6 +64,50 @@
   word-break: keep-all;
 }
 
+/* 준비 알림: 메시지 아래에 눌러서 이동하는 버튼을 둔다 */
+.trip-alert__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+/* 버튼 대신 밑줄 친 강조 텍스트로 보여줘서 화면을 덜 차지하게 한다 */
+.trip-alert__action {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.trip-alert__action:hover {
+  color: var(--color-primary-dark);
+}
+
+/* 종 알림에서 알림 한 건을 지우는 버튼 */
+.trip-alert__dismiss {
+  flex-shrink: 0;
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 24px;
+  cursor: pointer;
+}
+
+.trip-alert__dismiss:hover {
+  background: rgba(16, 24, 40, 0.08);
+  color: var(--color-text);
+}
+
 .trip-alert__note,
 .trip-alert__clear,
 .trip-alert__footnote {

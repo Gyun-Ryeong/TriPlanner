@@ -52,23 +52,40 @@
   margin: 0;
 }
 
-.mytrips__risk-row {
+/* 라벨과 '알림 전체 보기'를 한 줄에 두고, 알림 줄은 그 아래 카드 전체 너비로 쌓는다 */
+.mytrips__risk-head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  flex-wrap: wrap;
+}
+
+.mytrips__risk-more {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.mytrips__risk-more:hover {
+  color: var(--color-primary-dark);
 }
 
 .mytrips__risk-body {
-  flex: 1;
   min-width: 0;
 }
 
 .mytrips__risk-title {
   font-size: 18px;
   font-weight: 700;
-  margin: 0 0 6px;
+  margin: 0 0 2px;
+  overflow-wrap: anywhere;
+}
+
+.mytrips__risk-meta {
+  margin-bottom: 10px;
 }
 
 @media (max-width: 720px) {

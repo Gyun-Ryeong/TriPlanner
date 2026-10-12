@@ -3,7 +3,7 @@ import Markdown from 'react-markdown'
 import { Link } from 'react-router-dom'
 import {
   isDevModeActive,
-  resetConversation,
+  newConversation,
   saveChatPlan,
   sendMessage,
   startChat,
@@ -168,14 +168,16 @@ function AssistantMessage({ content, debug }) {
 
 export default function ChatPanel({ compact = false }) {
   const chatState = useRagChat()
-  const { messages, pending } = chatState
+  const { messages, pending, activeId } = chatState
   const devMode = isDevModeActive(chatState)
   const [input, setInput] = useState('')
   const listRef = useRef(null)
 
+  // 열려 있는 대화가 없을 때(처음 열었거나 24시간이 지나 지워졌을 때) 새 대화를 시작하고, 다른 대화로 옮기면 쓰던 입력은 비운다
   useEffect(() => {
     startChat()
-  }, [])
+    setInput('')
+  }, [activeId])
 
   useEffect(() => {
     const list = listRef.current
@@ -202,7 +204,7 @@ export default function ChatPanel({ compact = false }) {
     <div className={`chat-panel${compact ? ' chat-panel--compact' : ''}`}>
       <div className="chat-panel__toolbar">
         {devMode && <span className="chat-panel__dev-badge">🛠 개발자 모드</span>}
-        <button type="button" className="chat-panel__reset" onClick={resetConversation} disabled={pending}>
+        <button type="button" className="chat-panel__reset" onClick={newConversation}>
           새 대화
         </button>
       </div>

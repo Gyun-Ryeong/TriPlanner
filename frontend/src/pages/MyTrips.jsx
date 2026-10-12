@@ -4,6 +4,7 @@ import { getAuth } from '../api/authStorage.js'
 import { getMyTrips } from '../api/trips.js'
 import { TripAlertBlock, upcomingAlertsMessage } from '../components/TripAlertList.jsx'
 import { useTripAlerts } from '../lib/tripAlertsContext.js'
+import { pickUpcomingTrip } from '../lib/upcomingTrip.js'
 import './MyTrips.css'
 
 function formatDate(dateString) {
@@ -37,7 +38,7 @@ export default function MyTrips() {
   }, [])
 
   const regionCount = new Set(trips.map((t) => t.region)).size
-  const upcomingTrip = trips[0] ?? null
+  const upcomingTrip = pickUpcomingTrip(trips)
   const upcomingAlerts = upcomingTrip
     ? alertData?.trips.find((t) => t.tripId === upcomingTrip.tripId)
     : null
@@ -67,26 +68,25 @@ export default function MyTrips() {
       </div>
 
       <div className="card mytrips__risk">
-        <p className="card-label">다가오는 여행 위험 관리</p>
-        <div className="mytrips__risk-row">
-          {loading ? (
-            <p className="mytrips__meta">불러오는 중...</p>
-          ) : upcomingTrip ? (
-            <>
-              <div className="mytrips__risk-body">
-                <p className="mytrips__risk-title">{upcomingTrip.region} · {formatDate(upcomingTrip.startDate)}</p>
-                {upcomingAlerts ? (
-                  <TripAlertBlock trip={upcomingAlerts} />
-                ) : (
-                  <p className="mytrips__meta">{upcomingAlertsMessage(upcomingTrip, alertData, alertLoading)}</p>
-                )}
-              </div>
-              <Link to="/alerts" className="btn">알림 전체 보기</Link>
-            </>
-          ) : (
-            <p className="mytrips__meta">예정된 여행이 없어요.</p>
-          )}
+        <div className="mytrips__risk-head">
+          <p className="card-label">다가오는 여행 위험 관리</p>
+          {!loading && upcomingTrip && <Link to="/alerts" className="mytrips__risk-more">알림 전체 보기 →</Link>}
         </div>
+        {loading ? (
+          <p className="mytrips__meta">불러오는 중...</p>
+        ) : upcomingTrip ? (
+          <div className="mytrips__risk-body">
+            <p className="mytrips__risk-title">{upcomingTrip.title}</p>
+            <p className="mytrips__meta mytrips__risk-meta">{upcomingTrip.region} · {formatDate(upcomingTrip.startDate)}</p>
+            {upcomingAlerts ? (
+              <TripAlertBlock trip={upcomingAlerts} />
+            ) : (
+              <p className="mytrips__meta">{upcomingAlertsMessage(upcomingTrip, alertData, alertLoading)}</p>
+            )}
+          </div>
+        ) : (
+          <p className="mytrips__meta">예정된 여행이 없어요.</p>
+        )}
       </div>
     </div>
   )

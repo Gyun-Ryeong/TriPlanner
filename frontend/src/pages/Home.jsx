@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getAuth } from '../api/authStorage.js'
 import { getMyTrips } from '../api/trips.js'
-import { TripAlertsOverview, TripAlertSummary, upcomingAlertsMessage } from '../components/TripAlertList.jsx'
+import ChecklistCard from '../components/ChecklistCard.jsx'
+import { PrepAlertsSection, TripAlertsOverview, TripAlertSummary, upcomingAlertsMessage } from '../components/TripAlertList.jsx'
 import { useTripAlerts } from '../lib/tripAlertsContext.js'
+import { pickUpcomingTrip } from '../lib/upcomingTrip.js'
 import './Home.css'
 
 function formatUpcomingDate(startDate, endDate) {
@@ -19,7 +21,7 @@ export default function Home() {
   const auth = getAuth()
   const [upcomingTrip, setUpcomingTrip] = useState(null)
   const [loadingTrip, setLoadingTrip] = useState(true)
-  const { data: alertData, loading: alertLoading, error: alertError } = useTripAlerts()
+  const { data: alertData, prep: prepAlerts, loading: alertLoading, error: alertError } = useTripAlerts()
   const upcomingAlerts = upcomingTrip
     ? alertData?.trips.find((t) => t.tripId === upcomingTrip.tripId)
     : null
@@ -34,7 +36,7 @@ export default function Home() {
 
     getMyTrips()
       .then((trips) => {
-        if (!cancelled) setUpcomingTrip(trips[0] ?? null)
+        if (!cancelled) setUpcomingTrip(pickUpcomingTrip(trips))
       })
       .catch(() => {
         if (!cancelled) setUpcomingTrip(null)
@@ -86,8 +88,10 @@ export default function Home() {
             <p className="home__stat-sub">불러오는 중...</p>
           ) : upcomingTrip ? (
             <>
-              <p className="home__stat-main">{upcomingTrip.region}</p>
-              <p className="home__stat-sub">{formatUpcomingDate(upcomingTrip.startDate, upcomingTrip.endDate)}</p>
+              <p className="home__stat-main">{upcomingTrip.title}</p>
+              <p className="home__stat-sub">
+                {upcomingTrip.region} · {formatUpcomingDate(upcomingTrip.startDate, upcomingTrip.endDate)}
+              </p>
               <div className="home__safety">
                 <p className="home__safety-label">여행 임박 알림</p>
                 {upcomingAlerts ? (
@@ -107,11 +111,14 @@ export default function Home() {
           )}
         </div>
 
-        <div className="card">
-          <p className="card-label">체크리스트</p>
-          <p className="home__stat-main home__stat-main--accent">준비 중</p>
-          <p className="home__stat-sub">출발 전 체크리스트 기능은 준비 중입니다.</p>
-        </div>
+        {loadingTrip ? (
+          <div className="card">
+            <p className="card-label">체크리스트</p>
+            <p className="home__stat-sub">불러오는 중...</p>
+          </div>
+        ) : (
+          <ChecklistCard trip={upcomingTrip} />
+        )}
       </div>
 
       <div className="home__panels">
@@ -119,6 +126,7 @@ export default function Home() {
           <h3 className="home__panel-title">실시간 여행 알림</h3>
           <div className="home__alert-body">
             <TripAlertsOverview data={alertData} loading={alertLoading} error={alertError} />
+            <PrepAlertsSection prep={prepAlerts} />
           </div>
           <Link to="/alerts" className="btn btn-block">알림 전체 보기</Link>
         </div>

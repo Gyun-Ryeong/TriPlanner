@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from 'react'
+import { ApiError } from '../api/client.js'
 import { getRegionAirQuality, getRegionWeather, getWeatherWarnings } from '../api/weather.js'
-import { TripAlertsOverview } from '../components/TripAlertList.jsx'
+import { PrepAlertsSection, TripAlertsOverview } from '../components/TripAlertList.jsx'
 import { useTripAlerts } from '../lib/tripAlertsContext.js'
 import './Alerts.css'
 
@@ -189,8 +190,9 @@ export default function Alerts() {
       .then((data) => {
         if (!cancelled) setAirQuality(data)
       })
-      .catch(() => {
-        if (!cancelled) setAirError('대기질 정보를 불러오지 못했습니다.')
+      .catch((err) => {
+        // 호출 한도 초과처럼 서버가 이유를 알려준 경우에는 그 안내를 그대로 보여준다
+        if (!cancelled) setAirError(err instanceof ApiError && err.message ? err.message : '대기질 정보를 불러오지 못했습니다.')
       })
       .finally(() => {
         if (!cancelled) setAirLoading(false)
@@ -216,6 +218,13 @@ export default function Alerts() {
           <p className="card-label">내 여행 알림 (여행 3일 전부터)</p>
         </div>
         <TripAlertsOverview data={tripAlerts.data} loading={tripAlerts.loading} error={tripAlerts.error} />
+      </div>
+
+      <div className="card alerts__signals alerts__trips">
+        <div className="alerts__signals-head">
+          <p className="card-label">일정 변경·준비 알림</p>
+        </div>
+        <PrepAlertsSection prep={tripAlerts.prep} showEmpty />
       </div>
 
       {loading && <p className="alerts__meta">불러오는 중...</p>}
