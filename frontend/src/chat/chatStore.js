@@ -276,6 +276,20 @@ export function togglePin(id) {
   return conversation.pinned ? 'unpinned' : 'pinned'
 }
 
+// 대화 하나를 바로 지운다 (서버의 대화 기억도 함께). 고정된 대화는 지우지 않고 'pinned' 를 돌려준다.
+// 열려 있던 대화를 지우면 열린 대화가 없는 상태가 되고, 챗봇 화면이 열려 있으면 새 대화를 시작한다
+// 'deleted' | 'pinned' | 'missing'
+export function deleteConversation(id) {
+  const conversation = findConversation(id)
+  if (!conversation) return 'missing'
+  if (conversation.pinned) return 'pinned'
+  data = { ...data, conversations: data.conversations.filter((c) => c.id !== id) }
+  if (data.activeId === id) data = { ...data, activeId: null }
+  discard([conversation])
+  commit()
+  return 'deleted'
+}
+
 // 답변에 담긴 일정을 '내 여행'으로 저장하고 저장된 여행 정보를 돌려준다
 export async function saveChatPlan(messageIndex, planIndex) {
   const conversationId = data.activeId

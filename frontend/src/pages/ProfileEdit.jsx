@@ -16,6 +16,8 @@ import { TRIP_ALERTS_REFRESH_EVENT } from '../lib/tripAlertsContext.js'
 import './ProfileEdit.css'
 
 const NICKNAME_MAX = 50
+// 탈퇴할 때 직접 입력하게 하는 확인 문구 (백엔드 WithdrawalService.CONFIRM_TEXT 와 같은 값)
+const WITHDRAW_CONFIRM_TEXT = '회원탈퇴'
 
 export default function ProfileEdit() {
   const navigate = useNavigate()
@@ -45,6 +47,9 @@ export default function ProfileEdit() {
   const passwordLock = useRef(false)
 
   const [withdrawConfirmed, setWithdrawConfirmed] = useState(false)
+  const [withdrawOpen, setWithdrawOpen] = useState(false)
+  const [withdrawPassword, setWithdrawPassword] = useState('')
+  const [withdrawText, setWithdrawText] = useState('')
   const [withdrawing, setWithdrawing] = useState(false)
   const [withdrawMessage, setWithdrawMessage] = useState(null)
 
@@ -195,26 +200,52 @@ export default function ProfileEdit() {
     }
   }
 
-  const handleWithdraw = async () => {
-    if (withdrawing || !withdrawConfirmed) return
-    if (!window.confirm('정말 탈퇴하시겠어요? 탈퇴하면 바로 로그아웃되고 다시 로그인할 수 없습니다.')) return
+  const canWithdraw = withdrawPassword !== '' && withdrawText.trim() === WITHDRAW_CONFIRM_TEXT
+
+  const closeWithdraw = useCallback(() => {
+    if (withdrawing) return
+    setWithdrawOpen(false)
+    setWithdrawPassword('')
+    setWithdrawText('')
+    setWithdrawMessage(null)
+  }, [withdrawing])
+
+  // 탈퇴 확인 상자는 Esc 로도 닫는다
+  useEffect(() => {
+    if (!withdrawOpen) return undefined
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') closeWithdraw()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [withdrawOpen, closeWithdraw])
+
+  const handleWithdraw = async (event) => {
+    event.preventDefault()
+    if (withdrawing || !canWithdraw) return
 
     setWithdrawing(true)
     setWithdrawMessage(null)
     try {
-      await withdraw()
+      await withdraw({ password: withdrawPassword, confirmText: withdrawText.trim() })
       clearAuth()
       navigate('/login', { replace: true, state: { withdrawn: true } })
     } catch (err) {
       setWithdrawMessage({ type: 'error', text: err.message })
+      setWithdrawPassword('')
       setWithdrawing(false)
     }
   }
 
   return (
     <div className="profile-edit">
-      <h1 className="profile-edit__title">프로필 수정</h1>
-      <p className="profile-edit__subtitle">여행 알림과 안전 정보를 위한 기본 정보를 관리하세요.</p>
+      <div className="page-head">
+        <div>
+          <p className="page-eyebrow">EDIT PROFILE</p>
+          <h1 className="page-title">프로필 수정</h1>
+          <p className="page-subtitle">여행 알림과 안전 정보를 위한 기본 정보를 관리하세요.</p>
+        </div>
+      </div>
 
       <div className="profile-edit__grid">
         <div className="profile-edit__column">
@@ -410,21 +441,78 @@ export default function ProfileEdit() {
           <span>안내 사항을 모두 확인했으며 탈퇴에 동의합니다.</span>
         </label>
 
-        {withdrawMessage && (
-          <p className={`profile-edit__message profile-edit__message--${withdrawMessage.type}`}>
-            {withdrawMessage.text}
-          </p>
-        )}
-
         <button
           type="button"
           className="btn profile-edit__withdraw-button"
-          disabled={!withdrawConfirmed || withdrawing}
-          onClick={handleWithdraw}
+          disabled={!withdrawConfirmed}
+          onClick={() => setWithdrawOpen(true)}
         >
-          {withdrawing ? '탈퇴 처리 중...' : '회원 탈퇴'}
+          회원 탈퇴
         </button>
       </section>
+
+      {withdrawOpen && (
+        <div className="profile-edit__modal-backdrop" onMouseDown={closeWithdraw}>
+          <form
+            className="card profile-edit__modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="withdraw-modal-title"
+            onMouseDown={(e) => e.stopPropagation()}
+            onSubmit={handleWithdraw}
+          >
+            <h2 id="withdraw-modal-title" className="profile-edit__modal-title">정말 탈퇴하시겠어요?</h2>
+            <p className="profile-edit__modal-desc">
+              탈퇴하면 바로 로그아웃되고 다시 로그인할 수 없어요. 본인 확인을 위해 아래 두 가지를 입력해 주세요.
+            </p>
+
+            <div className="profile-edit__field">
+              <label htmlFor="withdraw-password">현재 비밀번호</label>
+              <input
+                id="withdraw-password"
+                type="password"
+                autoComplete="current-password"
+                autoFocus
+                value={withdrawPassword}
+                onChange={(e) => setWithdrawPassword(e.target.value)}
+              />
+            </div>
+
+            <div className="profile-edit__field">
+              <label htmlFor="withdraw-text">
+                아래 칸에 &lsquo;{WITHDRAW_CONFIRM_TEXT}&rsquo;를 직접 입력해 주세요
+              </label>
+              <input
+                id="withdraw-text"
+                type="text"
+                autoComplete="off"
+                placeholder={WITHDRAW_CONFIRM_TEXT}
+                value={withdrawText}
+                onChange={(e) => setWithdrawText(e.target.value)}
+              />
+            </div>
+
+            {withdrawMessage && (
+              <p className={`profile-edit__message profile-edit__message--${withdrawMessage.type}`}>
+                {withdrawMessage.text}
+              </p>
+            )}
+
+            <div className="profile-edit__modal-actions">
+              <button type="button" className="btn" disabled={withdrawing} onClick={closeWithdraw}>
+                취소
+              </button>
+              <button
+                type="submit"
+                className="btn profile-edit__withdraw-button profile-edit__modal-submit"
+                disabled={!canWithdraw || withdrawing}
+              >
+                {withdrawing ? '탈퇴 처리 중...' : '회원 탈퇴'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
       <Toast message={toast} onClose={clearToast} />
     </div>
   )

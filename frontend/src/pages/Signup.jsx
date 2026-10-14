@@ -51,8 +51,9 @@ export default function Signup() {
 
   return (
     <AuthLayout>
-      <div className="auth-card">
-        <h2>TriPlanner를 시작해볼까요?</h2>
+      <div className="auth-card auth-card--wide">
+        <p className="auth-card__eyebrow">START YOUR TRIP</p>
+        <h2>여행을 시작해볼까요?</h2>
         <p className="auth-card__subtitle">기본 정보를 입력하고 나만의 여행을 시작하세요.</p>
 
         <form onSubmit={handleSubmit}>
@@ -61,7 +62,7 @@ export default function Signup() {
             <input
               id="name"
               type="text"
-              placeholder="닉네임 입력"
+              placeholder="이름을 입력해주세요"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
               required
@@ -73,7 +74,7 @@ export default function Signup() {
             <input
               id="email"
               type="email"
-              placeholder="example@triplanner.com"
+              placeholder="name@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -93,28 +94,30 @@ export default function Signup() {
             />
           </div>
 
-          <div className="auth-field">
-            <label htmlFor="password">비밀번호<span className="auth-required" aria-hidden="true">*</span></label>
-            <input
-              id="password"
-              type="password"
-              placeholder="영문, 숫자 포함 8자 이상"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
+          <div className="auth-field-row">
+            <div className="auth-field">
+              <label htmlFor="password">비밀번호<span className="auth-required" aria-hidden="true">*</span></label>
+              <input
+                id="password"
+                type="password"
+                placeholder="영문, 숫자 포함 8자 이상"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
 
-          <div className="auth-field">
-            <label htmlFor="passwordConfirm">비밀번호 확인<span className="auth-required" aria-hidden="true">*</span></label>
-            <input
-              id="passwordConfirm"
-              type="password"
-              placeholder="비밀번호를 한 번 더 입력해주세요"
-              value={passwordConfirm}
-              onChange={(e) => setPasswordConfirm(e.target.value)}
-              required
-            />
+            <div className="auth-field">
+              <label htmlFor="passwordConfirm">비밀번호 확인<span className="auth-required" aria-hidden="true">*</span></label>
+              <input
+                id="passwordConfirm"
+                type="password"
+                placeholder="비밀번호를 다시 입력해주세요"
+                value={passwordConfirm}
+                onChange={(e) => setPasswordConfirm(e.target.value)}
+                required
+              />
+            </div>
           </div>
 
           <fieldset className="auth-consent">

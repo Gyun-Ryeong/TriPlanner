@@ -9,12 +9,15 @@
 
 .trip-schedule__eyebrow {
   font-size: 13px;
+  font-weight: 500;
   color: var(--color-text-muted);
   margin: 0 0 6px;
 }
 
 .trip-schedule__title {
-  font-size: 26px;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   margin: 0 0 6px;
 }
 
@@ -33,6 +36,8 @@
 
 .trip-schedule__actions-row {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: 10px;
 }

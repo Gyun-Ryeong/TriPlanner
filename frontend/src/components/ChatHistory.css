@@ -80,6 +80,29 @@
   filter: grayscale(1);
 }
 
+/* 삭제(✕)는 작고 흐리게 두었다가 마우스를 올리면 빨갛게 */
+.chat-history__delete {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin-right: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.chat-history__delete:hover {
+  opacity: 1;
+  color: var(--color-danger);
+  background: rgba(220, 38, 38, 0.08);
+}
+
 .chat-history__pin:hover {
   opacity: 0.7;
   background: rgba(16, 24, 40, 0.06);

@@ -147,3 +147,17 @@
   font: inherit;
   font-size: 14px;
 }
+
+.trip-checklist__setup-guide {
+  margin: 0;
+  padding: 14px 18px;
+  font-size: 14px;
+  line-height: 1.6;
+  background: var(--color-primary-soft);
+  border-color: transparent;
+}
+
+.trip-checklist__setup-footer {
+  display: flex;
+  justify-content: flex-end;
+}

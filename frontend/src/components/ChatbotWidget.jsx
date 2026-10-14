@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { BotIcon } from './Icons.jsx'
 import ChatHistory from './ChatHistory.jsx'
 import ChatPanel from './ChatPanel.jsx'
 import './ChatbotWidget.css'
@@ -70,7 +71,7 @@ export default function ChatbotWidget() {
         aria-expanded={open}
         onClick={() => setOpen((prev) => !prev)}
       >
-        {open ? '✕' : '💬'}
+        {open ? '✕' : <BotIcon size={26} />}
       </button>
     </div>
   )

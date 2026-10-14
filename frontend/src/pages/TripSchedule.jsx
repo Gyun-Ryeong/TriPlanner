@@ -1,11 +1,14 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { addTripItem, deleteTripItem, getDayRoute, getMyTrips, getTrip, updateTripItem } from '../api/trips.js'
 import { savePlace, searchPlaces } from '../api/places.js'
 import { getNaverMapClientId } from '../api/config.js'
 import { loadNaverMapsScript } from '../lib/naverMaps.js'
+import BackButton from '../components/BackButton.jsx'
 import TripDeleteButton from '../components/TripDeleteButton.jsx'
 import { TripAlertBlock } from '../components/TripAlertList.jsx'
+import { getAuth } from '../api/authStorage.js'
+import { prepAlertKey, useDismissedAlerts, weatherAlertKey } from '../lib/dismissedAlerts.js'
 import { useTripAlerts } from '../lib/tripAlertsContext.js'
 import './TripSchedule.css'
 
@@ -59,7 +62,8 @@ export default function TripSchedule({ mode = 'view' }) {
   const planning = mode === 'plan'
   const { tripId } = useParams()
   const navigate = useNavigate()
-  const { data: alertData } = useTripAlerts()
+  const { data: alertData, prep: prepData } = useTripAlerts()
+  const { dismissed, dismiss } = useDismissedAlerts(getAuth()?.userId)
   const [trip, setTrip] = useState(null)
   const [selectedDayId, setSelectedDayId] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -462,6 +466,20 @@ export default function TripSchedule({ mode = 'view' }) {
   }
 
   const tripAlert = trip ? alertData?.trips.find((t) => t.tripId === trip.tripId) : null
+  const tripPrep = trip ? prepData?.trips.find((t) => t.tripId === trip.tripId) : null
+
+  // 새 여행을 만드는 중에는 예보를 아래 카드로 보여주고, 종 알림에는 같은 내용이 따로 뜨지 않게 미리 지워 둔다.
+  // 일정을 아직 안 채웠으니 '일정이 비어 있어요'와 체크리스트 준비 알림도 같이 뺀다
+  // (체크리스트는 다음 단계에서 직접 정리한다). 이후 예보가 새로 바뀌면 종에 다시 뜬다
+  useLayoutEffect(() => {
+    if (!planning || !trip) return
+    const keys = [
+      ...(tripAlert?.alerts ?? []).map((alert) => weatherAlertKey(tripAlert, alert)),
+      ...(tripPrep?.alerts ?? []).map((alert) => prepAlertKey(tripPrep, alert)),
+      prepAlertKey(trip, { kind: 'CHECKLIST' }),
+    ].filter((key) => !dismissed.has(key))
+    if (keys.length > 0) dismiss(keys)
+  }, [planning, trip, tripAlert, tripPrep, dismissed, dismiss])
 
   if (loading) {
     return (
@@ -501,23 +519,24 @@ export default function TripSchedule({ mode = 'view' }) {
         {planning ? (
           <div className="trip-schedule__actions">
             <div className="trip-schedule__actions-row">
-              <Link to={`/trips/${trip.tripId}/checklist`} className="btn">📋 체크리스트</Link>
+              <BackButton fallback="/mytrips/stats" />
               <button
                 type="button"
                 className="btn btn-primary"
-                onClick={() => navigate(`/schedule/${trip.tripId}`, { replace: true })}
+                onClick={() => navigate(`/trips/${trip.tripId}/checklist`, { replace: true, state: { setup: true } })}
               >
-                작성 완료
+                다음 →
               </button>
             </div>
             <p className="trip-schedule__actions-note">
-              추가한 장소와 메모는 바로 저장돼요. 완료 후에도 일정 화면의 &lsquo;일정 수정&rsquo;으로 고칠 수 있어요.
+              추가한 장소와 메모는 바로 저장돼요. 다음 단계에서 출발 전 체크리스트를 확인해요. 일정은 나중에도 일정 화면의 &lsquo;일정 수정&rsquo;으로 고칠 수 있어요.
             </p>
           </div>
         ) : (
           <div className="trip-schedule__actions">
             <div className="trip-schedule__actions-row">
-              <Link to={`/trips/${trip.tripId}/checklist`} className="btn">📋 체크리스트</Link>
+              <BackButton fallback="/mytrips/stats" />
+              <Link to={`/trips/${trip.tripId}/checklist`} className="btn btn-sm">📋 체크리스트</Link>
               <div className="trip-schedule__mode" role="group" aria-label="이동 수단">
                 {[
                   ['driving', '🚗 자동차'],
@@ -557,6 +576,16 @@ export default function TripSchedule({ mode = 'view' }) {
           </div>
         )}
       </div>
+
+      {planning && tripAlert?.forecastAvailable && (
+        <div className="card trip-schedule__alerts">
+          <p className="card-label">이 여행 기간 예보</p>
+          <TripAlertBlock trip={tripAlert} />
+          {alertData.unavailableSources.length > 0 && (
+            <p className="trip-alert__note">일부 정보({alertData.unavailableSources.join(', ')})를 불러오지 못했어요.</p>
+          )}
+        </div>
+      )}
 
       {!planning && tripAlert && tripAlert.alerts.length > 0 && (
         <div className="card trip-schedule__alerts">
@@ -608,7 +637,7 @@ export default function TripSchedule({ mode = 'view' }) {
             <p className="trip-schedule__edit-guide">
               {trip.days.length > 1 ? '일차 탭을 눌러 날짜별로 ' : ''}계획을 입력하세요. 장소는 아래에서 검색해 추가하고,
               장소가 아직 정해지지 않았다면 메모로 적어둘 수 있어요. 각 항목의 ↑↓로 순서를, &lsquo;수정&rsquo;으로 시간·메모를 바꿀 수 있어요.
-              다 입력했으면 &lsquo;{planning ? '작성 완료' : '수정 완료'}&rsquo;를 눌러주세요.
+              다 입력했으면 &lsquo;{planning ? '다음' : '수정 완료'}&rsquo;을 눌러주세요.
             </p>
           )}
 

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createTrip } from '../api/trips.js'
+import BackButton from '../components/BackButton.jsx'
 import KoreaMap from '../components/KoreaMap.jsx'
 import './NewTrip.css'
 
@@ -56,8 +57,13 @@ export default function NewTrip() {
 
   return (
     <div className="newtrip">
-      <h1 className="newtrip__title">새 여행 생성하기</h1>
-      <p className="newtrip__subtitle">국내 여행지를 선택해주세요</p>
+      <div className="page-head newtrip__head">
+        <div>
+          <h1 className="page-title">새 여행 생성하기</h1>
+          <p className="page-subtitle">국내 여행지를 선택해주세요</p>
+        </div>
+        <BackButton fallback="/" />
+      </div>
 
       <div className="newtrip__body">
         <div className="card newtrip__map-card">
