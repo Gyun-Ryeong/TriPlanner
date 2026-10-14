@@ -1,6 +1,7 @@
 package com.triplanner.backend.service;
 
 import com.triplanner.backend.domain.User;
+import com.triplanner.backend.dto.WithdrawalRequest;
 import com.triplanner.backend.repository.ChatbotErrorLogRepository;
 import com.triplanner.backend.repository.RagQueryLogRepository;
 import com.triplanner.backend.repository.TripChecklistItemRepository;
@@ -14,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -25,6 +27,9 @@ public class WithdrawalService {
 
     public static final int RETENTION_DAYS = 14;
 
+    // 탈퇴 화면에서 직접 입력하게 하는 확인 문구 (프론트 ProfileEdit 의 WITHDRAW_CONFIRM_TEXT 와 같은 값)
+    static final String CONFIRM_TEXT = "회원탈퇴";
+
     private static final Logger log = LoggerFactory.getLogger(WithdrawalService.class);
 
     private final UserRepository userRepository;
@@ -34,6 +39,7 @@ public class WithdrawalService {
     private final RagQueryLogRepository ragQueryLogRepository;
     private final TripChecklistItemRepository checklistRepository;
     private final ChatbotErrorLogRepository chatbotErrorLogRepository;
+    private final PasswordEncoder passwordEncoder;
 
     public WithdrawalService(
             UserRepository userRepository,
@@ -42,9 +48,11 @@ public class WithdrawalService {
             TripItemRepository tripItemRepository,
             RagQueryLogRepository ragQueryLogRepository,
             TripChecklistItemRepository checklistRepository,
-            ChatbotErrorLogRepository chatbotErrorLogRepository
+            ChatbotErrorLogRepository chatbotErrorLogRepository,
+            PasswordEncoder passwordEncoder
     ) {
         this.chatbotErrorLogRepository = chatbotErrorLogRepository;
+        this.passwordEncoder = passwordEncoder;
         this.userRepository = userRepository;
         this.tripRepository = tripRepository;
         this.tripDayRepository = tripDayRepository;
@@ -53,11 +61,18 @@ public class WithdrawalService {
         this.checklistRepository = checklistRepository;
     }
 
+    // 비밀번호와 확인 문구가 모두 맞아야 탈퇴한다 (화면에서 막아 두어도 API를 직접 부르는 경우를 위해 서버에서도 검사한다)
     @Transactional
-    public void withdraw(String email) {
+    public void withdraw(String email, WithdrawalRequest request) {
         User user = userRepository.findByEmail(email)
                 .filter(found -> !found.isWithdrawn())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "사용자를 찾을 수 없습니다."));
+        if (!passwordEncoder.matches(request.password(), user.getPassword())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "비밀번호가 올바르지 않습니다.");
+        }
+        if (!CONFIRM_TEXT.equals(request.confirmText().trim())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "확인 문구가 올바르지 않습니다. '" + CONFIRM_TEXT + "'를 정확히 입력해 주세요.");
+        }
         user.withdraw();
     }
 

@@ -1,13 +1,16 @@
 package com.triplanner.backend.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.triplanner.backend.dto.AirForecast;
 import com.triplanner.backend.dto.RegionAirQualityResponse;
 import com.triplanner.backend.dto.RegionAirQualityResponse.AreaAirQuality;
 import com.triplanner.backend.dto.RegionAirQualityResponse.Metric;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -123,5 +126,19 @@ class AirQualityServiceTest {
         assertEquals(6, first.size());
         assertSame(first, second);
         assertEquals(callsAfterFirst, service.calls.get());
+    }
+
+    @Test
+    void disabledServiceNeverCallsAirKorea() {
+        FakeAirQualityService service = service(AirQualityServiceTest::area);
+        ReflectionTestUtils.setField(service, "enabled", false);
+
+        ResponseStatusException failure = assertThrows(ResponseStatusException.class, service::getRegionAirQuality);
+        AirForecast forecast = service.getForecast();
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, failure.getStatusCode());
+        // 예보는 비어 있는 값으로 돌려줘서 여행 알림에 대기질 항목이 생기지 않는다
+        assertNull(forecast.grade("PM10", LocalDate.now(), "서울"));
+        assertEquals(0, service.calls.get());
     }
 }

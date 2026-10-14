@@ -56,6 +56,8 @@ public class AirQualityService {
 
     private static final String NORMAL_CODE = "00";
 
+    private static final String DISABLED_MESSAGE = "대기질 조회는 개발 중이라 잠시 꺼 두었어요. 나중에 다시 확인해 주세요.";
+
     private static final String[] GRADES = {"좋음", "보통", "나쁨", "매우나쁨"};
 
     // 환경부 4단계 기준: 각 값 이하이면 해당 등급 (마지막 등급은 그 초과)
@@ -107,6 +109,11 @@ public class AirQualityService {
     @Value("${public-data.service-key}")
     private String serviceKey;
 
+    // 개발 중 에어코리아 호출 횟수 한도를 아끼려고 application.yml 의 air-quality.enabled 로 호출을 통째로 막는다.
+    // (설정이 없는 환경·테스트에서는 켜진 상태)
+    @Value("${air-quality.enabled:true}")
+    private boolean enabled = true;
+
     private static JdkClientHttpRequestFactory externalApiRequestFactory() {
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(
                 HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build());
@@ -120,6 +127,9 @@ public class AirQualityService {
     // 권역별 대기질 (시도 17곳을 병렬로 조회한다). 새로 받아오지 못하면 마지막으로 성공한 결과를 대신 돌려주고,
     // 그런 결과도 없으면 실패 이유를 알리는 예외를 던진다
     public List<RegionAirQualityResponse> getRegionAirQuality() {
+        if (!enabled) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, DISABLED_MESSAGE);
+        }
         List<RegionAirQualityResponse> cached = currentCache.getIfPresent("current");
         if (cached == null) {
             cached = partialCache.getIfPresent("current");
@@ -347,6 +357,10 @@ public class AirQualityService {
 
     // 여행 알림용: 미세먼지(PM10)/초미세먼지(PM25) 예보통보(getMinuDustFrcstDspth)에서 날짜별 최신 발표분의 권역 등급을 모은다 (30분 캐시)
     public AirForecast getForecast() {
+        if (!enabled) {
+            // 막아 둔 동안은 예보가 없는 것으로 취급해, 여행 알림에 '대기질을 불러오지 못했다'는 문구가 매번 붙지 않게 한다
+            return new AirForecast(Map.of());
+        }
         return forecastCache.get("forecast", this::fetchForecast);
     }
 

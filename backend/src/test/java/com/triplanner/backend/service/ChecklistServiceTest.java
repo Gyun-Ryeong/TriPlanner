@@ -52,6 +52,26 @@ class ChecklistServiceTest {
         assertFalse(has(ChecklistService.defaultItems("서울 특별시", LocalDate.of(2026, 10, 10), LocalDate.of(2026, 10, 11)), "우산"));
     }
 
+    private static List<Integer> offsets(List<Draft> items) {
+        return items.stream().map(Draft::dueOffsetDays).distinct().sorted().toList();
+    }
+
+    @Test
+    void itemsWhoseDeadlineAlreadyPassedAreNotCreated() {
+        LocalDate today = LocalDate.of(2026, 10, 13);
+        LocalDate end = LocalDate.of(2026, 10, 25);
+        List<Draft> all = ChecklistService.defaultItems("강원도", LocalDate.of(2026, 10, 20), end);
+
+        // 출발 7일 뒤: D-7 기한이 오늘이라 전부 남는다
+        assertEquals(List.of(0, 1, 3, 7), offsets(ChecklistService.withoutAlreadyPastDue(all, LocalDate.of(2026, 10, 20), today)));
+        // 5일 뒤: D-7(기한 2일 전)은 빠진다
+        assertEquals(List.of(0, 1, 3), offsets(ChecklistService.withoutAlreadyPastDue(all, LocalDate.of(2026, 10, 18), today)));
+        // 2일 뒤: D-7, D-3 이 빠지고 D-1, 당일만 남는다
+        assertEquals(List.of(0, 1), offsets(ChecklistService.withoutAlreadyPastDue(all, LocalDate.of(2026, 10, 15), today)));
+        // 오늘 출발: 당일 항목만 남는다
+        assertEquals(List.of(0), offsets(ChecklistService.withoutAlreadyPastDue(all, today, today)));
+    }
+
     @Test
     void everyItemHasKnownDeadline() {
         List<Draft> items = ChecklistService.defaultItems("경상도", LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 3));

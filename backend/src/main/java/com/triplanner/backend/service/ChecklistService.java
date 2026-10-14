@@ -9,6 +9,7 @@ import com.triplanner.backend.repository.TripChecklistItemRepository;
 import com.triplanner.backend.repository.TripRepository;
 import com.triplanner.backend.repository.UserRepository;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,6 +31,7 @@ public class ChecklistService {
 
     private static final int MAX_ITEMS_PER_TRIP = 50;
     private static final String JEJU = "제주도";
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private final TripChecklistItemRepository checklistRepository;
     private final TripRepository tripRepository;
@@ -49,7 +51,9 @@ public class ChecklistService {
         Trip trip = getOwnedTrip(email, tripId);
         if (!trip.isChecklistInitialized()) {
             int order = 0;
-            for (Draft draft : defaultItems(trip.getRegion(), trip.getStartDate(), trip.getEndDate())) {
+            // 여행을 늦게 만든 사용자에게 만들자마자 '기한 지남'이 뜨지 않도록, 처음부터 기한이 지난 기본 항목은 만들지 않는다
+            List<Draft> drafts = defaultItems(trip.getRegion(), trip.getStartDate(), trip.getEndDate());
+            for (Draft draft : withoutAlreadyPastDue(drafts, trip.getStartDate(), LocalDate.now(KST))) {
                 checklistRepository.save(new TripChecklistItem(trip, draft.content(), draft.category(), draft.dueOffsetDays(), order++));
             }
             trip.markChecklistInitialized();
@@ -121,6 +125,14 @@ public class ChecklistService {
     }
 
     record Draft(String content, String category, int dueOffsetDays) {
+    }
+
+    // 기한(출발일 - dueOffsetDays)이 오늘보다 이미 지난 항목을 뺀다.
+    // 예: 출발이 5일 뒤이면 D-7 항목(기한이 2일 전)을, 2일 뒤이면 D-7·D-3 항목을 만들지 않는다
+    static List<Draft> withoutAlreadyPastDue(List<Draft> drafts, LocalDate startDate, LocalDate today) {
+        return drafts.stream()
+                .filter(draft -> !startDate.minusDays(draft.dueOffsetDays()).isBefore(today))
+                .toList();
     }
 
     // 기간(박 수)·지역·출발 계절에 따라 달라지는 기본 항목. 기한은 출발일 기준 며칠 전인지로 둔다

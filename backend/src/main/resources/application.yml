@@ -18,6 +18,10 @@ server:
 admin:
   emails: ${ADMIN_EMAILS:test}
 
+# 에어코리아(대기질) 호출 스위치. 지금은 켜 둠(true). 호출 횟수 한도를 아끼려면 false 로 바꾸고 백엔드를 재시작한다
+air-quality:
+  enabled: ${AIR_QUALITY_ENABLED:true}
+
 jwt:
   secret: ${JWT_SECRET:change-this-secret-in-application-local.yml}
   expiration-ms: 86400000

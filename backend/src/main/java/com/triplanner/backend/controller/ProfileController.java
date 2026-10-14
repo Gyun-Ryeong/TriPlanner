@@ -5,13 +5,14 @@ import com.triplanner.backend.dto.NotificationSettingsRequest;
 import com.triplanner.backend.dto.PasswordChangeRequest;
 import com.triplanner.backend.dto.ProfileResponse;
 import com.triplanner.backend.dto.ProfileUpdateRequest;
+import com.triplanner.backend.dto.WithdrawalRequest;
 import com.triplanner.backend.service.ProfileService;
 import com.triplanner.backend.service.WithdrawalService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -67,10 +68,14 @@ public class ProfileController {
         return ResponseEntity.noContent().build();
     }
 
-    // 회원 탈퇴 (네이버 가입 회원은 비밀번호를 모르므로 비밀번호 확인 없이 로그인 상태만 확인한다)
-    @DeleteMapping
-    public ResponseEntity<Void> withdraw(Authentication authentication) {
-        withdrawalService.withdraw(authentication.getName());
+    // 회원 탈퇴: 비밀번호와 확인 문구('회원탈퇴')가 맞아야 한다.
+    // (네이버 가입 회원은 비밀번호를 알 수 없어 지금은 탈퇴할 수 없다 - 소셜 로그인 구현 때 다시 정한다)
+    @PostMapping("/withdrawal")
+    public ResponseEntity<Void> withdraw(
+            Authentication authentication,
+            @Valid @RequestBody WithdrawalRequest request
+    ) {
+        withdrawalService.withdraw(authentication.getName(), request);
         return ResponseEntity.noContent().build();
     }
 }
