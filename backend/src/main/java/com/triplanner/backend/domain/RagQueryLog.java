@@ -16,8 +16,8 @@ import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "rag_query_log")
-@Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+// @Getter
+// @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RagQueryLog {
 
     @Id
@@ -51,6 +51,11 @@ public class RagQueryLog {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    public RagQueryLog(){
+        
+    }
+
+
     public RagQueryLog(
             User user,
             Trip trip,
@@ -68,5 +73,50 @@ public class RagQueryLog {
         this.responseTimeMs = responseTimeMs;
         this.tokenUsed = tokenUsed;
         this.createdAt = LocalDateTime.now();
+    }
+
+
+    public void setLogId(Long logId) {
+        this.logId = logId;
+    }
+
+
+    public void setUser(User user) {
+        this.user = user;
+    }
+
+
+    public void setTrip(Trip trip) {
+        this.trip = trip;
+    }
+
+
+    public void setQueryText(String queryText) {
+        this.queryText = queryText;
+    }
+
+
+    public void setResponseText(String responseText) {
+        this.responseText = responseText;
+    }
+
+
+    public void setRetrievedDocCount(Integer retrievedDocCount) {
+        this.retrievedDocCount = retrievedDocCount;
+    }
+
+
+    public void setResponseTimeMs(Integer responseTimeMs) {
+        this.responseTimeMs = responseTimeMs;
+    }
+
+
+    public void setTokenUsed(Integer tokenUsed) {
+        this.tokenUsed = tokenUsed;
+    }
+
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
     }
 }

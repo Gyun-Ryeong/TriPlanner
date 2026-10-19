@@ -16,8 +16,8 @@ import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "festival_schedule")
-@Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+// @Getter
+// @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class FestivalSchedule {
 
     @Id
@@ -38,10 +38,55 @@ public class FestivalSchedule {
     @Column(name = "end_date")
     private LocalDate endDate;
 
+    public FestivalSchedule() {
+    }
+
     public FestivalSchedule(Festival festival, Integer year, LocalDate startDate, LocalDate endDate) {
         this.festival = festival;
         this.year = year;
         this.startDate = startDate;
         this.endDate = endDate;
     }
+
+    public Long getScheduleId() {
+        return scheduleId;
+    }
+
+    public void setScheduleId(Long scheduleId) {
+        this.scheduleId = scheduleId;
+    }
+
+    public Festival getFestival() {
+        return festival;
+    }
+
+    public void setFestival(Festival festival) {
+        this.festival = festival;
+    }
+
+    public Integer getYear() {
+        return year;
+    }
+
+    public void setYear(Integer year) {
+        this.year = year;
+    }
+
+    public LocalDate getStartDate() {
+        return startDate;
+    }
+
+    public void setStartDate(LocalDate startDate) {
+        this.startDate = startDate;
+    }
+
+    public LocalDate getEndDate() {
+        return endDate;
+    }
+
+    public void setEndDate(LocalDate endDate) {
+        this.endDate = endDate;
+    }
+
+
 }
