@@ -16,6 +16,9 @@ const REGIONS = [
   { id: 'jeju', name: '제주도', desc: '한라산 백록담, 올레길 코스, 곽지 해수욕장 푸른 바다' },
 ]
 
+// 세부 지역 선택에서 '직접 입력'을 고른 상태 (목록에 없는 시·군: 성남, 곡성 등)
+const CUSTOM_CITY = '__custom__'
+
 function todayPlus(days) {
   const date = new Date()
   date.setDate(date.getDate() + days)
@@ -24,8 +27,9 @@ function todayPlus(days) {
 
 export default function NewTrip() {
   const [selected, setSelected] = useState('jeju')
-  // 세부 지역(시): 빈 값이면 권역 전체. 권역을 바꾸면 다시 비운다
+  // 세부 지역(시): 빈 값이면 권역 전체, CUSTOM_CITY 면 customCity 에 직접 입력. 권역을 바꾸면 다시 비운다
   const [city, setCity] = useState('')
+  const [customCity, setCustomCity] = useState('')
   // 권역 id -> 그 아래 도시 이름들 (못 받아 오면 세부 지역 선택만 숨긴다)
   const [cityOptions, setCityOptions] = useState({})
   const [title, setTitle] = useState('')
@@ -36,6 +40,7 @@ export default function NewTrip() {
   const navigate = useNavigate()
   const selectedRegion = REGIONS.find((r) => r.id === selected)
   const cities = cityOptions[selected] ?? []
+  const chosenCity = city === CUSTOM_CITY ? customCity.trim() : city
 
   useEffect(() => {
     let cancelled = false
@@ -52,11 +57,16 @@ export default function NewTrip() {
   function selectRegion(id) {
     setSelected(id)
     setCity('')
+    setCustomCity('')
   }
 
   async function handleSubmit() {
     if (!title.trim()) {
       setError('여행 제목을 입력해주세요.')
+      return
+    }
+    if (city === CUSTOM_CITY && !/^[가-힣]{1,15}$/.test(chosenCity)) {
+      setError('세부 지역은 한글 시·군 이름으로 입력해주세요. (예: 성남, 곡성군)')
       return
     }
     if (endDate < startDate) {
@@ -68,7 +78,7 @@ export default function NewTrip() {
     setSubmitting(true)
 
     try {
-      const trip = await createTrip({ title, region: selectedRegion.name, city, startDate, endDate })
+      const trip = await createTrip({ title, region: selectedRegion.name, city: chosenCity, startDate, endDate })
       // 생성 직후에는 기존 일정 화면이 아닌 전용 '일정 만들기' 화면에서 일차별 계획을 입력한다
       navigate(`/trips/${trip.tripId}/plan`)
     } catch (err) {
@@ -112,7 +122,7 @@ export default function NewTrip() {
         </div>
       </div>
 
-      {cities.length > 1 && (
+      {cities.length > 0 && (
         <div className="card newtrip__city">
           <div className="newtrip__field">
             <label htmlFor="trip-city">
@@ -120,15 +130,31 @@ export default function NewTrip() {
             </label>
             <select id="trip-city" value={city} onChange={(e) => setCity(e.target.value)}>
               <option value="">{selectedRegion.name} 전체</option>
-              {cities.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
+              {cities.length > 1 &&
+                cities.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              <option value={CUSTOM_CITY}>직접 입력 (다른 시·군)</option>
             </select>
           </div>
+          {city === CUSTOM_CITY && (
+            <div className="newtrip__field">
+              <label htmlFor="trip-custom-city">시·군 이름</label>
+              <input
+                id="trip-custom-city"
+                type="text"
+                maxLength={15}
+                placeholder="예: 성남, 곡성, 양평"
+                value={customCity}
+                onChange={(e) => setCustomCity(e.target.value)}
+              />
+            </div>
+          )}
           <p className="newtrip__city-hint">
-            도시를 고르면 실시간 알림에서 그 도시 기준의 날씨를 보여드려요. 고르지 않으면 {selectedRegion.name} 전체를 보여드려요.
+            도시를 고르면 여행 목록에 그 지역 사진을, 실시간 알림에 그 도시 기준 날씨를 보여드려요. 직접 입력한 시·군은 사진만 그 지역으로
+            나오고 날씨는 {selectedRegion.name} 대표 도시 기준이에요. 고르지 않으면 {selectedRegion.name} 전체를 보여드려요.
           </p>
         </div>
       )}
@@ -170,7 +196,7 @@ export default function NewTrip() {
 
       <div className="newtrip__footer">
         <button type="button" className="btn btn-primary" disabled={submitting} onClick={handleSubmit}>
-          {submitting ? '생성 중...' : `${selectedRegion?.name}${city ? ` · ${city}` : ''} 선택 · 다음 단계로 진행 →`}
+          {submitting ? '생성 중...' : `${selectedRegion?.name}${chosenCity ? ` · ${chosenCity}` : ''} 선택 · 다음 단계로 진행 →`}
         </button>
       </div>
     </div>

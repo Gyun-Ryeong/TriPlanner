@@ -16,3 +16,9 @@ export function getWeatherWarnings() {
 export function getRegionAirQuality() {
   return apiRequest('/api/air-quality')
 }
+
+// 지역(시·군) 대표 사진 (앱에 사진 파일이 없는 지역만). 못 찾으면 image 가 null
+export function getRegionPhoto(name, region) {
+  const query = new URLSearchParams({ name, region: region ?? '' })
+  return apiRequest(`/api/regions/photo?${query}`)
+}

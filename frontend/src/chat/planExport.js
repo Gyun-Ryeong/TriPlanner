@@ -47,12 +47,13 @@ function tripTitle(name, startDate, endDate) {
   return nights <= 0 ? `${name} 당일 여행` : `${name} ${nights}박 ${nights + 1}일`
 }
 
-function toSavable({ name, sido, startDate, endDate, plan }) {
+function toSavable({ name, sido, area, startDate, endDate, plan }) {
   const start = startDate || plan[0].date
   const end = endDate || plan[plan.length - 1].date
   return {
     label: name,
-    request: { title: cut(tripTitle(name, start, end), 100), sido, startDate: start, endDate: end, days: toDays(plan) },
+    // area: 챗봇의 세부 지역 (성남, 곡성 등). 백엔드가 여행의 세부 지역(시)으로 저장해 목록에 그 지역 사진이 나온다
+    request: { title: cut(tripTitle(name, start, end), 100), sido, area: cut(area, 30) || null, startDate: start, endDate: end, days: toDays(plan) },
   }
 }
 
@@ -66,6 +67,7 @@ export function toSavablePlans(data) {
     return [toSavable({
       name: slots.area || slots.region,
       sido: slots.region,
+      area: slots.area,
       startDate: slots.start_date,
       endDate: slots.end_date,
       plan: data.plan,
@@ -78,6 +80,7 @@ export function toSavablePlans(data) {
       .map((trip) => toSavable({
         name: trip.area || trip.sido,
         sido: trip.sido,
+        area: trip.area,
         startDate: trip.start_date,
         endDate: trip.end_date,
         plan: trip.plan,
