@@ -79,13 +79,13 @@ def _end_from(s: date, month: int | None, day: int) -> date | None:
 def parse_trip_dates(text: str, today: date) -> dict:
     """
     Returns:
-        {"start": date|None, "end": date|None, "nights": int|None, "rest": str}
+        {"start": date|None, "end": date|None, "nights": int|None, "rest": str, "end_implied": bool}
         - start만 알 수 있으면 end는 None (몇 박인지 모름)
         - '2박 3일'처럼 기간만 말하면 start는 None, nights만 채워짐
     """
     orig = text or ""
     work = orig
-    anchors: list[tuple[int, int, date, date | None]] = []  # (시작위치, 끝위치, 시작일, 종료일)
+    anchors: list[tuple[int, int, date, date | None, bool]] = []  # (시작위치, 끝위치, 시작일, 종료일, 종료일을 짐작했는지)
 
     def scan(pattern, handler):
         """패턴을 반복 검색하되, 한 번 처리한 구간은 지워서 다시 잡히지 않게 합니다."""
@@ -97,7 +97,7 @@ def parse_trip_dates(text: str, today: date) -> dict:
             res = handler(m)  # (끝위치, 시작일, 종료일) 또는 None
             end_pos = res[0] if res else m.end()
             if res and res[1] is not None:
-                anchors.append((m.start(), end_pos, res[1], res[2]))
+                anchors.append((m.start(), end_pos, res[1], res[2], len(res) > 3 and res[3]))
             work = _mask(work, m.start(), end_pos)
 
     # 1) M월 D일 [부터/~ [M월] D일]
@@ -136,13 +136,14 @@ def parse_trip_dates(text: str, today: date) -> dict:
     scan(re.compile(r"(다음|이번|담)\s*주\s*([월화수목금토일])\s*요일"), h_week_wd)
 
     # 4) 주말
+    # '주말'은 토~일로 짐작한 것이라, '4박 5일'처럼 기간을 말하면 기간이 우선한다 (end_implied)
     def h_next_weekend(m):
         s, e = _weekend(today, True)
-        return m.end(), s, e
+        return m.end(), s, e, True
 
     def h_weekend(m):
         s, e = _weekend(today, False)
-        return m.end(), s, e
+        return m.end(), s, e, True
 
     scan(re.compile(r"(?:다음|담)\s*주\s*(?:주)?\s*말|(?:다음|담)\s*주말"), h_next_weekend)
     scan(re.compile(r"(?:이번\s*)?주\s*말"), h_weekend)
@@ -165,8 +166,9 @@ def parse_trip_dates(text: str, today: date) -> dict:
     # 말고/대신 앞에 나온 날짜는 제외하고 마지막 언급을 사용
     valid = [a for a in anchors if not _NEG.match(orig[a[1]:a[1] + 8])]
     start = end = None
+    end_implied = False
     if valid:
-        _, _, start, end = max(valid, key=lambda a: a[0])
+        _, _, start, end, end_implied = max(valid, key=lambda a: a[0])
 
     # 기간 표현
     nights = None
@@ -182,7 +184,12 @@ def parse_trip_dates(text: str, today: date) -> dict:
         nights = int(m.group(1)) * 7 - 1  # "2주 일정" = 14일 ("다음 주", "이번 주"는 숫자가 없어 해당 없음)
     elif re.search(r"일주일|한\s*주\s*(?:간|동안|일정|여행)", orig):
         nights = 6
+    elif re.search(r"한\s*달", orig):
+        nights = 29  # 한 달 = 30일 (최대 기간)
     elif m := re.search(r"(이틀|사흘|나흘|닷새|엿새|이레|열흘|보름)", orig):
         nights = {"이틀": 1, "사흘": 2, "나흘": 3, "닷새": 4, "엿새": 5, "이레": 6, "열흘": 9, "보름": 14}[m.group(1)]
 
-    return {"start": start, "end": end, "nights": nights, "rest": work}  # rest: 날짜 표현을 지운 나머지 문장
+    if end_implied and nights is not None:
+        end = start + timedelta(days=nights)  # "이번 주말 4박 5일" = 토요일부터 4박
+    # rest: 날짜 표현을 지운 나머지 문장, end_implied: end를 '주말(토~일)'로 짐작했는지 (기간을 따로 알면 기간이 우선)
+    return {"start": start, "end": end, "nights": nights, "rest": work, "end_implied": end_implied and nights is None}

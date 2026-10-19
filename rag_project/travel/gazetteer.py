@@ -28,6 +28,8 @@ COMMON_WORDS = {"고양", "구리", "화성", "이천", "인제", "상주", "장
 TRIP_CONTEXT_RE = re.compile(r"여행|일정|\d+\s*박|당일|코스|놀러|가고|갈래|가자|갈까|가려|간다|가요|추천|맛집|축제|관광|명소|숙소")
 _PLAIN_PARTICLE = r"(?:에서|으로|부터|까지|에|로|쪽|은|는|도)?"
 METRO = {"서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종"}
+# 행정구역 개편으로 사라진 옛 이름 → 지금 이름 (TourAPI 목록에는 새 이름만 있다). 사람들은 옛 이름으로 말하는 경우가 많다
+LEGACY_NAMES = {("인천", "중구"): "제물포", ("인천", "동구"): "제물포", ("인천", "서구"): "서해"}
 TTL = 30 * 24 * 3600
 FAIL_COOLDOWN = 300
 _failed_at = 0.0
@@ -146,6 +148,8 @@ def lookup_regions(text: str) -> list[tuple[str, str]]:
 def lookup_in_sido(text: str, sido: str) -> str:
     """시도를 함께 말했을 때 그 시도 안의 시군구 이름 ('강원 고성' → '고성', '부산 중구' → '중구'). 없으면 ''."""
     names = [name for name, sidos in _matches(text) if sido in sidos]
+    if not names:
+        names = [new for (s, old), new in LEGACY_NAMES.items() if s == sido and old in (text or "")]
     return names[-1] if names else ""
 
 
