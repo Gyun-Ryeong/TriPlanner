@@ -36,6 +36,8 @@ public class TripService {
 
     private static final String DEFAULT_STATUS = "PLANNED";
     private static final int MAX_IMPORT_DAYS = 31;
+    // 일차를 하나씩 늘릴 때의 최대 일수 (챗봇 일정 저장과 같은 기준)
+    private static final int MAX_TRIP_DAYS = MAX_IMPORT_DAYS;
 
     private static final Map<String, String> APP_REGIONS = Map.ofEntries(
             Map.entry("서울", "서울 특별시"),
@@ -84,7 +86,8 @@ public class TripService {
         User user = currentUser(email);
         validateDateRange(request.startDate(), request.endDate());
 
-        Trip trip = new Trip(user, request.title(), request.region(), request.startDate(), request.endDate(), DEFAULT_STATUS);
+        Trip trip = new Trip(user, request.title(), request.region(), validCity(request.region(), request.city()),
+                request.startDate(), request.endDate(), DEFAULT_STATUS);
         Trip saved = tripRepository.save(trip);
         generateDays(saved, request.startDate(), request.endDate());
 
@@ -143,13 +146,51 @@ public class TripService {
         boolean datesChanged = !trip.getStartDate().equals(request.startDate())
                 || !trip.getEndDate().equals(request.endDate());
 
-        trip.updateDetails(request.title(), request.region(), request.startDate(), request.endDate(), request.status());
+        trip.updateDetails(request.title(), request.region(), validCity(request.region(), request.city()),
+                request.startDate(), request.endDate(), request.status());
 
         if (datesChanged) {
             deleteDaysAndItems(trip);
             generateDays(trip, request.startDate(), request.endDate());
         }
 
+        return toDetail(trip);
+    }
+
+    // 마지막 일차 뒤에 하루를 더한다 (예: 2박 3일 → 3박 4일). 여행 종료일도 하루 늘어난다
+    public TripDetailResponse addDay(String email, Long tripId) {
+        Trip trip = getOwnedTrip(email, tripId);
+        List<TripDay> days = tripDayRepository.findByTrip_TripIdOrderByDayNumberAsc(trip.getTripId());
+        if (days.size() >= MAX_TRIP_DAYS) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "일정은 최대 " + MAX_TRIP_DAYS + "일까지 만들 수 있습니다.");
+        }
+
+        TripDay last = days.get(days.size() - 1);
+        LocalDate newDate = last.getDate().plusDays(1);
+        tripDayRepository.save(new TripDay(trip, last.getDayNumber() + 1, newDate));
+        trip.changeEndDate(newDate);
+        return toDetail(trip);
+    }
+
+    // 마지막 일차를 지운다 (예: 2박 3일 → 1박 2일). 여행 종료일도 하루 줄어든다.
+    // 그 일차에 일정이 들어 있으면 함께 사라지므로, 사용자가 확인했다는 뜻의 confirmed 가 true 일 때만 지운다
+    public TripDetailResponse removeLastDay(String email, Long tripId, boolean confirmed) {
+        Trip trip = getOwnedTrip(email, tripId);
+        List<TripDay> days = tripDayRepository.findByTrip_TripIdOrderByDayNumberAsc(trip.getTripId());
+        if (days.size() <= 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "일정은 최소 하루가 있어야 합니다.");
+        }
+
+        TripDay last = days.get(days.size() - 1);
+        List<TripItem> items = tripItemRepository.findByTripDay_TripDayIdOrderByVisitOrderAsc(last.getTripDayId());
+        if (!items.isEmpty() && !confirmed) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    last.getDayNumber() + "일차에 일정 " + items.size() + "개가 있습니다. 삭제하면 함께 사라지니 확인이 필요합니다.");
+        }
+
+        tripItemRepository.deleteAll(items);
+        tripDayRepository.delete(last);
+        trip.changeEndDate(days.get(days.size() - 2).getDate());
         return toDetail(trip);
     }
 
@@ -268,6 +309,18 @@ public class TripService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
+    // 세부 지역(시)은 선택 사항이고, 고른다면 그 권역에 있는 도시여야 한다. 비어 있으면 null
+    private String validCity(String region, String city) {
+        if (city == null || city.isBlank()) {
+            return null;
+        }
+        RegionCatalog.RegionGrid grid = RegionCatalog.findByName(region);
+        if (grid == null || grid.cityByName(city.trim()) == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "선택한 지역에 없는 세부 지역입니다.");
+        }
+        return city.trim();
+    }
+
     private void validateDateRange(LocalDate startDate, LocalDate endDate) {
         if (endDate.isBefore(startDate)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "종료일은 시작일보다 빠를 수 없습니다.");
@@ -295,6 +348,7 @@ public class TripService {
                 trip.getTripId(),
                 trip.getTitle(),
                 trip.getRegion(),
+                trip.getCity(),
                 trip.getStartDate(),
                 trip.getEndDate(),
                 trip.getStatus()
@@ -317,6 +371,7 @@ public class TripService {
                 trip.getTripId(),
                 trip.getTitle(),
                 trip.getRegion(),
+                trip.getCity(),
                 trip.getStartDate(),
                 trip.getEndDate(),
                 trip.getStatus(),

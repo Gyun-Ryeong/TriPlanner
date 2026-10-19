@@ -10,14 +10,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalTime;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "trip_item")
-@Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class TripItem {
 
     @Id
@@ -45,6 +40,9 @@ public class TripItem {
     @Column(name = "memo")
     private String memo;
 
+    protected TripItem() {
+    }
+
     public TripItem(
             TripDay tripDay,
             Place place,
@@ -59,6 +57,34 @@ public class TripItem {
         this.visitOrder = visitOrder;
         this.startTime = startTime;
         this.memo = memo;
+    }
+
+    public Long getTripItemId() {
+        return tripItemId;
+    }
+
+    public TripDay getTripDay() {
+        return tripDay;
+    }
+
+    public Place getPlace() {
+        return place;
+    }
+
+    public String getItemType() {
+        return itemType;
+    }
+
+    public Integer getVisitOrder() {
+        return visitOrder;
+    }
+
+    public LocalTime getStartTime() {
+        return startTime;
+    }
+
+    public String getMemo() {
+        return memo;
     }
 
     public void updateDetails(Place place, String itemType, Integer visitOrder, LocalTime startTime, String memo) {

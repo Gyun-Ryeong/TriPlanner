@@ -283,6 +283,19 @@ class TripAlertServiceTest {
     }
 
     @Test
+    void tripWithCityUsesThatCitysForecastInsteadOfTheRegionDefault() {
+        Trip trip = new Trip(mock(User.class), "서귀포 여행", "제주도", "서귀포", TODAY, TODAY.plusDays(1), "PLANNED");
+        when(tripRepository.findByUser_UserIdOrderByStartDateAsc(1L)).thenReturn(List.of(trip));
+        when(weatherService.getDailyForecasts("jeju", "서귀포")).thenReturn(List.of(new DailyForecast(TODAY, 15, 36, 0, false, false, 0, 0)));
+
+        TripAlertsResponse response = service.getAlerts("a@test.local");
+
+        assertThat(response.trips().get(0).city()).isEqualTo("서귀포");
+        assertThat(response.trips().get(0).alerts()).extracting(Alert::kind).containsExactly("TEMPERATURE");
+        verify(weatherService, never()).getDailyForecasts("jeju");
+    }
+
+    @Test
     void weatherFailureIsReportedOncePerRequest() {
         givenTrip("서울 특별시", 0, 0);
         when(weatherService.getDailyForecasts("seoul")).thenThrow(new IllegalStateException("down"));

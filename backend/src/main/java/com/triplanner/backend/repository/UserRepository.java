@@ -10,8 +10,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByEmail(String email);
 
-    boolean existsByEmail(String email);
-
     // JWT 인증용: 탈퇴하지 않은 회원인지
     boolean existsByEmailAndWithdrawnAtIsNull(String email);
 

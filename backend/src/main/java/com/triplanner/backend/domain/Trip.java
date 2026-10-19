@@ -11,14 +11,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "trip")
-@Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Trip {
 
     @Id
@@ -36,6 +31,10 @@ public class Trip {
     @Column(name = "region")
     private String region;
 
+    // 세부 지역(시). 고르지 않았으면 null (권역 전체 기준)
+    @Column(name = "city")
+    private String city;
+
     @Column(name = "start_date")
     private LocalDate startDate;
 
@@ -52,23 +51,72 @@ public class Trip {
     @Column(name = "checklist_initialized", nullable = false)
     private boolean checklistInitialized = false;
 
+    protected Trip() {
+    }
+
     public Trip(User user, String title, String region, LocalDate startDate, LocalDate endDate, String status) {
+        this(user, title, region, null, startDate, endDate, status);
+    }
+
+    public Trip(User user, String title, String region, String city, LocalDate startDate, LocalDate endDate, String status) {
         this.user = user;
         this.title = title;
         this.region = region;
+        this.city = city;
         this.startDate = startDate;
         this.endDate = endDate;
         this.status = status;
         this.createdAt = LocalDateTime.now();
     }
 
+    public Long getTripId() {
+        return tripId;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public String getRegion() {
+        return region;
+    }
+
+    public String getCity() {
+        return city;
+    }
+
+    public LocalDate getStartDate() {
+        return startDate;
+    }
+
+    public LocalDate getEndDate() {
+        return endDate;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public boolean isChecklistInitialized() {
+        return checklistInitialized;
+    }
+
     public void markChecklistInitialized() {
         this.checklistInitialized = true;
     }
 
-    public void updateDetails(String title, String region, LocalDate startDate, LocalDate endDate, String status) {
+    public void changeEndDate(LocalDate endDate) {
+        this.endDate = endDate;
+    }
+
+    public void updateDetails(String title, String region, String city, LocalDate startDate, LocalDate endDate, String status) {
         this.title = title;
         this.region = region;
+        this.city = city;
         this.startDate = startDate;
         this.endDate = endDate;
         this.status = status;

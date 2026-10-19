@@ -10,14 +10,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "trip_checklist_item")
-@Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class TripChecklistItem {
 
     @Id
@@ -49,6 +44,9 @@ public class TripChecklistItem {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    protected TripChecklistItem() {
+    }
+
     public TripChecklistItem(Trip trip, String content, String category, int dueOffsetDays, int sortOrder) {
         this.trip = trip;
         this.content = content;
@@ -56,6 +54,34 @@ public class TripChecklistItem {
         this.dueOffsetDays = dueOffsetDays;
         this.sortOrder = sortOrder;
         this.createdAt = LocalDateTime.now();
+    }
+
+    public Long getItemId() {
+        return itemId;
+    }
+
+    public Trip getTrip() {
+        return trip;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public int getDueOffsetDays() {
+        return dueOffsetDays;
+    }
+
+    public boolean isChecked() {
+        return checked;
+    }
+
+    public int getSortOrder() {
+        return sortOrder;
     }
 
     public void setChecked(boolean checked) {

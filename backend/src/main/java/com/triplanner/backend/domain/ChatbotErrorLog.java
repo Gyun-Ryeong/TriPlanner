@@ -7,15 +7,10 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 // 챗봇(RAG 서버) 호출이 실패한 기록. 관리자 페이지에서 보며, 회원 FK 를 두지 않아 회원·여행과 상관없이 쌓고 지울 수 있다
 @Entity
 @Table(name = "chatbot_error_log")
-@Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ChatbotErrorLog {
 
     @Id
@@ -45,6 +40,9 @@ public class ChatbotErrorLog {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    protected ChatbotErrorLog() {
+    }
+
     public ChatbotErrorLog(Long userId, String category, Integer httpStatus, String detail, String queryPreview) {
         this.userId = userId;
         this.category = category;
@@ -52,5 +50,33 @@ public class ChatbotErrorLog {
         this.detail = detail;
         this.queryPreview = queryPreview;
         this.createdAt = LocalDateTime.now();
+    }
+
+    public Long getErrorId() {
+        return errorId;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public Integer getHttpStatus() {
+        return httpStatus;
+    }
+
+    public String getDetail() {
+        return detail;
+    }
+
+    public String getQueryPreview() {
+        return queryPreview;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
     }
 }

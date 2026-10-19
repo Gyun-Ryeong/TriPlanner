@@ -10,14 +10,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "trip_day")
-@Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class TripDay {
 
     @Id
@@ -35,9 +30,28 @@ public class TripDay {
     @Column(name = "date")
     private LocalDate date;
 
+    protected TripDay() {
+    }
+
     public TripDay(Trip trip, Integer dayNumber, LocalDate date) {
         this.trip = trip;
         this.dayNumber = dayNumber;
         this.date = date;
+    }
+
+    public Long getTripDayId() {
+        return tripDayId;
+    }
+
+    public Trip getTrip() {
+        return trip;
+    }
+
+    public Integer getDayNumber() {
+        return dayNumber;
+    }
+
+    public LocalDate getDate() {
+        return date;
     }
 }
