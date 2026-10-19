@@ -5,10 +5,10 @@ function authToken() {
   return getAuth()?.token
 }
 
-export function createTrip({ title, region, startDate, endDate }) {
+export function createTrip({ title, region, city, startDate, endDate }) {
   return apiRequest('/api/trips', {
     method: 'POST',
-    body: { title, region, startDate, endDate },
+    body: { title, region, city: city || null, startDate, endDate },
     token: authToken(),
   })
 }
@@ -23,6 +23,16 @@ export function deleteTrip(tripId) {
 
 export function getTrip(tripId) {
   return apiRequest(`/api/trips/${tripId}`, { token: authToken() })
+}
+
+// 마지막 일차 뒤에 하루를 더한다. 바뀐 여행 상세를 돌려준다
+export function addTripDay(tripId) {
+  return apiRequest(`/api/trips/${tripId}/days`, { method: 'POST', token: authToken() })
+}
+
+// 마지막 일차를 지운다. 일정이 들어 있는 일차는 confirmed=true 일 때만 지워진다 (아니면 409)
+export function removeLastTripDay(tripId, confirmed = false) {
+  return apiRequest(`/api/trips/${tripId}/days/last?confirmed=${confirmed}`, { method: 'DELETE', token: authToken() })
 }
 
 export function addTripItem(tripId, tripDayId, { placeId, itemType, visitOrder, memo }) {

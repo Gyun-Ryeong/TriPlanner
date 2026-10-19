@@ -5,11 +5,13 @@ import { savePlace, searchPlaces } from '../api/places.js'
 import { getNaverMapClientId } from '../api/config.js'
 import { loadNaverMapsScript } from '../lib/naverMaps.js'
 import BackButton from '../components/BackButton.jsx'
+import TripDayControls from '../components/TripDayControls.jsx'
 import TripDeleteButton from '../components/TripDeleteButton.jsx'
 import { TripAlertBlock } from '../components/TripAlertList.jsx'
 import { getAuth } from '../api/authStorage.js'
 import { prepAlertKey, useDismissedAlerts, weatherAlertKey } from '../lib/dismissedAlerts.js'
 import { useTripAlerts } from '../lib/tripAlertsContext.js'
+import { placeLabel } from '../lib/tripPlace.js'
 import './TripSchedule.css'
 
 const REGION_CENTERS = {
@@ -328,6 +330,15 @@ export default function TripSchedule({ mode = 'view' }) {
     }
   }
 
+  // 일차를 늘리거나 줄인 뒤: 늘렸으면 새 일차를, 줄였으면 보던 일차(없어졌으면 마지막 일차)를 보여준다
+  function handleDaysChanged(detail) {
+    const lastDayId = detail.days[detail.days.length - 1]?.tripDayId ?? null
+    const stillThere = detail.days.some((day) => day.tripDayId === selectedDayId)
+    setTrip(detail)
+    setItemEdit(null)
+    setSelectedDayId(detail.days.length > trip.days.length || !stillThere ? lastDayId : selectedDayId)
+  }
+
   async function handleAdd(result) {
     // state 는 리렌더 전까지 갱신되지 않아 연속 클릭을 못 막으므로, 동기적으로 바뀌는 ref 로 잠근다
     if (!selectedDay || busyLock.current) return
@@ -513,7 +524,7 @@ export default function TripSchedule({ mode = 'view' }) {
           <p className="trip-schedule__eyebrow">{planning ? '새 여행 · 일정 만들기' : '다가오는 여행'}</p>
           <h1 className="trip-schedule__title">{planning ? `${trip.title} 일정 만들기` : trip.title}</h1>
           <p className="trip-schedule__meta">
-            {trip.region} · {formatDateRange(trip.startDate, trip.endDate)}
+            {placeLabel(trip)} · {formatDateRange(trip.startDate, trip.endDate)}
           </p>
         </div>
         {planning ? (
@@ -632,6 +643,8 @@ export default function TripSchedule({ mode = 'view' }) {
               )}
             </div>
           )}
+
+          {editing && <TripDayControls trip={trip} disabled={busyId !== null} onChanged={handleDaysChanged} />}
 
           {editing && (
             <p className="trip-schedule__edit-guide">

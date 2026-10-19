@@ -44,13 +44,6 @@
   transition: width 0.2s ease;
 }
 
-.checklist-card__overdue {
-  margin: 10px 0 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-danger);
-}
-
 .checklist-card__list {
   list-style: none;
   margin: 14px 0 0;

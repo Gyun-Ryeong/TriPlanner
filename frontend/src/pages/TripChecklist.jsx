@@ -10,6 +10,7 @@ import {
 import { getAuth } from '../api/authStorage.js'
 import { prepAlertKey, useDismissedAlerts } from '../lib/dismissedAlerts.js'
 import { CATEGORY_LABELS, dueBadge, dueOptionsFor, formatDueDate, relevantItems } from '../lib/checklist.js'
+import { placeLabel } from '../lib/tripPlace.js'
 import './TripChecklist.css'
 
 const CONTENT_MAX_LENGTH = 100
@@ -140,7 +141,7 @@ export default function TripChecklist() {
         <div>
           <h1 className="trip-checklist__title">출발 전 체크리스트</h1>
           <p className="trip-checklist__hint">
-            {trip.title} · {trip.region}
+            {trip.title} · {placeLabel(trip)}
           </p>
         </div>
         {setup ? (

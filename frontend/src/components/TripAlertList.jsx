@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { ALERT_LEVEL_LABEL } from '../lib/tripAlertsContext.js'
+import { placeLabel } from '../lib/tripPlace.js'
 import './TripAlertList.css'
 
 export const FORECAST_NOTICE =
@@ -56,7 +57,7 @@ export function TripAlertBlock({ trip, showTitle = false, onDismiss }) {
         <p className="trip-alert__title">
           <Link to={`/schedule/${trip.tripId}`}>{trip.title}</Link>
           <span className="trip-alert__meta">
-            {trip.region} · {formatDday(trip.daysUntilStart)}
+            {placeLabel(trip)} · {formatDday(trip.daysUntilStart)}
           </span>
         </p>
       )}
@@ -166,7 +167,7 @@ export function PrepAlertsSection({ prep, showEmpty = false, onDismiss }) {
           <p className="trip-alert__title">
             <Link to={`/schedule/${trip.tripId}`}>{trip.title}</Link>
             <span className="trip-alert__meta">
-              {trip.region} · {formatDday(trip.daysUntilStart)} · 준비 알림
+              {placeLabel(trip)} · {formatDday(trip.daysUntilStart)} · 준비 알림
             </span>
           </p>
           <ul className="trip-alert__list">

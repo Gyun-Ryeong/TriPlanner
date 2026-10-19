@@ -4,7 +4,8 @@ import { getAuth } from '../api/authStorage.js'
 import { getMyTrips } from '../api/trips.js'
 import { CalendarIcon, MapIcon, PinIcon, PlaneIcon, PlusIcon } from '../components/Icons.jsx'
 import TripDeleteButton from '../components/TripDeleteButton.jsx'
-import { regionPhoto } from '../lib/regionPhotos.js'
+import { tripPhoto } from '../lib/regionPhotos.js'
+import { placeLabel } from '../lib/tripPlace.js'
 import './TripStats.css'
 
 function formatDateRange(startDate, endDate) {
@@ -149,14 +150,14 @@ export default function TripStats() {
               <div key={t.tripId} className="trip-stats__place">
                 <Link to={`/schedule/${t.tripId}`} className="trip-stats__link">
                   <div className="trip-stats__photo" aria-hidden="true">
-                    {regionPhoto(t.region) && <img src={regionPhoto(t.region)} alt="" loading="lazy" />}
+                    {tripPhoto(t) && <img src={tripPhoto(t)} alt="" loading="lazy" />}
                   </div>
                   <div className="trip-stats__place-body">
                     <div className="trip-stats__place-header">
                       <p className="trip-stats__place-name">{t.title}</p>
                       <span className="trip-stats__place-date">{formatDateRange(t.startDate, t.endDate)}</span>
                     </div>
-                    <p className="trip-stats__place-desc">{t.region}</p>
+                    <p className="trip-stats__place-desc">{placeLabel(t)}</p>
                   </div>
                 </Link>
                 <div className="trip-stats__place-actions">
