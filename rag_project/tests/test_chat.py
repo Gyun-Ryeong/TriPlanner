@@ -355,8 +355,8 @@ class ChatFlowTests(unittest.TestCase):
         r = self.say("부산 3월 5일 2박 3일")  # 내년 3월로 해석되어 정상
         self.assertEqual(r["slots"]["start_date"], "2027-03-05")
         self.session.reset()
-        r = self.say("부산 10월 10일부터 10월 30일까지")
-        self.assertIn("최대 14일", r["reply"])
+        r = self.say("부산 10월 10일부터 11월 20일까지")
+        self.assertIn("최대 30일", r["reply"])
         self.assertEqual(r["slots"]["end_date"], "")
 
     def test_unsupported_region(self):

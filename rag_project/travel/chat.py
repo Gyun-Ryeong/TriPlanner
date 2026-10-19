@@ -27,7 +27,7 @@ from llm.ollama_client import LAST_STATS, chat_json_messages
 from travel.conditions import build_day_conditions, display_line, prompt_line
 from travel.context import enrich, gather_raw, rank_places, select_candidates
 from travel.dates import WD, fmt_korean, fmt_md, parse_iso, parse_trip_dates
-from travel.geo import _coord, district_of
+from travel.geo import _coord, district_of, straight_km
 from travel.gazetteer import METRO, ambiguous_regions, lookup_in_sido, lookup_regions
 from travel.lists import answer_list
 from travel.places import SIGHT_TYPES
@@ -210,7 +210,7 @@ def _leftover(text: str, today: date) -> str:
     work = parse_trip_dates(text, today)["rest"]  # 날짜 표현은 이미 공백으로 지워짐 (길이 유지)
     for a, b, *_ in _mentions(text):
         work = work[:a] + " " * (b - a) + work[b:]
-    work = re.sub(r"\d{1,2}\s*박(?:\s*\d{1,2}\s*일)?|당일치기|당일|\d{1,2}\s*일\s*(?:간|동안|일정|여행|코스)|\d{1,2}\s*주(?:일)?\s*(?:간|동안)?|일주일|이틀|사흘|나흘|닷새|엿새|이레|열흘|보름", " ", work)
+    work = re.sub(r"\d{1,2}\s*박(?:\s*\d{1,2}\s*일)?|당일치기|당일|\d{1,2}\s*일\s*(?:간|동안|일정|여행|코스)|\d{1,2}\s*주(?:일)?\s*(?:간|동안)?|일주일|한\s*달|이틀|사흘|나흘|닷새|엿새|이레|열흘|보름", " ", work)
     return re.sub(r"\s+", " ", work).strip()
 
 
@@ -299,7 +299,8 @@ def _apply_extraction(session: ChatSession, text: str, llm: dict | None, today: 
         start, end = old_s, old_e
         if s_new:
             start = s_new
-            if e_new:
+            if e_new and not (rd.get("end_implied") and s["nights"] is not None):
+                # '주말'로 짐작한 끝 날짜보다, 앞에서 말한 기간("창원 4박 5일" → "이번 주말")이 우선
                 end = e_new
             elif n_new is not None:
                 end = start + timedelta(days=n_new)
@@ -447,6 +448,35 @@ def _caveats(raw: dict, conditions: list[dict], extra: list[str], start: date, e
     return list(dict.fromkeys(out))
 
 
+def _expand_nearby(raw: dict, sido: str, area: str, start: date, end: date) -> None:
+    """
+    시·군 안의 장소만으로 일정이 모자랄 때, 같은 시도 전체 장소 중 그 지역에서 가까운 순으로 덧붙인다 (nearby=True).
+    raw(세션 캐시)에 바로 넣고 expanded 표시를 해서 같은 여행 조건에서는 다시 부르지 않는다.
+    """
+    raw["expanded"] = True
+    try:
+        extra, w = _collect_candidates(sido, start, end, True, "")
+    except Exception as e:
+        raw["warnings"].append(f"주변 장소 보충 실패: {type(e).__name__}")
+        return
+    have = {(p["content_id"] or p["title"]) for p in raw["places"]}
+    coords = [c for c in (_coord(p) for p in raw["places"]) if c]
+    if not coords:
+        return
+    center = {"mapy": sum(c[0] for c in coords) / len(coords), "mapx": sum(c[1] for c in coords) / len(coords)}
+    added = []
+    for p in extra:
+        if (p["content_id"] or p["title"]) in have or not _coord(p):
+            continue
+        p["nearby"] = True
+        added.append(p)
+    added.sort(key=lambda p: straight_km(center, p) or 1e9)
+    raw["places"] += added
+    raw["warnings"] += w[:2]
+    if added:
+        raw["warnings"].append(f"'{area}' 안의 장소만으로는 긴 일정을 채우기 어려워 가까운 {sido} 지역 장소 {len(added)}곳을 함께 후보로 썼어요.")
+
+
 def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: bool, warnings: list[str]) -> str:
     t_start = time.perf_counter()
     s = session.slots
@@ -474,6 +504,10 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
     bad_days = sum(1 for c in conditions if c["outdoor_ok"] is False)
 
     sights = [p for p in raw["places"] if p["content_type_id"] in SIGHT_TYPES]
+    if area and sights and len(sights) < len(dates) * 4 + 4 and not raw.get("expanded"):
+        # 작은 시·군은 긴 일정(최대 30일)을 채울 장소가 모자라다 → 같은 시도의 가까운 장소를 거리순으로 보충
+        _expand_nearby(raw, sido, area, start, end)
+        sights = [p for p in raw["places"] if p["content_type_id"] in SIGHT_TYPES]
     eateries = [p for p in raw["places"] if p["content_type_id"] == "39"]
 
     if not sights:
@@ -486,11 +520,13 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
     # 3) 후보 선별: 취향과 유사한 순 + 궂은 날을 위한 실내 후보 보장
     #    여행 기간 전체에 쓸 후보(하루 4곳 + 여유)를 한 번에 고른다. AI에는 아래 4)에서 며칠 치씩 나눠 보낸다.
     query = " ".join(x for x in [sido, area, s["party"], s["preferences"], text if refine else ""] if x)
-    ranked = rank_places(sights, sido, query, ranker)
-    restaurants = rank_places(eateries, sido, query, ranker)[:max(30, len(dates) * 3)]  # 식사 장소 후보 (취향 유사도 상위)
+    # 그 지역 장소는 취향 유사도 순, 보충한 주변 장소는 그 뒤에 가까운 순
+    ranked = rank_places([p for p in sights if not p.get("nearby")], sido, query, ranker) + [p for p in sights if p.get("nearby")]
+    restaurants = (rank_places([p for p in eateries if not p.get("nearby")], sido, query, ranker)
+                   + [p for p in eateries if p.get("nearby")])[:max(30, len(dates) * 3)]  # 식사 장소 후보
     wants_activity = bool(ACTIVITY_RE.search(f"{s['preferences']} {text}"))
     caps = {} if wants_activity else {"28": 3}  # 액티비티를 원한다고 하지 않았으면 레포츠가 후보를 독차지하지 않게
-    pool = select_candidates(ranked, max(6, len(dates) * 4 + 4), min(2 * bad_days + 1, 8 + bad_days) if bad_days else 0, caps)
+    pool = select_candidates(ranked, max(6, len(dates) * 5 + 4), min(2 * bad_days + 1, 8 + bad_days) if bad_days else 0, caps)
     if refine and session.last_cand_map:  # 수정 요청일 때 기존 일정의 장소는 계속 후보에 포함
         keys = {(p["content_id"] or p["title"]) for p in pool}
         pool += [p for p in session.last_cand_map.values() if (p["content_id"] or p["title"]) not in keys]
@@ -661,9 +697,9 @@ def _group_candidates(idxs: list[int], mode: str, old_days: list[dict] | None, c
                       conditions: list[dict]) -> dict:
     """
     한 묶음(며칠)에 보낼 후보. 앞 묶음에서 쓴 장소와 다른 날 일정에 있는 장소는 빼고 순위순으로 고른다.
-    수정 요청이면 그 날들에 원래 있던 장소를 먼저 넣는다. 묶음 일수×4+2곳은 항상 보낸다.
+    수정 요청이면 그 날들에 원래 있던 장소를 먼저 넣는다. 묶음 일수×5+2곳은 항상 보낸다 (하루 3~5곳).
     """
-    k = max(CHAT_MAX_CANDIDATES, len(idxs) * 4 + 2)
+    k = max(CHAT_MAX_CANDIDATES, len(idxs) * 5 + 2)
     bad = sum(1 for i in idxs if conditions[i]["outdoor_ok"] is False)
     own: list[str] = []
     taken = set(used)

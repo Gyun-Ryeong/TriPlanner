@@ -193,8 +193,8 @@ Encoding/Decoding 키는 어느 쪽을 넣어도 동작합니다. 문화정보·
 | `OLLAMA_THINK` | (없음) | `false`면 모델의 '생각' 단계를 꺼서 빨라짐 (gemma4 등) |
 | `OLLAMA_NUM_CTX` | 8192 | 컨텍스트 길이. 결과가 이상하면 늘리기 |
 | `OLLAMA_KEEP_ALIVE` | 30m | 모델을 메모리에 유지하는 시간 |
-| `CHAT_MAX_CANDIDATES` | 40 | AI 호출 1번에 보낼 후보 장소 수 (느리면 20). 나눠 보내는 일수×4+2곳은 항상 보냄 |
-| `MAX_TRIP_DAYS` | 14 | 한 번에 짜는 최대 일수 |
+| `CHAT_MAX_CANDIDATES` | 40 | AI 호출 1번에 보낼 후보 장소 수 (느리면 20). 나눠 보내는 일수×5+2곳은 항상 보냄 |
+| `MAX_TRIP_DAYS` | 30 | 한 번에 짜는 최대 일수 |
 | `CHAT_PLAN_CHUNK_DAYS` | 3 | 긴 일정은 이 일수씩 나눠 AI에 보냄 (모든 날이 채워지게) |
 | `GATHER_TIMEOUT_SEC` | 40 | 외부 데이터 수집 최대 대기(초). 넘은 항목은 빼고 진행 |
 | `API_CACHE` | on | API 응답 캐시 (`cache/api/`). `off`로 끔 |

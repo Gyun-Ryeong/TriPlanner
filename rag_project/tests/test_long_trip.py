@@ -1,5 +1,5 @@
 """
-긴 일정(최대 14일)을 며칠씩 나눠 AI에 보내고, AI가 비운 자리를 채우는지 확인하는 오프라인 테스트.
+긴 일정(최대 30일)을 며칠씩 나눠 AI에 보내고, AI가 비운 자리를 채우는지 확인하는 오프라인 테스트.
 
     python -m unittest tests.test_long_trip -v
 """
@@ -81,7 +81,7 @@ class LongTripTests(unittest.TestCase):
         self.assertEqual(len(self.prompts), 1)
         self.assertEqual(len(r["plan"]), 3)
         self.assertTrue(all(len(v) >= 3 for v in self.visits(r)), self.visits(r))
-        self.assertGreaterEqual(len(re.findall(r"^C\d+ \|", self.prompts[0], re.M)), 14)  # 3일×4+2
+        self.assertGreaterEqual(len(re.findall(r"^C\d+ \|", self.prompts[0], re.M)), 17)  # 3일×5+2
 
     def test_two_weeks_are_split_and_every_day_is_filled(self):
         r = self.say("부산 10월 10일부터 13박 14일 혼자 갈래")
@@ -125,9 +125,52 @@ class LongTripTests(unittest.TestCase):
         for text, nights in [("부산 일주일 일정", 6), ("제주 2주 여행", 13), ("강릉 열흘", 9), ("다음 주 금요일", None)]:
             self.assertEqual(parse_trip_dates(text, TODAY)["nights"], nights, text)
 
-    def test_fifteen_days_is_rejected(self):
-        r = self.say("부산 10월 10일부터 14박 15일")
-        self.assertIn("최대 14일", r["reply"])
+    def test_every_length_from_1_to_30_days(self):
+        self.N_PLACES = 160
+        for nights in range(0, 30):
+            with self.subTest(nights=nights):
+                s = self.chat.ChatSession()
+                text = f"부산 10월 10일부터 {nights}박 {nights + 1}일 혼자 갈래" if nights else "부산 10월 10일 당일치기 혼자 갈래"
+                r = self.chat.handle_message(s, text, today=TODAY, ranker=self.ranker)
+                visits = self.visits(r)
+                self.assertEqual(len(visits), nights + 1)
+                self.assertTrue(all(3 <= len(v) <= 6 for v in visits), visits)
+                flat = [x for v in visits for x in v]
+                self.assertEqual(len(flat), len(set(flat)))
+
+    def test_month_word(self):
+        from travel.dates import parse_trip_dates
+        self.assertEqual(parse_trip_dates("제주 한 달 살기 일정", TODAY)["nights"], 29)
+
+    def test_small_area_is_topped_up_with_nearby_places(self):
+        self.N_PLACES = 10  # 그 군 안의 장소가 10곳뿐
+        nearby = [_place(f"n{i}", f"주변명소{i}", addr="부산 기장군", mapx=str(129.2 + i * 0.001)) for i in range(80)]
+        with patch.object(self.chat, "_collect_candidates", return_value=(nearby, [])) as m:
+            r = self.say("부산 기장 10월 10일부터 9박 10일 혼자 갈래")
+        self.assertEqual(m.call_args.args[4], "")  # 시도 전체에서 보충
+        visits = self.visits(r)
+        self.assertEqual(len(visits), 10)
+        self.assertTrue(all(len(v) >= 3 for v in visits), visits)
+        flat = [x for v in visits for x in v]
+        self.assertTrue(all(f"명소{i}" in flat for i in range(10)))  # 그 지역 장소를 먼저 다 쓴다
+        self.assertTrue(any("가까운 부산 지역" in c for c in r["caveats"]))
+
+    def test_too_long_is_rejected(self):
+        r = self.say("부산 10월 10일부터 30박 31일")
+        self.assertIn("최대 30일", r["reply"])
+
+    def test_declared_length_wins_over_weekend(self):
+        # "창원 4박 5일" 다음에 "이번 주말"이라고 답해도 토~일(1박 2일)로 줄지 않는다
+        self.say("창원 4박 5일 일정 짜줘")
+        r = self.say("이번 주말에 혼자 갈래")
+        self.assertEqual((r["slots"]["start_date"], r["slots"]["end_date"]), ("2026-10-10", "2026-10-14"))
+        self.assertEqual(len(r["plan"]), 5)
+        s = self.chat.ChatSession()
+        r = self.chat.handle_message(s, "이번 주말 창원 4박5일 혼자 일정 짜줘", today=TODAY, ranker=self.ranker)
+        self.assertEqual(r["slots"]["end_date"], "2026-10-14")
+        s = self.chat.ChatSession()
+        r = self.chat.handle_message(s, "창원 이번 주말 혼자 여행 짜줘", today=TODAY, ranker=self.ranker)
+        self.assertEqual(r["slots"]["end_date"], "2026-10-11")  # 기간을 안 말하면 주말은 토~일
 
 
 if __name__ == "__main__":

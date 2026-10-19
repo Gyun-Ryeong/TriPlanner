@@ -51,6 +51,7 @@ class NationwideRegionTests(unittest.TestCase):
         self.assertEqual(r("부산 중구 일정"), ("부산", "중구"))
         self.assertEqual(r("경기 광주 1박2일"), ("경기", "광주"))   # 광역시 광주가 아니라 경기 광주시
         self.assertEqual(r("광주 동구 일정"), ("광주", "동구"))
+        self.assertEqual(r("인천 중구 1박2일"), ("인천", "제물포"))  # 개편 전 이름도 지금 구로
         self.assertEqual(self.gz.ambiguous_regions("고성 1박2일"), [("고성", ["강원", "경남"])])
 
     def test_everyday_words_need_trip_context(self):
