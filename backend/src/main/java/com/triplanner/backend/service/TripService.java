@@ -25,6 +25,8 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +40,12 @@ public class TripService {
     private static final int MAX_IMPORT_DAYS = 31;
     // 일차를 하나씩 늘릴 때의 최대 일수 (챗봇 일정 저장과 같은 기준)
     private static final int MAX_TRIP_DAYS = MAX_IMPORT_DAYS;
+
+    // 시·군 이름으로 받을 값: 한글 1~15자 (예: 성남, 곡성군, 서귀포시)
+    private static final Pattern CITY_NAME = Pattern.compile("[가-힣]{1,15}");
+
+    // 그 자체가 세부 지역(시) 목록의 도시인 광역시
+    private static final Set<String> METRO_CITIES = Set.of("서울", "부산", "대구", "인천", "광주", "대전", "울산");
 
     private static final Map<String, String> APP_REGIONS = Map.ofEntries(
             Map.entry("서울", "서울 특별시"),
@@ -102,8 +110,9 @@ public class TripService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "한 번에 " + MAX_IMPORT_DAYS + "일까지 저장할 수 있습니다.");
         }
 
-        Trip trip = tripRepository.save(new Trip(
-                user, request.title().trim(), toAppRegion(request.sido()), request.startDate(), request.endDate(), DEFAULT_STATUS));
+        String region = toAppRegion(request.sido());
+        Trip trip = tripRepository.save(new Trip(user, request.title().trim(), region, importCity(region, request.sido(), request.area()),
+                request.startDate(), request.endDate(), DEFAULT_STATUS));
         generateDays(trip, request.startDate(), request.endDate());
 
         Map<LocalDate, TripDay> daysByDate = new HashMap<>();
@@ -309,16 +318,43 @@ public class TripService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    // 세부 지역(시)은 선택 사항이고, 고른다면 그 권역에 있는 도시여야 한다. 비어 있으면 null
+    // 세부 지역(시)은 선택 사항이다. 비어 있으면 null.
+    // 목록의 도시는 그 권역 것이어야 하고, 목록에 없는 시·군(성남, 곡성 등)은 직접 입력한 이름 그대로 저장한다
+    // (날씨는 목록 도시만 그 도시 기준, 나머지는 권역 대표 도시 기준. 목록 사진은 이름으로 찾는다)
     private String validCity(String region, String city) {
         if (city == null || city.isBlank()) {
             return null;
         }
+        String name = city.trim();
         RegionCatalog.RegionGrid grid = RegionCatalog.findByName(region);
-        if (grid == null || grid.cityByName(city.trim()) == null) {
+        if (grid == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "선택한 지역에 없는 세부 지역입니다.");
         }
-        return city.trim();
+        if (grid.cityByName(name) != null) {
+            return name;
+        }
+        boolean otherRegionCity = RegionCatalog.REGIONS.stream().anyMatch(r -> r.cityByName(name) != null);
+        if (otherRegionCity || !CITY_NAME.matcher(name).matches()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "선택한 지역에 없는 세부 지역입니다.");
+        }
+        return name;
+    }
+
+    // 챗봇 일정의 세부 지역: 광역시(부산 등)는 그 시 자체(날씨·사진이 그 도시 기준), 도는 챗봇이 정한 시·군.
+    // 맞지 않는 값이면 저장을 막지 않고 비워 둔다 (권역 사진·날씨로 보여 준다)
+    private String importCity(String region, String sido, String area) {
+        String name = sido == null ? "" : sido.trim();
+        String city = METRO_CITIES.contains(name) ? name : area;
+        try {
+            return validCity(region, city);
+        } catch (ResponseStatusException e) {
+            // 다른 권역 목록 도시와 이름만 같은 시 (예: 경기 광주 ↔ 전라도 광주) → '광주시'로 구분해 저장
+            try {
+                return area == null || area.isBlank() ? null : validCity(region, area.trim() + "시");
+            } catch (ResponseStatusException again) {
+                return null;
+            }
+        }
     }
 
     private void validateDateRange(LocalDate startDate, LocalDate endDate) {

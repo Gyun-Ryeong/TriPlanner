@@ -14,6 +14,8 @@ public record ChatPlanImportRequest(
         @NotBlank @Size(max = 100, message = "여행 이름은 100자 이하여야 합니다.") String title,
         // 챗봇의 시도명 (예: 부산, 경기). 앱의 권역(경상도 등)으로 바꿔 저장한다
         @NotBlank String sido,
+        // 챗봇의 세부 지역 (예: 성남, 곡성, 해운대). 비어 있을 수 있다. 여행의 세부 지역(시)과 목록 사진에 쓴다
+        @Size(max = 30) String area,
         @NotNull LocalDate startDate,
         @NotNull LocalDate endDate,
         @NotEmpty @Size(max = 31, message = "한 번에 31일까지 저장할 수 있습니다.") List<@Valid Day> days

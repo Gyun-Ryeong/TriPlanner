@@ -12,6 +12,7 @@ import com.triplanner.backend.domain.Trip;
 import com.triplanner.backend.domain.TripDay;
 import com.triplanner.backend.domain.TripItem;
 import com.triplanner.backend.domain.User;
+import com.triplanner.backend.dto.ChatPlanImportRequest;
 import com.triplanner.backend.dto.TripCreateRequest;
 import com.triplanner.backend.repository.PlaceRepository;
 import com.triplanner.backend.repository.TripChecklistItemRepository;
@@ -103,6 +104,54 @@ class TripServiceTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, failure.getStatusCode());
         verify(tripRepository, never()).save(any(Trip.class));
+    }
+
+    @Test
+    void createTripAcceptsATypedCityThatIsNotInTheList() {
+        when(tripRepository.save(any(Trip.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.createTrip(EMAIL, createRequest("경기도 / 인천", "성남"));
+
+        ArgumentCaptor<Trip> saved = ArgumentCaptor.forClass(Trip.class);
+        verify(tripRepository).save(saved.capture());
+        assertEquals("성남", saved.getValue().getCity());
+    }
+
+    @Test
+    void createTripRejectsATypedValueThatIsNotACityName() {
+        assertThrows(ResponseStatusException.class, () -> service.createTrip(EMAIL, createRequest("경기도 / 인천", "<script>")));
+        verify(tripRepository, never()).save(any(Trip.class));
+    }
+
+    private Trip importPlan(String sido, String area) {
+        when(tripRepository.save(any(Trip.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        service.importChatPlan(EMAIL, new ChatPlanImportRequest("챗봇 여행", sido, area, START, START.plusDays(1),
+                List.of(new ChatPlanImportRequest.Day(START, List.of()))));
+        ArgumentCaptor<Trip> saved = ArgumentCaptor.forClass(Trip.class);
+        verify(tripRepository).save(saved.capture());
+        return saved.getValue();
+    }
+
+    @Test
+    void chatPlanOfAProvinceKeepsTheChatbotCity() {
+        Trip saved = importPlan("경기", "성남");
+        assertEquals("경기도 / 인천", saved.getRegion());
+        assertEquals("성남", saved.getCity());
+    }
+
+    @Test
+    void chatPlanOfAMetroCityUsesTheCityItself() {
+        assertEquals("부산", importPlan("부산", "해운대").getCity());
+    }
+
+    @Test
+    void chatPlanCityWithTheSameNameAsAnotherRegionsCityGetsTheSuffix() {
+        assertEquals("광주시", importPlan("경기", "광주").getCity()); // 전라도 목록의 '광주'와 구분
+    }
+
+    @Test
+    void chatPlanWithAnUnusableCityIsStillSavedWithoutCity() {
+        assertEquals(null, importPlan("경기", "판교 테크노밸리").getCity());
     }
 
     private TripItem item() {

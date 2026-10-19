@@ -34,5 +34,6 @@ naver:
 # AI 여행 챗봇: rag_project 의 FastAPI 서버 (python -m uvicorn api_server:app --port 8000)
 rag:
   base-url: ${RAG_BASE_URL:http://localhost:8000}
-  # 일정 생성은 로컬 LLM 응답(기본 최대 300초) + 데이터 수집 시간이 걸려 넉넉하게 잡는다
-  read-timeout-seconds: ${RAG_READ_TIMEOUT_SECONDS:360}
+  # 일정 생성은 로컬 LLM 응답 + 데이터 수집 시간이 걸려 넉넉하게 잡는다.
+  # 긴 일정(최대 14일)은 3일씩 나눠 AI를 여러 번 부르므로 15분까지 기다린다
+  read-timeout-seconds: ${RAG_READ_TIMEOUT_SECONDS:900}
