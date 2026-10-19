@@ -16,6 +16,8 @@ import { TRIP_ALERTS_REFRESH_EVENT } from '../lib/tripAlertsContext.js'
 import './ProfileEdit.css'
 
 const NICKNAME_MAX = 50
+// 탈퇴할 때 직접 입력하게 하는 확인 문구 (백엔드 WithdrawalService.CONFIRM_TEXT 와 같은 값)
+const WITHDRAW_CONFIRM_TEXT = '회원탈퇴'
 
 export default function ProfileEdit() {
   const navigate = useNavigate()
@@ -29,6 +31,7 @@ export default function ProfileEdit() {
   const profileLock = useRef(false)
 
   const [tripAlertsEnabled, setTripAlertsEnabled] = useState(true)
+  const [scheduleAlertsEnabled, setScheduleAlertsEnabled] = useState(true)
   const [marketingConsent, setMarketingConsent] = useState(false)
   const [notificationsSaving, setNotificationsSaving] = useState(false)
   const [notificationsMessage, setNotificationsMessage] = useState(null)
@@ -44,6 +47,9 @@ export default function ProfileEdit() {
   const passwordLock = useRef(false)
 
   const [withdrawConfirmed, setWithdrawConfirmed] = useState(false)
+  const [withdrawOpen, setWithdrawOpen] = useState(false)
+  const [withdrawPassword, setWithdrawPassword] = useState('')
+  const [withdrawText, setWithdrawText] = useState('')
   const [withdrawing, setWithdrawing] = useState(false)
   const [withdrawMessage, setWithdrawMessage] = useState(null)
 
@@ -57,6 +63,7 @@ export default function ProfileEdit() {
         setPhone(profile.phone ?? '')
         setSavedPhone(profile.phone ?? '')
         setTripAlertsEnabled(profile.tripAlertsEnabled)
+        setScheduleAlertsEnabled(profile.scheduleAlertsEnabled)
         setMarketingConsent(profile.marketingConsent)
       })
       .catch(() => {})
@@ -119,6 +126,27 @@ export default function ProfileEdit() {
     }
   }
 
+  const handleToggleScheduleAlerts = async () => {
+    if (notificationsLock.current) return
+    notificationsLock.current = true
+    setNotificationsSaving(true)
+    setNotificationsMessage(null)
+    try {
+      const profile = await updateNotifications({ scheduleAlertsEnabled: !scheduleAlertsEnabled })
+      setScheduleAlertsEnabled(profile.scheduleAlertsEnabled)
+      window.dispatchEvent(new Event(TRIP_ALERTS_REFRESH_EVENT))
+      setToast({
+        id: Date.now(),
+        text: profile.scheduleAlertsEnabled ? '일정 변경·준비 알림을 켰어요.' : '일정 변경·준비 알림을 껐어요.',
+      })
+    } catch (err) {
+      setNotificationsMessage({ type: 'error', text: err.message })
+    } finally {
+      notificationsLock.current = false
+      setNotificationsSaving(false)
+    }
+  }
+
   // 수신 동의·철회는 처리 결과를 이용자에게 알려야 하므로 처리 일자와 함께 토스트로 안내한다 (정보통신망법 제50조)
   const handleToggleMarketing = async () => {
     if (notificationsLock.current) return
@@ -172,26 +200,52 @@ export default function ProfileEdit() {
     }
   }
 
-  const handleWithdraw = async () => {
-    if (withdrawing || !withdrawConfirmed) return
-    if (!window.confirm('정말 탈퇴하시겠어요? 탈퇴하면 바로 로그아웃되고 다시 로그인할 수 없습니다.')) return
+  const canWithdraw = withdrawPassword !== '' && withdrawText.trim() === WITHDRAW_CONFIRM_TEXT
+
+  const closeWithdraw = useCallback(() => {
+    if (withdrawing) return
+    setWithdrawOpen(false)
+    setWithdrawPassword('')
+    setWithdrawText('')
+    setWithdrawMessage(null)
+  }, [withdrawing])
+
+  // 탈퇴 확인 상자는 Esc 로도 닫는다
+  useEffect(() => {
+    if (!withdrawOpen) return undefined
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') closeWithdraw()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [withdrawOpen, closeWithdraw])
+
+  const handleWithdraw = async (event) => {
+    event.preventDefault()
+    if (withdrawing || !canWithdraw) return
 
     setWithdrawing(true)
     setWithdrawMessage(null)
     try {
-      await withdraw()
+      await withdraw({ password: withdrawPassword, confirmText: withdrawText.trim() })
       clearAuth()
       navigate('/login', { replace: true, state: { withdrawn: true } })
     } catch (err) {
       setWithdrawMessage({ type: 'error', text: err.message })
+      setWithdrawPassword('')
       setWithdrawing(false)
     }
   }
 
   return (
     <div className="profile-edit">
-      <h1 className="profile-edit__title">프로필 수정</h1>
-      <p className="profile-edit__subtitle">여행 알림과 안전 정보를 위한 기본 정보를 관리하세요.</p>
+      <div className="page-head">
+        <div>
+          <p className="page-eyebrow">EDIT PROFILE</p>
+          <h1 className="page-title">프로필 수정</h1>
+          <p className="page-subtitle">여행 알림과 안전 정보를 위한 기본 정보를 관리하세요.</p>
+        </div>
+      </div>
 
       <div className="profile-edit__grid">
         <div className="profile-edit__column">
@@ -318,7 +372,26 @@ export default function ProfileEdit() {
               <span className="toggle__thumb" />
             </button>
           </div>
-          <ToggleRow label="일정 변경 및 준비 알림" />
+          <div className="profile-edit__toggle-row">
+            <div>
+              <span>일정 변경 및 준비 알림</span>
+              <p className="profile-edit__hint profile-edit__toggle-hint">
+                출발 전 체크리스트 기한이 지났거나 오늘까지인 항목, 출발 7일 이내인데 비어 있는 일정을 알려줘요. 끄면 종 알림과
+                알림 목록에서 준비 알림이 사라져요.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={scheduleAlertsEnabled}
+              aria-label="일정 변경 및 준비 알림"
+              className={`toggle ${scheduleAlertsEnabled ? 'toggle--on' : ''}`}
+              disabled={notificationsSaving}
+              onClick={handleToggleScheduleAlerts}
+            >
+              <span className="toggle__thumb" />
+            </button>
+          </div>
           <div className="profile-edit__toggle-row">
             <div>
               <span>마케팅 정보 수신</span>
@@ -344,7 +417,7 @@ export default function ProfileEdit() {
               {notificationsMessage.text}
             </p>
           )}
-          <p className="profile-edit__hint">일정 변경 및 준비 알림은 기능 준비 중입니다.</p>
+          <p className="profile-edit__hint">알림은 앱 안에서만 보여드리며, 문자·이메일 발송은 준비 중입니다.</p>
         </div>
       </div>
 
@@ -368,33 +441,79 @@ export default function ProfileEdit() {
           <span>안내 사항을 모두 확인했으며 탈퇴에 동의합니다.</span>
         </label>
 
-        {withdrawMessage && (
-          <p className={`profile-edit__message profile-edit__message--${withdrawMessage.type}`}>
-            {withdrawMessage.text}
-          </p>
-        )}
-
         <button
           type="button"
           className="btn profile-edit__withdraw-button"
-          disabled={!withdrawConfirmed || withdrawing}
-          onClick={handleWithdraw}
+          disabled={!withdrawConfirmed}
+          onClick={() => setWithdrawOpen(true)}
         >
-          {withdrawing ? '탈퇴 처리 중...' : '회원 탈퇴'}
+          회원 탈퇴
         </button>
       </section>
-      <Toast message={toast} onClose={clearToast} />
-    </div>
-  )
-}
 
-function ToggleRow({ label }) {
-  return (
-    <div className="profile-edit__toggle-row">
-      <span>{label}</span>
-      <button type="button" className="toggle" disabled aria-disabled="true" aria-label={`${label} (준비 중)`}>
-        <span className="toggle__thumb" />
-      </button>
+      {withdrawOpen && (
+        <div className="profile-edit__modal-backdrop" onMouseDown={closeWithdraw}>
+          <form
+            className="card profile-edit__modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="withdraw-modal-title"
+            onMouseDown={(e) => e.stopPropagation()}
+            onSubmit={handleWithdraw}
+          >
+            <h2 id="withdraw-modal-title" className="profile-edit__modal-title">정말 탈퇴하시겠어요?</h2>
+            <p className="profile-edit__modal-desc">
+              탈퇴하면 바로 로그아웃되고 다시 로그인할 수 없어요. 본인 확인을 위해 아래 두 가지를 입력해 주세요.
+            </p>
+
+            <div className="profile-edit__field">
+              <label htmlFor="withdraw-password">현재 비밀번호</label>
+              <input
+                id="withdraw-password"
+                type="password"
+                autoComplete="current-password"
+                autoFocus
+                value={withdrawPassword}
+                onChange={(e) => setWithdrawPassword(e.target.value)}
+              />
+            </div>
+
+            <div className="profile-edit__field">
+              <label htmlFor="withdraw-text">
+                아래 칸에 &lsquo;{WITHDRAW_CONFIRM_TEXT}&rsquo;를 직접 입력해 주세요
+              </label>
+              <input
+                id="withdraw-text"
+                type="text"
+                autoComplete="off"
+                placeholder={WITHDRAW_CONFIRM_TEXT}
+                value={withdrawText}
+                onChange={(e) => setWithdrawText(e.target.value)}
+              />
+            </div>
+
+            {withdrawMessage && (
+              <p className={`profile-edit__message profile-edit__message--${withdrawMessage.type}`}>
+                {withdrawMessage.text}
+              </p>
+            )}
+
+            <div className="profile-edit__modal-actions">
+              <button type="button" className="btn" disabled={withdrawing} onClick={closeWithdraw}>
+                취소
+              </button>
+              <button
+                type="submit"
+                className="btn profile-edit__withdraw-button profile-edit__modal-submit"
+                disabled={!canWithdraw || withdrawing}
+              >
+                {withdrawing ? '탈퇴 처리 중...' : '회원 탈퇴'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+      <Toast message={toast} onClose={clearToast} />
     </div>
   )
 }

@@ -17,10 +17,11 @@ export function updateProfile({ nickname, phone }) {
   })
 }
 
-export function updateNotifications({ tripAlertsEnabled }) {
+// 바꾸려는 설정만 넘긴다 (넘기지 않은 설정은 그대로 둔다)
+export function updateNotifications({ tripAlertsEnabled, scheduleAlertsEnabled }) {
   return apiRequest('/api/me/notifications', {
     method: 'PUT',
-    body: { tripAlertsEnabled },
+    body: { tripAlertsEnabled, scheduleAlertsEnabled },
     token: authToken(),
   })
 }
@@ -41,6 +42,11 @@ export function changePassword({ currentPassword, newPassword }) {
   })
 }
 
-export function withdraw() {
-  return apiRequest('/api/me', { method: 'DELETE', token: authToken() })
+// 탈퇴는 현재 비밀번호와 확인 문구('회원탈퇴')를 서버에서도 검사한다
+export function withdraw({ password, confirmText }) {
+  return apiRequest('/api/me/withdrawal', {
+    method: 'POST',
+    body: { password, confirmText },
+    token: authToken(),
+  })
 }

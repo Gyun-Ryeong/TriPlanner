@@ -1,12 +1,5 @@
-.newtrip__title {
-  font-size: 24px;
-  margin: 0 0 4px;
-}
-
-.newtrip__subtitle {
-  font-size: 14px;
-  color: var(--color-text-muted);
-  margin: 0 0 24px;
+.newtrip__head {
+  margin-bottom: 20px;
 }
 
 .newtrip__body {
@@ -22,8 +15,8 @@
 }
 
 .newtrip__map-label {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
   margin: 0 0 16px;
 }
 
@@ -51,17 +44,22 @@
   justify-content: space-between;
   gap: 12px;
   text-align: left;
-  padding: 16px 18px;
+  padding: 18px 22px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: 16px;
   background: var(--color-surface);
+  box-shadow: var(--shadow-card);
   cursor: pointer;
 }
 
+.newtrip__option:hover {
+  border-color: #c9d4f2;
+}
+
 .newtrip__option-name {
-  margin: 0 0 4px;
-  font-weight: 600;
-  font-size: 14px;
+  margin: 0 0 5px;
+  font-weight: 700;
+  font-size: 15px;
 }
 
 .newtrip__option-desc {
@@ -70,7 +68,8 @@
   color: var(--color-text-muted);
 }
 
-.newtrip__option--selected {
+.newtrip__option--selected,
+.newtrip__option--selected:hover {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 1px var(--color-primary);
 }
@@ -104,15 +103,19 @@
 
 .newtrip__field input {
   width: 100%;
-  padding: 11px 14px;
+  height: 46px;
+  padding: 0 14px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
+  background: #f8fafc;
   font-size: 14px;
   outline: none;
 }
 
 .newtrip__field input:focus {
   border-color: var(--color-primary);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(47, 95, 224, 0.12);
 }
 
 .newtrip__error {

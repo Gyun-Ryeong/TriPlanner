@@ -1,38 +1,89 @@
-.trip-stats__title {
-  font-size: 24px;
-  margin: 0 0 4px;
-}
-
-.trip-stats__subtitle {
-  font-size: 14px;
-  color: var(--color-text-muted);
-  margin: 0 0 24px;
-}
-
 .trip-stats__summary {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 20px;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
+}
+
+.trip-stats__stat {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 22px 26px;
+}
+
+.trip-stats__stat .card-label {
+  margin-bottom: 4px;
+}
+
+.trip-stats__stat-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+}
+
+.trip-stats__stat-icon--blue {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.trip-stats__stat-icon--green {
+  background: #e6f6ee;
+  color: #12805c;
+}
+
+.trip-stats__stat-icon--orange {
+  background: #fff1e6;
+  color: #e0561b;
 }
 
 .trip-stats__summary-main {
-  font-size: 26px;
+  font-size: 30px;
   font-weight: 700;
   color: var(--color-primary);
+  line-height: 1.1;
   margin: 0;
 }
 
 .trip-stats__summary-main span {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--color-text);
-  margin-left: 4px;
+  margin-left: 5px;
 }
 
-.trip-stats__section-title {
-  font-size: 18px;
-  margin: 0 0 16px;
+.trip-stats__list-card {
+  padding: 28px;
+}
+
+/* 전체 / 다가오는 여행 / 지난 여행 */
+.trip-stats__tabs {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 12px;
+  background: #f1f4fa;
+}
+
+.trip-stats__tab {
+  padding: 7px 16px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.trip-stats__tab--active {
+  background: #fff;
+  color: var(--color-text);
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.1);
 }
 
 .trip-stats__grid {
@@ -42,8 +93,10 @@
 }
 
 .trip-stats__place {
-  padding: 0;
   overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
 }
 
 .trip-stats__link {
@@ -57,8 +110,16 @@
 }
 
 .trip-stats__photo {
-  height: 160px;
+  height: 120px;
+  overflow: hidden;
   background: linear-gradient(135deg, #93a5f0, #2f5fe0);
+}
+
+.trip-stats__photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .trip-stats__place-body {
@@ -94,5 +155,9 @@
   .trip-stats__summary,
   .trip-stats__grid {
     grid-template-columns: 1fr;
+  }
+
+  .trip-stats__list-card .card-head {
+    flex-wrap: wrap;
   }
 }

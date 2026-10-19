@@ -1,32 +1,54 @@
 .auth-card {
   width: 100%;
-  max-width: 420px;
+  max-width: 460px;
   background: var(--color-surface);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 4px 24px rgba(16, 24, 40, 0.08);
-  padding: 40px;
+  border-radius: 24px;
+  box-shadow: 0 10px 40px rgba(16, 24, 40, 0.08);
+  padding: 36px 36px 32px;
+}
+
+/* 회원가입처럼 입력이 많은 화면은 카드를 조금 넓힌다 */
+.auth-card--wide {
+  max-width: 580px;
+}
+
+.auth-card__eyebrow {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--color-accent);
 }
 
 .auth-card h2 {
-  font-size: 22px;
-  margin: 0 0 6px;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 8px;
 }
 
 .auth-card__subtitle {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--color-text-muted);
-  margin: 0 0 28px;
+  margin: 0 0 26px;
 }
 
 .auth-field {
-  margin-bottom: 18px;
+  margin-bottom: 16px;
+}
+
+/* 비밀번호·비밀번호 확인처럼 두 칸을 나란히 */
+.auth-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
 }
 
 .auth-field label {
   display: block;
   font-size: 13px;
   font-weight: 600;
-  margin-bottom: 6px;
+  margin-bottom: 7px;
 }
 
 .auth-required {
@@ -36,15 +58,23 @@
 
 .auth-field input {
   width: 100%;
-  padding: 11px 14px;
+  height: 48px;
+  padding: 0 16px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: 14px;
+  background: #f8fafc;
   font-size: 14px;
   outline: none;
 }
 
+.auth-field input::placeholder {
+  color: #9aa3b5;
+}
+
 .auth-field input:focus {
-  border-color: var(--color-primary);
+  border-color: var(--color-accent);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(29, 92, 255, 0.12);
 }
 
 .auth-success {
@@ -60,7 +90,7 @@
   margin: 4px 0 18px;
   padding: 14px 16px;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: 14px;
 }
 
 .auth-consent__legend {
@@ -81,7 +111,7 @@
   width: 16px;
   height: 16px;
   margin: 0;
-  accent-color: var(--color-primary);
+  accent-color: var(--color-accent);
 }
 
 .auth-consent__all {
@@ -152,23 +182,25 @@
 
 .auth-submit {
   width: 100%;
-  padding: 12px;
-  margin-top: 8px;
-  background: var(--color-primary);
+  height: 50px;
+  margin-top: 10px;
+  background: var(--color-accent);
   color: #fff;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: 14px;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
+  box-shadow: 0 6px 16px rgba(29, 92, 255, 0.28);
   cursor: pointer;
 }
 
 .auth-submit:hover {
-  background: var(--color-primary-dark);
+  background: #1648d6;
 }
 
 .auth-submit:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
+  box-shadow: none;
   cursor: not-allowed;
 }
 
@@ -189,33 +221,80 @@
   background: var(--color-border);
 }
 
-.auth-naver-button {
-  display: block;
-  width: 100%;
-  padding: 12px;
-  background: #03c75a;
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-md);
-  font-size: 15px;
-  font-weight: 600;
-  text-align: center;
-  cursor: pointer;
-  box-sizing: border-box;
+/* 소셜 로그인: 동그란 아이콘 버튼 줄 */
+.auth-social {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
 }
 
-.auth-naver-button:hover {
-  background: #02b350;
+.auth-social__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(20, 30, 60, 0.14);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.auth-social__btn svg {
+  width: 26px;
+  height: 26px;
+}
+
+.auth-social__btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 20px rgba(20, 30, 60, 0.2);
+}
+
+.auth-social__btn--naver {
+  background: #03c75a;
+}
+
+.auth-social__btn--kakao {
+  background: #fee500;
+}
+
+.auth-social__btn--google {
+  background: #fff;
+  border-color: var(--color-border);
+}
+
+.auth-social__btn--apple {
+  background: #000;
+}
+
+.auth-social__notice {
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
 }
 
 .auth-switch {
   text-align: center;
   font-size: 13px;
   color: var(--color-text-muted);
-  margin-top: 20px;
+  margin-top: 22px;
 }
 
 .auth-switch a {
-  color: var(--color-primary);
+  color: var(--color-accent);
   font-weight: 600;
+}
+
+@media (max-width: 560px) {
+  .auth-card {
+    padding: 28px 22px 24px;
+  }
+
+  .auth-field-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
 }

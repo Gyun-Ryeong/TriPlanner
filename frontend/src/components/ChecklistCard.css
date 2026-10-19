@@ -1,0 +1,108 @@
+.checklist-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.checklist-card__blank {
+  flex: 1;
+}
+
+.checklist-card__head {
+  margin-bottom: 14px;
+}
+
+/* 어떤 여행의 체크리스트인지 알려주는 작은 회색 제목 */
+.checklist-card__trip {
+  margin: -6px 0 12px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.checklist-card__main {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--color-primary);
+  margin: 0 0 8px;
+}
+
+.checklist-card__unit {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.checklist-card__bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.checklist-card__bar-fill {
+  height: 100%;
+  background: var(--color-primary);
+  transition: width 0.2s ease;
+}
+
+.checklist-card__overdue {
+  margin: 10px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-danger);
+}
+
+.checklist-card__list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checklist-card__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.checklist-card__text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.checklist-card__due {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: var(--radius-md);
+  background: #eef1f8;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.checklist-card__due--overdue {
+  background: #fde8e8;
+  color: var(--color-danger);
+}
+
+.checklist-card__empty,
+.checklist-card__done,
+.checklist-card__error {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.checklist-card__done {
+  color: var(--color-safe);
+  font-weight: 600;
+}
+
+.checklist-card__error {
+  color: var(--color-danger);
+}
+

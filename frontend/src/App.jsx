@@ -9,6 +9,7 @@ import Home from './pages/Home.jsx'
 import Chatbot from './pages/Chatbot.jsx'
 import TripSchedule from './pages/TripSchedule.jsx'
 import NewTrip from './pages/NewTrip.jsx'
+import TripChecklist from './pages/TripChecklist.jsx'
 import MyTrips from './pages/MyTrips.jsx'
 import TripStats from './pages/TripStats.jsx'
 import ProfileEdit from './pages/ProfileEdit.jsx'
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="/mytrips/edit" element={<ProfileEdit />} />
           <Route path="/trips/new" element={<NewTrip />} />
           <Route path="/trips/:tripId/plan" element={<TripSchedule mode="plan" />} />
+          <Route path="/trips/:tripId/checklist" element={<TripChecklist />} />
           <Route path="/alerts" element={<Alerts />} />
         </Route>
 

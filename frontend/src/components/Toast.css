@@ -34,6 +34,10 @@
   line-height: 1;
 }
 
+.toast__icon--warn {
+  background: var(--color-warn);
+}
+
 /* 전체 시간(1.5초) 중 처음 12%는 나타나고, 마지막 17%는 사라진다 */
 @keyframes toast-in-out {
   0% {

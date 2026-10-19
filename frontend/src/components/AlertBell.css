@@ -20,6 +20,38 @@
   background: var(--color-bg);
 }
 
+/* 새 알림이 들어왔을 때 종이 흔들리고 배지가 튀어 오른다 */
+.alert-bell__button--ring svg {
+  transform-origin: 50% 10%;
+  animation: alert-bell-ring 0.9s ease-in-out;
+}
+
+.alert-bell__button--ring .alert-bell__badge {
+  animation: alert-bell-pop 0.5s ease-out;
+}
+
+@keyframes alert-bell-ring {
+  0%, 100% { transform: rotate(0); }
+  15% { transform: rotate(18deg); }
+  30% { transform: rotate(-16deg); }
+  45% { transform: rotate(12deg); }
+  60% { transform: rotate(-8deg); }
+  75% { transform: rotate(4deg); }
+}
+
+@keyframes alert-bell-pop {
+  0% { transform: scale(0.4); }
+  70% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alert-bell__button--ring svg,
+  .alert-bell__button--ring .alert-bell__badge {
+    animation: none;
+  }
+}
+
 .alert-bell__badge {
   position: absolute;
   top: -5px;
@@ -58,10 +90,34 @@
   white-space: normal;
 }
 
+.alert-bell__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
 .alert-bell__heading {
-  margin: 0 0 12px;
+  margin: 0;
   font-size: 15px;
   font-weight: 700;
+}
+
+.alert-bell__clear {
+  padding: 4px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.alert-bell__clear:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
 }
 
 .alert-bell__empty {

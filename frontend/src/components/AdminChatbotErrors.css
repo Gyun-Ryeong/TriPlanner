@@ -1,0 +1,37 @@
+.chatbot-errors__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.chatbot-errors__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.chatbot-errors__chip:hover {
+  background: var(--color-bg);
+}
+
+.chatbot-errors__chip--active {
+  border-color: var(--color-primary);
+  background: #eef2ff;
+  color: var(--color-primary);
+}
+
+/* 원인·질문은 길 수 있어 줄바꿈을 허용하고 너비를 제한한다 */
+.admin__table .chatbot-errors__text {
+  min-width: 160px;
+  max-width: 320px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}

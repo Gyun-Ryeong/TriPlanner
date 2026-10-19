@@ -66,6 +66,7 @@
 
 .app-header__user-name {
   color: var(--color-text);
+  font-weight: 500;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -102,11 +103,10 @@
 .app-footer__inner {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 16px 32px;
-  display: flex;
+  padding: 20px 32px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
   gap: 8px 24px;
 }
 
@@ -122,26 +122,69 @@
   margin: 2px 0 0;
 }
 
+.app-footer__team {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin: 0;
+  white-space: nowrap;
+  text-align: center;
+}
+
 .app-footer__copyright {
   font-size: 12px;
   color: var(--color-text-muted);
   margin: 0;
   white-space: nowrap;
+  text-align: right;
+}
+
+/* 시연용 숨김 버튼: 겉보기에는 일반 글자와 똑같고, 마우스를 올려도 달라지지 않는다 */
+.demo-alert-toggle {
+  margin: 0;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: default;
 }
 
 @media (max-width: 720px) {
+  /* 좁은 화면: 윗줄에 로고와 사용자 영역, 아랫줄에 메뉴(가로 스크롤)를 둔다 */
   .app-header__inner {
-    padding: 0 16px;
-    gap: 20px;
+    height: auto;
+    flex-wrap: wrap;
+    padding: 10px 16px 0;
+    gap: 8px 12px;
+  }
+  .app-header__logo {
+    order: 1;
+  }
+  .app-header__user {
+    order: 2;
+    margin-left: auto;
   }
   .app-header__nav {
-    gap: 14px;
+    order: 3;
+    flex: 1 0 100%;
+    gap: 22px;
     overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  .app-header__link {
+    flex-shrink: 0;
+    padding: 8px 0 6px;
+    white-space: nowrap;
   }
   .app-content {
     padding: 16px;
   }
   .app-footer__inner {
-    padding: 12px 16px;
+    padding: 14px 16px;
+    grid-template-columns: 1fr;
+  }
+  .app-footer__team,
+  .app-footer__copyright {
+    text-align: left;
   }
 }

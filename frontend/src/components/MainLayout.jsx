@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { AUTH_CHANGED_EVENT, getAuth, clearAuth } from '../api/authStorage.js'
 import AlertBell from './AlertBell.jsx'
 import ChatbotWidget from './ChatbotWidget.jsx'
+import DemoAlertToggle from './DemoAlertToggle.jsx'
 import TripAlertsProvider from './TripAlertsProvider.jsx'
 import './MainLayout.css'
 
@@ -36,7 +37,7 @@ export default function MainLayout() {
       <div className="layout">
         <header className="app-header">
           <div className="app-header__inner">
-            <span className="app-header__logo">TriPlanner</span>
+            <Link to="/" className="app-header__logo">TriPlanner</Link>
 
             <nav className="app-header__nav">
               {(auth?.admin ? [...NAV_ITEMS, ADMIN_NAV_ITEM] : NAV_ITEMS).map((item) => (
@@ -81,7 +82,10 @@ export default function MainLayout() {
               <span className="app-footer__logo">TriPlanner</span>
               <p className="app-footer__tagline">국내 여행의 모든 순간을 더 안전하고 자유롭게</p>
             </div>
-            <p className="app-footer__copyright">© 2026 TriPlanner</p>
+            <p className="app-footer__team">이동희 김령균 이시우</p>
+            <p className="app-footer__copyright">
+              {auth ? <DemoAlertToggle /> : '©'} 2026 TriPlanner
+            </p>
           </div>
         </footer>
 

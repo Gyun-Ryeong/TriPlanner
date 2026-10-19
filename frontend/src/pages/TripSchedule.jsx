@@ -1,11 +1,14 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { addTripItem, deleteTripItem, getDayRoute, getMyTrips, getTrip, updateTripItem } from '../api/trips.js'
 import { savePlace, searchPlaces } from '../api/places.js'
 import { getNaverMapClientId } from '../api/config.js'
 import { loadNaverMapsScript } from '../lib/naverMaps.js'
+import BackButton from '../components/BackButton.jsx'
 import TripDeleteButton from '../components/TripDeleteButton.jsx'
 import { TripAlertBlock } from '../components/TripAlertList.jsx'
+import { getAuth } from '../api/authStorage.js'
+import { prepAlertKey, useDismissedAlerts, weatherAlertKey } from '../lib/dismissedAlerts.js'
 import { useTripAlerts } from '../lib/tripAlertsContext.js'
 import './TripSchedule.css'
 
@@ -21,6 +24,12 @@ const REGION_CENTERS = {
 const DEFAULT_CENTER = { lat: 36.5, lng: 127.8, zoom: 7 }
 const MEMO_ITEM_TYPE = '메모'
 const MEMO_MAX_LENGTH = 255
+// 길찾기 결과의 구간(1→2, 2→3 …)마다 다른 색으로 그려 어느 구간인지 구분한다
+const LEG_COLORS = ['#3b5bdb', '#e8590c', '#2f9e44', '#ae3ec9', '#0c8599', '#d6336c']
+
+function legColor(index) {
+  return LEG_COLORS[index % LEG_COLORS.length]
+}
 
 function formatDateRange(startDate, endDate) {
   const start = new Date(startDate)
@@ -53,7 +62,8 @@ export default function TripSchedule({ mode = 'view' }) {
   const planning = mode === 'plan'
   const { tripId } = useParams()
   const navigate = useNavigate()
-  const { data: alertData } = useTripAlerts()
+  const { data: alertData, prep: prepData } = useTripAlerts()
+  const { dismissed, dismiss } = useDismissedAlerts(getAuth()?.userId)
   const [trip, setTrip] = useState(null)
   const [selectedDayId, setSelectedDayId] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -72,13 +82,15 @@ export default function TripSchedule({ mode = 'view' }) {
   // 항목 하나의 시간·메모를 고치는 중이면 그 항목 id 와 입력값
   const [itemEdit, setItemEdit] = useState(null)
   const [route, setRoute] = useState(null)
+  // 길찾기 이동 수단: 'driving'(자동차) / 'walking'(도보)
+  const [routeMode, setRouteMode] = useState('driving')
   const [routeLoading, setRouteLoading] = useState(false)
   const routeLock = useRef(false)
   const [routeError, setRouteError] = useState('')
   const mapContainerRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markersRef = useRef([])
-  const polylineRef = useRef(null)
+  const polylinesRef = useRef([])
 
   useEffect(() => {
     let cancelled = false
@@ -118,10 +130,13 @@ export default function TripSchedule({ mode = 'view' }) {
 
   const selectedDay = trip?.days.find((day) => day.tripDayId === selectedDayId) ?? trip?.days[0]
 
-  // 길찾기 결과는 계산할 때의 날짜·항목 구성에만 유효하다 (항목을 추가/삭제하거나 날짜를 바꾸면 자동으로 무효)
+  // 길찾기 결과는 계산할 때의 날짜·항목 구성·이동 수단에만 유효하다 (항목을 추가/삭제하거나 날짜를 바꾸면 자동으로 무효)
   const itemsSignature = selectedDay?.items.map((item) => item.tripItemId).join(',') ?? ''
   const activeRoute =
-    route && route.dayId === selectedDay?.tripDayId && route.signature === itemsSignature ? route.data : null
+    route && route.dayId === selectedDay?.tripDayId && route.signature === itemsSignature && route.mode === routeMode
+      ? route.data
+      : null
+  const isWalking = routeMode === 'walking'
   const routeLegs = new Map(activeRoute?.legs.map((leg) => [leg.fromItemId, leg]))
   // 경로 계산에는 좌표가 서로 다른 장소가 2곳 이상 필요하다
   const routableCount = new Set(
@@ -142,6 +157,12 @@ export default function TripSchedule({ mode = 'view' }) {
     const count = (placeVisitCounts.get(item.placeContentId) ?? 0) + 1
     placeVisitCounts.set(item.placeContentId, count)
     visitNumbers.set(item.tripItemId, count)
+  })
+
+  // 장소만 1, 2, 3… 번호를 받는다. 장소 없이 메모만 있는 항목은 번호를 차지하지 않는다
+  const stopNumbers = new Map()
+  selectedDay?.items.forEach((item) => {
+    if (item.placeId) stopNumbers.set(item.tripItemId, stopNumbers.size + 1)
   })
 
   useEffect(() => {
@@ -184,12 +205,12 @@ export default function TripSchedule({ mode = 'view' }) {
 
     markersRef.current.forEach((marker) => marker.setMap(null))
     markersRef.current = []
-    polylineRef.current?.setMap(null)
-    polylineRef.current = null
+    polylinesRef.current.forEach((line) => line.setMap(null))
+    polylinesRef.current = []
 
-    // 목록의 번호(1부터)와 지도 마커 번호가 같도록, 좌표 없는 항목을 건너뛰어도 목록 기준 번호를 쓴다
+    // 목록의 장소 번호와 지도 마커 번호가 같도록, 좌표 없는 장소를 건너뛰어도 목록 기준 번호를 쓴다
     const points = selectedDay.items
-      .map((item, index) => ({ item, number: index + 1 }))
+      .map((item) => ({ item, number: stopNumbers.get(item.tripItemId) }))
       .filter(({ item }) => item.placeLatitude != null && item.placeLongitude != null)
 
     const path = points.map(({ item }) => new window.naver.maps.LatLng(item.placeLatitude, item.placeLongitude))
@@ -217,28 +238,41 @@ export default function TripSchedule({ mode = 'view' }) {
       )
     })
 
-    // 길찾기 결과가 있으면 실제 도로 경로를, 없으면 장소들을 잇는 점선을 그린다
-    const linePath = activeRoute
-      ? activeRoute.path.map(([lat, lng]) => new window.naver.maps.LatLng(lat, lng))
-      : path
+    // 길찾기 결과가 있으면 구간마다 색이 다른 실제 경로를, 없으면 장소들을 잇는 점선을 그린다
+    const toLatLngs = (pairs) => pairs.map(([lat, lng]) => new window.naver.maps.LatLng(lat, lng))
+    const lines = activeRoute
+      ? activeRoute.legs.map((leg, i) => ({
+          path: toLatLngs(leg.path),
+          color: legColor(i),
+          opacity: 0.9,
+          weight: 6,
+          style: 'solid',
+        }))
+      : [{ path, color: '#3b5bdb', opacity: 0.6, weight: 4, style: 'shortdash' }]
 
-    if (linePath.length > 1) {
-      polylineRef.current = new window.naver.maps.Polyline({
-        map,
-        path: linePath,
-        strokeColor: '#3b5bdb',
-        strokeOpacity: activeRoute ? 0.9 : 0.6,
-        strokeWeight: activeRoute ? 6 : 4,
-        strokeStyle: activeRoute ? 'solid' : 'shortdash',
-        strokeLineJoin: 'round',
+    const bounds = new window.naver.maps.LatLngBounds()
+    let hasPoints = false
+    lines.forEach((line) => {
+      if (line.path.length > 1) {
+        polylinesRef.current.push(
+          new window.naver.maps.Polyline({
+            map,
+            path: line.path,
+            strokeColor: line.color,
+            strokeOpacity: line.opacity,
+            strokeWeight: line.weight,
+            strokeStyle: line.style,
+            strokeLineJoin: 'round',
+          })
+        )
+      }
+      line.path.forEach((latLng) => {
+        bounds.extend(latLng)
+        hasPoints = true
       })
-    }
+    })
 
-    if (linePath.length > 0) {
-      const bounds = new window.naver.maps.LatLngBounds()
-      linePath.forEach((latLng) => bounds.extend(latLng))
-      map.fitBounds(bounds)
-    }
+    if (hasPoints) map.fitBounds(bounds)
   }, [selectedDay, activeRoute, mapReady])
 
   function updateDayItems(tripDayId, updater) {
@@ -248,18 +282,30 @@ export default function TripSchedule({ mode = 'view' }) {
     }))
   }
 
-  async function handleRoute() {
+  function handleRoute() {
     if (activeRoute) {
       setRoute(null)
       return
     }
+    loadRoute(routeMode)
+  }
+
+  // 길찾기가 열려 있는 동안 이동 수단을 바꾸면 새 수단으로 바로 다시 계산한다
+  function handleModeChange(mode) {
+    if (mode === routeMode || routeLoading) return
+    setRouteMode(mode)
+    setRouteError('')
+    if (activeRoute) loadRoute(mode)
+  }
+
+  async function loadRoute(mode) {
     if (!selectedDay || routeLock.current) return
     routeLock.current = true
     setRouteLoading(true)
     setRouteError('')
     try {
-      const data = await getDayRoute(trip.tripId, selectedDay.tripDayId)
-      setRoute({ dayId: selectedDay.tripDayId, signature: itemsSignature, data })
+      const data = await getDayRoute(trip.tripId, selectedDay.tripDayId, mode)
+      setRoute({ dayId: selectedDay.tripDayId, signature: itemsSignature, mode, data })
     } catch (err) {
       setRouteError(err.message ?? '경로를 불러오지 못했습니다.')
     } finally {
@@ -420,6 +466,20 @@ export default function TripSchedule({ mode = 'view' }) {
   }
 
   const tripAlert = trip ? alertData?.trips.find((t) => t.tripId === trip.tripId) : null
+  const tripPrep = trip ? prepData?.trips.find((t) => t.tripId === trip.tripId) : null
+
+  // 새 여행을 만드는 중에는 예보를 아래 카드로 보여주고, 종 알림에는 같은 내용이 따로 뜨지 않게 미리 지워 둔다.
+  // 일정을 아직 안 채웠으니 '일정이 비어 있어요'와 체크리스트 준비 알림도 같이 뺀다
+  // (체크리스트는 다음 단계에서 직접 정리한다). 이후 예보가 새로 바뀌면 종에 다시 뜬다
+  useLayoutEffect(() => {
+    if (!planning || !trip) return
+    const keys = [
+      ...(tripAlert?.alerts ?? []).map((alert) => weatherAlertKey(tripAlert, alert)),
+      ...(tripPrep?.alerts ?? []).map((alert) => prepAlertKey(tripPrep, alert)),
+      prepAlertKey(trip, { kind: 'CHECKLIST' }),
+    ].filter((key) => !dismissed.has(key))
+    if (keys.length > 0) dismiss(keys)
+  }, [planning, trip, tripAlert, tripPrep, dismissed, dismiss])
 
   if (loading) {
     return (
@@ -459,39 +519,73 @@ export default function TripSchedule({ mode = 'view' }) {
         {planning ? (
           <div className="trip-schedule__actions">
             <div className="trip-schedule__actions-row">
+              <BackButton fallback="/mytrips/stats" />
               <button
                 type="button"
                 className="btn btn-primary"
-                onClick={() => navigate(`/schedule/${trip.tripId}`, { replace: true })}
+                onClick={() => navigate(`/trips/${trip.tripId}/checklist`, { replace: true, state: { setup: true } })}
               >
-                작성 완료
+                다음 →
               </button>
             </div>
             <p className="trip-schedule__actions-note">
-              추가한 장소와 메모는 바로 저장돼요. 완료 후에도 일정 화면의 &lsquo;일정 수정&rsquo;으로 고칠 수 있어요.
+              추가한 장소와 메모는 바로 저장돼요. 다음 단계에서 출발 전 체크리스트를 확인해요. 일정은 나중에도 일정 화면의 &lsquo;일정 수정&rsquo;으로 고칠 수 있어요.
             </p>
           </div>
         ) : (
           <div className="trip-schedule__actions">
             <div className="trip-schedule__actions-row">
+              <BackButton fallback="/mytrips/stats" />
+              <Link to={`/trips/${trip.tripId}/checklist`} state={{ fromSchedule: true }} className="btn btn-sm">📋 체크리스트</Link>
+              <div className="trip-schedule__mode" role="group" aria-label="이동 수단">
+                {[
+                  ['driving', '🚗 자동차'],
+                  ['walking', '🚶 도보'],
+                ].map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={`trip-schedule__mode-option ${routeMode === mode ? 'trip-schedule__mode-option--active' : ''}`}
+                    aria-pressed={routeMode === mode}
+                    disabled={routeLoading}
+                    onClick={() => handleModeChange(mode)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <button
                 type="button"
-                className="btn btn-primary"
+                className={activeRoute ? 'btn trip-schedule__route-close' : 'btn btn-primary'}
                 disabled={routeLoading || (!activeRoute && routableCount < 2)}
                 title={routableCount < 2 ? '서로 다른 위치의 장소가 2곳 이상 필요합니다' : undefined}
                 onClick={handleRoute}
               >
-                {routeLoading ? '경로 계산 중...' : activeRoute ? '길찾기 닫기' : '길찾기 시작'}
+                {routeLoading ? '경로 계산 중...' : activeRoute ? '✕ 경로 지우기' : '🧭 길찾기 시작'}
               </button>
             </div>
             {routeError ? (
               <p className="trip-schedule__actions-note trip-schedule__search-error">{routeError}</p>
             ) : (
-              <p className="trip-schedule__actions-note">길찾기는 자동차 기준으로 계산됩니다.</p>
+              <p className="trip-schedule__actions-note">
+                {activeRoute
+                  ? '지도에 경로가 표시되어 있어요. 지우려면 ‘경로 지우기’를 누르세요.'
+                  : `${isWalking ? '도보' : '자동차'} 기준으로 장소 사이 구간마다 따로 계산합니다.`}
+              </p>
             )}
           </div>
         )}
       </div>
+
+      {planning && tripAlert?.forecastAvailable && (
+        <div className="card trip-schedule__alerts">
+          <p className="card-label">이 여행 기간 예보</p>
+          <TripAlertBlock trip={tripAlert} />
+          {alertData.unavailableSources.length > 0 && (
+            <p className="trip-alert__note">일부 정보({alertData.unavailableSources.join(', ')})를 불러오지 못했어요.</p>
+          )}
+        </div>
+      )}
 
       {!planning && tripAlert && tripAlert.alerts.length > 0 && (
         <div className="card trip-schedule__alerts">
@@ -506,7 +600,7 @@ export default function TripSchedule({ mode = 'view' }) {
             <div>
               <h2>{selectedDay?.dayNumber}일차 동선</h2>
             </div>
-            <span className="badge badge-safe">{selectedDay?.items.length ?? 0}개 장소</span>
+            <span className="badge badge-safe">{stopNumbers.size}개 장소</span>
           </div>
 
           {(trip.days.length > 1 || !planning) && (
@@ -520,7 +614,7 @@ export default function TripSchedule({ mode = 'view' }) {
                       className={`trip-schedule__day-tab ${day.tripDayId === selectedDay?.tripDayId ? 'trip-schedule__day-tab--active' : ''}`}
                       onClick={() => setSelectedDayId(day.tripDayId)}
                     >
-                      {day.dayNumber}일차 ({day.items.length})
+                      {day.dayNumber}일차 ({day.items.filter((item) => item.placeId).length})
                     </button>
                   ))}
               </div>
@@ -543,7 +637,7 @@ export default function TripSchedule({ mode = 'view' }) {
             <p className="trip-schedule__edit-guide">
               {trip.days.length > 1 ? '일차 탭을 눌러 날짜별로 ' : ''}계획을 입력하세요. 장소는 아래에서 검색해 추가하고,
               장소가 아직 정해지지 않았다면 메모로 적어둘 수 있어요. 각 항목의 ↑↓로 순서를, &lsquo;수정&rsquo;으로 시간·메모를 바꿀 수 있어요.
-              다 입력했으면 &lsquo;{planning ? '작성 완료' : '수정 완료'}&rsquo;를 눌러주세요.
+              다 입력했으면 &lsquo;{planning ? '다음' : '수정 완료'}&rsquo;을 눌러주세요.
             </p>
           )}
 
@@ -554,22 +648,34 @@ export default function TripSchedule({ mode = 'view' }) {
           {activeRoute && (
             <div className="trip-schedule__route-summary">
               <div>
-                <p className="trip-schedule__stop-label">총 이동</p>
+                <p className="trip-schedule__stop-label">
+                  {activeRoute.mode === 'WALKING' ? '🚶 도보' : '🚗 자동차'} · {activeRoute.legs.length}구간 합계
+                </p>
                 <p className="trip-schedule__route-total">
                   {formatDistance(activeRoute.totalDistanceMeters)} · {formatDuration(activeRoute.totalDurationSeconds)}
                 </p>
               </div>
-              <p className="trip-schedule__meta">
-                택시 약 {activeRoute.taxiFare.toLocaleString()}원
-                {activeRoute.tollFare > 0 && ` · 통행료 ${activeRoute.tollFare.toLocaleString()}원`}
-              </p>
+              {activeRoute.mode === 'WALKING' ? (
+                <p className="trip-schedule__meta">구간별 소요 시간 합산</p>
+              ) : (
+                <p className="trip-schedule__meta">
+                  택시 약 {activeRoute.taxiFare.toLocaleString()}원 (구간별 합산)
+                  {activeRoute.tollFare > 0 && ` · 통행료 ${activeRoute.tollFare.toLocaleString()}원`}
+                </p>
+              )}
             </div>
           )}
 
           {selectedDay?.items.map((item, index) => (
             <Fragment key={item.tripItemId}>
             <div className="trip-schedule__stop">
-              <span className="trip-schedule__stop-index">{index + 1}</span>
+              {item.placeId ? (
+                <span className="trip-schedule__stop-index">{stopNumbers.get(item.tripItemId)}</span>
+              ) : (
+                <span className="trip-schedule__stop-index trip-schedule__stop-index--memo" aria-label="메모">
+                  ✎
+                </span>
+              )}
               <div className="trip-schedule__stop-body">
                 <p className="trip-schedule__stop-label">{item.itemType}</p>
                 <p className="trip-schedule__stop-name">
@@ -651,8 +757,11 @@ export default function TripSchedule({ mode = 'view' }) {
               )}
             </div>
             {routeLegs.has(item.tripItemId) && (
-              <div className="trip-schedule__leg">
-                🚗 {formatDistance(routeLegs.get(item.tripItemId).distanceMeters)} ·{' '}
+              <div
+                className="trip-schedule__leg"
+                style={{ '--leg-color': legColor(activeRoute.legs.indexOf(routeLegs.get(item.tripItemId))) }}
+              >
+                {activeRoute.mode === 'WALKING' ? '🚶' : '🚗'} {formatDistance(routeLegs.get(item.tripItemId).distanceMeters)} ·{' '}
                 {formatDuration(routeLegs.get(item.tripItemId).durationSeconds)}
               </div>
             )}

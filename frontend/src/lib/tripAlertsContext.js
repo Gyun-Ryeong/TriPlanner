@@ -1,6 +1,15 @@
 import { createContext, useContext } from 'react'
 
-export const TripAlertsContext = createContext({ data: null, loading: false, error: false })
+// data: 여행 위험 알림(날씨·대기질·특보), prep: 일정 변경·준비 알림(체크리스트 기한·빈 일정)
+// demoOn / toggleDemo: 시연용 가짜 알림을 켜고 끄는 스위치 (푸터의 숨김 버튼)
+export const TripAlertsContext = createContext({
+  data: null,
+  prep: null,
+  loading: false,
+  error: false,
+  demoOn: false,
+  toggleDemo: () => {},
+})
 
 // 프로필에서 알림 설정을 바꾼 직후처럼, 페이지 이동 없이 알림을 다시 불러와야 할 때 보내는 이벤트
 export const TRIP_ALERTS_REFRESH_EVENT = 'triplanner-trip-alerts-refresh'
@@ -20,3 +29,7 @@ export function countAlerts(data) {
 export function hasStrongAlert(data) {
   return (data?.trips ?? []).some((trip) => trip.alerts.some((a) => a.level === 'DANGER'))
 }
+
+// 준비 알림은 알림이 있는 여행만 내려오므로, 위험 알림과 같은 방식으로 세면 된다
+export const countPrepAlerts = countAlerts
+export const hasStrongPrepAlert = hasStrongAlert
