@@ -5,6 +5,8 @@ import com.triplanner.backend.dto.DailyForecast;
 import com.triplanner.backend.dto.KmaForecastResponse;
 import com.triplanner.backend.dto.RegionWeatherResponse;
 import com.triplanner.backend.dto.RegionWeatherResponse.CityWeather;
+import com.triplanner.backend.service.RegionCatalog.CityGrid;
+import com.triplanner.backend.service.RegionCatalog.RegionGrid;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -34,50 +36,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class WeatherService {
-
-    private record CityGrid(String name, int nx, int ny) {
-    }
-
-    // cities 의 첫 번째 도시가 대표 도시다 (여행 알림의 예보는 대표 도시 기준)
-    private record RegionGrid(String id, String name, List<CityGrid> cities) {
-        CityGrid representative() {
-            return cities.get(0);
-        }
-    }
-
-    // 앱의 7개 광역 권역(이름은 여행 만들기 화면과 동일) 아래의 주요 도시와 기상청 단기예보 격자 좌표.
-    // 격자는 기상청 공식 변환식으로 계산했다 (기존 검증된 대표 도시 6곳과 일치 확인, 오차는 격자 1칸=5km 이내).
-    private static final List<RegionGrid> REGIONS = List.of(
-            new RegionGrid("seoul", "서울 특별시", List.of(
-                    new CityGrid("서울", 60, 127))),
-            new RegionGrid("gi", "경기도 / 인천", List.of(
-                    new CityGrid("인천", 55, 124),
-                    new CityGrid("수원", 61, 120),
-                    new CityGrid("가평", 69, 133))),
-            new RegionGrid("gangwon", "강원도", List.of(
-                    new CityGrid("춘천", 73, 134),
-                    new CityGrid("강릉", 92, 132),
-                    new CityGrid("속초", 87, 141))),
-            new RegionGrid("chungcheong", "충청도", List.of(
-                    new CityGrid("대전", 67, 100),
-                    new CityGrid("청주", 69, 107),
-                    new CityGrid("천안", 62, 110),
-                    new CityGrid("태안", 48, 109))),
-            new RegionGrid("jeolla", "전라도", List.of(
-                    new CityGrid("광주", 58, 74),
-                    new CityGrid("전주", 63, 89),
-                    new CityGrid("여수", 73, 66),
-                    new CityGrid("목포", 50, 67))),
-            new RegionGrid("gyeongsang", "경상도", List.of(
-                    new CityGrid("부산", 98, 76),
-                    new CityGrid("대구", 89, 91),
-                    new CityGrid("울산", 102, 84),
-                    new CityGrid("경주", 100, 91),
-                    new CityGrid("안동", 91, 106))),
-            new RegionGrid("jeju", "제주도", List.of(
-                    new CityGrid("제주", 52, 38),
-                    new CityGrid("서귀포", 52, 33)))
-    );
 
     // 단기예보 발표시각: 매일 02,05,08,11,14,17,20,23시 (발표 후 약 10분 뒤 조회 가능)
     private static final int[] BASE_HOURS = {2, 5, 8, 11, 14, 17, 20, 23};
@@ -130,7 +88,7 @@ public class WeatherService {
         List<RegionWeatherResponse> result = new ArrayList<>();
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
             Map<RegionGrid, List<Future<CityWeather>>> futures = new LinkedHashMap<>();
-            for (RegionGrid region : REGIONS) {
+            for (RegionGrid region : RegionCatalog.REGIONS) {
                 futures.put(region, region.cities().stream()
                         .map(city -> executor.submit(() -> fetchCityWeather(city, baseDate, baseTime)))
                         .toList());
@@ -169,21 +127,28 @@ public class WeatherService {
         }
     }
 
-    // 여행 알림용: 지역의 앞으로 약 3일치 예보를 날짜별로 요약한다 (10분 캐시)
+    // 여행 알림용: 지역의 앞으로 약 3일치 예보를 날짜별로 요약한다 (10분 캐시). 대표 도시 기준
     public List<DailyForecast> getDailyForecasts(String regionId) {
-        RegionGrid region = REGIONS.stream().filter(r -> r.id().equals(regionId)).findFirst().orElse(null);
+        return getDailyForecasts(regionId, null);
+    }
+
+    // 세부 지역(시)을 고른 여행은 그 도시 기준으로 요약한다. 도시가 없거나 그 지역에 없는 도시면 대표 도시 기준
+    public List<DailyForecast> getDailyForecasts(String regionId, String cityName) {
+        RegionGrid region = RegionCatalog.findById(regionId);
         if (region == null) {
             return List.of();
         }
-        return dailyCache.get(regionId, () -> fetchDailyForecasts(region));
+        CityGrid city = cityName == null ? null : region.cityByName(cityName);
+        CityGrid target = city != null ? city : region.representative();
+        return dailyCache.get(regionId + "|" + target.name(), () -> fetchDailyForecasts(target));
     }
 
-    private List<DailyForecast> fetchDailyForecasts(RegionGrid region) {
+    private List<DailyForecast> fetchDailyForecasts(CityGrid city) {
         ZonedDateTime adjusted = ZonedDateTime.now(KST).minusMinutes(10);
         List<KmaForecastResponse.KmaItem> items;
         try {
             // 시간별 12개 항목 x 약 3일치 = 900행 안팎
-            items = requestForecast(region.representative(), computeBaseDate(adjusted), computeBaseTime(adjusted), 1500)
+            items = requestForecast(city, computeBaseDate(adjusted), computeBaseTime(adjusted), 1500)
                     .response().body().items().item();
         } catch (RestClientException | NullPointerException e) {
             throw new IllegalStateException("기상청 단기예보를 불러오지 못했습니다.");

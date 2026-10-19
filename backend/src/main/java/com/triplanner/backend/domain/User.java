@@ -7,14 +7,9 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "`user`")
-@Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class User {
 
     @Id
@@ -60,11 +55,54 @@ public class User {
     @Column(name = "withdrawn_at")
     private LocalDateTime withdrawnAt;
 
+    protected User() {
+    }
+
     public User(String email, String password, String nickname) {
         this.email = email;
         this.password = password;
         this.nickname = nickname;
         this.createdAt = LocalDateTime.now();
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public String getNickname() {
+        return nickname;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public boolean isNotifyTripAlerts() {
+        return notifyTripAlerts;
+    }
+
+    public boolean isNotifyScheduleAlerts() {
+        return notifyScheduleAlerts;
+    }
+
+    public boolean isConsentMarketing() {
+        return consentMarketing;
+    }
+
+    public LocalDateTime getWithdrawnAt() {
+        return withdrawnAt;
     }
 
     public void changeNickname(String nickname) {

@@ -147,6 +147,22 @@ public class TripController {
         return ResponseEntity.ok(tripService.updateTrip(authentication.getName(), tripId, request));
     }
 
+    // 마지막 일차 뒤에 하루 추가
+    @PostMapping("/{tripId}/days")
+    public ResponseEntity<TripDetailResponse> addDay(Authentication authentication, @PathVariable Long tripId) {
+        return ResponseEntity.ok(tripService.addDay(authentication.getName(), tripId));
+    }
+
+    // 마지막 일차 삭제. 일정이 들어 있으면 confirmed=true 로 확인했을 때만 지운다 (아니면 409)
+    @DeleteMapping("/{tripId}/days/last")
+    public ResponseEntity<TripDetailResponse> removeLastDay(
+            Authentication authentication,
+            @PathVariable Long tripId,
+            @RequestParam(defaultValue = "false") boolean confirmed
+    ) {
+        return ResponseEntity.ok(tripService.removeLastDay(authentication.getName(), tripId, confirmed));
+    }
+
     @DeleteMapping("/{tripId}")
     public ResponseEntity<Void> deleteTrip(Authentication authentication, @PathVariable Long tripId) {
         tripService.deleteTrip(authentication.getName(), tripId);

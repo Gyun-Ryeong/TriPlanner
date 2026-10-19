@@ -145,8 +145,12 @@ public class TripAlertService {
                 LocalDate from = trip.getStartDate().isAfter(today) ? trip.getStartDate() : today;
                 LocalDate to = trip.getEndDate().isBefore(windowEnd) ? trip.getEndDate() : windowEnd;
 
-                List<DailyForecast> forecasts = weatherByRegion.computeIfAbsent(regionId, id -> {
-                    List<DailyForecast> loaded = load("날씨", unavailable, () -> weatherService.getDailyForecasts(id));
+                // 세부 지역(시)을 고른 여행은 그 도시 기준 예보, 아니면 권역 대표 도시 기준 예보
+                String city = trip.getCity();
+                List<DailyForecast> forecasts = weatherByRegion.computeIfAbsent(regionId + "|" + city, key -> {
+                    List<DailyForecast> loaded = load("날씨", unavailable, () -> city == null
+                            ? weatherService.getDailyForecasts(regionId)
+                            : weatherService.getDailyForecasts(regionId, city));
                     return loaded == null ? List.of() : loaded;
                 });
                 for (DailyForecast forecast : forecasts) {
@@ -168,7 +172,7 @@ public class TripAlertService {
                     .comparing((Alert a) -> DANGER.equals(a.level()) ? 0 : 1)
                     .thenComparing(a -> a.date() == null ? LocalDate.MIN : a.date()));
 
-            result.add(new TripAlerts(trip.getTripId(), trip.getTitle(), trip.getRegion(),
+            result.add(new TripAlerts(trip.getTripId(), trip.getTitle(), trip.getRegion(), trip.getCity(),
                     trip.getStartDate(), trip.getEndDate(), daysUntilStart, forecastAvailable, alerts));
         }
 
