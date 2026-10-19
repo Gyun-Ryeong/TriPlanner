@@ -7,6 +7,7 @@ import { MailIcon, PencilIcon, PhoneIcon, PlaneIcon, PlusIcon } from '../compone
 import { TripAlertBlock, upcomingAlertsMessage } from '../components/TripAlertList.jsx'
 import { useTripAlerts } from '../lib/tripAlertsContext.js'
 import { pickUpcomingTrip } from '../lib/upcomingTrip.js'
+import { placeLabel } from '../lib/tripPlace.js'
 import './MyTrips.css'
 
 function formatDate(dateString) {
@@ -116,7 +117,7 @@ export default function MyTrips() {
         ) : upcomingTrip ? (
           <div className="mytrips__risk-body">
             <p className="mytrips__risk-title">{upcomingTrip.title}</p>
-            <p className="mytrips__meta mytrips__risk-meta">{upcomingTrip.region} · {formatDate(upcomingTrip.startDate)}</p>
+            <p className="mytrips__meta mytrips__risk-meta">{placeLabel(upcomingTrip)} · {formatDate(upcomingTrip.startDate)}</p>
             {upcomingAlerts ? (
               <TripAlertBlock trip={upcomingAlerts} />
             ) : (

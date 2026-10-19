@@ -1,0 +1,55 @@
+.trip-day-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.trip-day-controls__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.trip-day-controls .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.trip-day-controls__error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-danger);
+}
+
+.trip-day-controls__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  background: #fef2f2;
+}
+
+.trip-day-controls__message {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.trip-day-controls__confirm-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.trip-day-controls__danger {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #fff;
+}
+
+.trip-day-controls__danger:hover:not(:disabled) {
+  background: #b91c1c;
+}

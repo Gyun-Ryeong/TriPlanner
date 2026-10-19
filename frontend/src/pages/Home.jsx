@@ -7,6 +7,7 @@ import { BellIcon, BotIcon, CalendarIcon, PlaneIcon, PlusIcon } from '../compone
 import { PrepAlertsSection, TripAlertsOverview, TripAlertSummary, upcomingAlertsMessage } from '../components/TripAlertList.jsx'
 import { useTripAlerts } from '../lib/tripAlertsContext.js'
 import { pickUpcomingTrip } from '../lib/upcomingTrip.js'
+import { placeLabel } from '../lib/tripPlace.js'
 import './Home.css'
 
 function formatUpcomingDate(startDate, endDate) {
@@ -123,7 +124,7 @@ export default function Home() {
               <Link to={`/schedule/${upcomingTrip.tripId}`} className="home__trip-link">
                 <p className="home__stat-main">{upcomingTrip.title}</p>
                 <p className="home__stat-sub">
-                  {upcomingTrip.region} · {formatUpcomingDate(upcomingTrip.startDate, upcomingTrip.endDate)}
+                  {placeLabel(upcomingTrip)} · {formatUpcomingDate(upcomingTrip.startDate, upcomingTrip.endDate)}
                 </p>
               </Link>
               <div className="home__safety">

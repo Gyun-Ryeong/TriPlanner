@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createTrip } from '../api/trips.js'
+import { getRegionCatalog } from '../api/weather.js'
 import BackButton from '../components/BackButton.jsx'
 import KoreaMap from '../components/KoreaMap.jsx'
 import './NewTrip.css'
@@ -23,6 +24,10 @@ function todayPlus(days) {
 
 export default function NewTrip() {
   const [selected, setSelected] = useState('jeju')
+  // 세부 지역(시): 빈 값이면 권역 전체. 권역을 바꾸면 다시 비운다
+  const [city, setCity] = useState('')
+  // 권역 id -> 그 아래 도시 이름들 (못 받아 오면 세부 지역 선택만 숨긴다)
+  const [cityOptions, setCityOptions] = useState({})
   const [title, setTitle] = useState('')
   const [startDate, setStartDate] = useState(todayPlus(0))
   const [endDate, setEndDate] = useState(todayPlus(2))
@@ -30,6 +35,24 @@ export default function NewTrip() {
   const [submitting, setSubmitting] = useState(false)
   const navigate = useNavigate()
   const selectedRegion = REGIONS.find((r) => r.id === selected)
+  const cities = cityOptions[selected] ?? []
+
+  useEffect(() => {
+    let cancelled = false
+    getRegionCatalog()
+      .then((regions) => {
+        if (!cancelled) setCityOptions(Object.fromEntries(regions.map((r) => [r.regionId, r.cities])))
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  function selectRegion(id) {
+    setSelected(id)
+    setCity('')
+  }
 
   async function handleSubmit() {
     if (!title.trim()) {
@@ -45,7 +68,7 @@ export default function NewTrip() {
     setSubmitting(true)
 
     try {
-      const trip = await createTrip({ title, region: selectedRegion.name, startDate, endDate })
+      const trip = await createTrip({ title, region: selectedRegion.name, city, startDate, endDate })
       // 생성 직후에는 기존 일정 화면이 아닌 전용 '일정 만들기' 화면에서 일차별 계획을 입력한다
       navigate(`/trips/${trip.tripId}/plan`)
     } catch (err) {
@@ -68,7 +91,7 @@ export default function NewTrip() {
       <div className="newtrip__body">
         <div className="card newtrip__map-card">
           <p className="newtrip__map-label">대한민국 지도</p>
-          <KoreaMap selected={selected} onSelect={setSelected} />
+          <KoreaMap selected={selected} onSelect={selectRegion} />
         </div>
 
         <div className="newtrip__list">
@@ -77,7 +100,7 @@ export default function NewTrip() {
               key={r.id}
               type="button"
               className={`newtrip__option ${selected === r.id ? 'newtrip__option--selected' : ''}`}
-              onClick={() => setSelected(r.id)}
+              onClick={() => selectRegion(r.id)}
             >
               <div>
                 <p className="newtrip__option-name">{r.name}</p>
@@ -88,6 +111,27 @@ export default function NewTrip() {
           ))}
         </div>
       </div>
+
+      {cities.length > 1 && (
+        <div className="card newtrip__city">
+          <div className="newtrip__field">
+            <label htmlFor="trip-city">
+              세부 지역 (시) <span className="newtrip__optional">선택</span>
+            </label>
+            <select id="trip-city" value={city} onChange={(e) => setCity(e.target.value)}>
+              <option value="">{selectedRegion.name} 전체</option>
+              {cities.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="newtrip__city-hint">
+            도시를 고르면 실시간 알림에서 그 도시 기준의 날씨를 보여드려요. 고르지 않으면 {selectedRegion.name} 전체를 보여드려요.
+          </p>
+        </div>
+      )}
 
       <div className="card newtrip__details">
         <div className="newtrip__field">
@@ -126,7 +170,7 @@ export default function NewTrip() {
 
       <div className="newtrip__footer">
         <button type="button" className="btn btn-primary" disabled={submitting} onClick={handleSubmit}>
-          {submitting ? '생성 중...' : `${selectedRegion?.name} 선택 · 다음 단계로 진행 →`}
+          {submitting ? '생성 중...' : `${selectedRegion?.name}${city ? ` · ${city}` : ''} 선택 · 다음 단계로 진행 →`}
         </button>
       </div>
     </div>
