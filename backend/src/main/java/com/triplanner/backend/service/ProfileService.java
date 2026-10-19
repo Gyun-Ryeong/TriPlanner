@@ -44,8 +44,16 @@ public class ProfileService {
 
     @Transactional
     public ProfileResponse updateNotifications(String email, NotificationSettingsRequest request) {
+        if (request.tripAlertsEnabled() == null && request.scheduleAlertsEnabled() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "알림 설정 값이 필요합니다.");
+        }
         User user = findUser(email);
-        user.changeNotifyTripAlerts(request.tripAlertsEnabled());
+        if (request.tripAlertsEnabled() != null) {
+            user.changeNotifyTripAlerts(request.tripAlertsEnabled());
+        }
+        if (request.scheduleAlertsEnabled() != null) {
+            user.changeNotifyScheduleAlerts(request.scheduleAlertsEnabled());
+        }
         return toResponse(user);
     }
 
@@ -81,6 +89,6 @@ public class ProfileService {
 
     private ProfileResponse toResponse(User user) {
         return new ProfileResponse(user.getUserId(), user.getEmail(), user.getNickname(), user.getPhone(),
-                user.isNotifyTripAlerts(), user.isConsentMarketing());
+                user.isNotifyTripAlerts(), user.isNotifyScheduleAlerts(), user.isConsentMarketing());
     }
 }
