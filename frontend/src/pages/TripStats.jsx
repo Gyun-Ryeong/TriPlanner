@@ -4,9 +4,24 @@ import { getAuth } from '../api/authStorage.js'
 import { getMyTrips } from '../api/trips.js'
 import { CalendarIcon, MapIcon, PinIcon, PlaneIcon, PlusIcon } from '../components/Icons.jsx'
 import TripDeleteButton from '../components/TripDeleteButton.jsx'
-import { tripPhoto } from '../lib/regionPhotos.js'
+import { useTripPhoto } from '../lib/regionPhotos.js'
 import { placeLabel } from '../lib/tripPlace.js'
 import './TripStats.css'
+
+// 여행지 사진. 서버에서 받은 관광지 사진이면 출처(한국관광공사)를 사진 위에 작게 표시한다
+function TripPhoto({ trip }) {
+  const photo = useTripPhoto(trip)
+  return (
+    <div className="trip-stats__photo">
+      {photo && <img src={photo.src} alt="" aria-hidden="true" loading="lazy" />}
+      {photo?.credit && (
+        <span className="trip-stats__photo-credit">
+          {photo.title ? `${photo.title} · ` : ''}사진: {photo.credit}
+        </span>
+      )}
+    </div>
+  )
+}
 
 function formatDateRange(startDate, endDate) {
   const start = new Date(startDate)
@@ -149,9 +164,7 @@ export default function TripStats() {
             {visibleTrips.map((t) => (
               <div key={t.tripId} className="trip-stats__place">
                 <Link to={`/schedule/${t.tripId}`} className="trip-stats__link">
-                  <div className="trip-stats__photo" aria-hidden="true">
-                    {tripPhoto(t) && <img src={tripPhoto(t)} alt="" loading="lazy" />}
-                  </div>
+                  <TripPhoto trip={t} />
                   <div className="trip-stats__place-body">
                     <div className="trip-stats__place-header">
                       <p className="trip-stats__place-name">{t.title}</p>
