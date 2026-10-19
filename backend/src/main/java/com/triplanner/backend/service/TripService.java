@@ -14,6 +14,7 @@ import com.triplanner.backend.dto.TripItemResponse;
 import com.triplanner.backend.dto.TripSummaryResponse;
 import com.triplanner.backend.dto.TripUpdateRequest;
 import com.triplanner.backend.repository.PlaceRepository;
+import com.triplanner.backend.repository.TripChecklistItemRepository;
 import com.triplanner.backend.repository.TripDayRepository;
 import com.triplanner.backend.repository.TripItemRepository;
 import com.triplanner.backend.repository.TripRepository;
@@ -61,14 +62,17 @@ public class TripService {
     private final TripItemRepository tripItemRepository;
     private final PlaceRepository placeRepository;
     private final UserRepository userRepository;
+    private final TripChecklistItemRepository checklistRepository;
 
     public TripService(
             TripRepository tripRepository,
             TripDayRepository tripDayRepository,
             TripItemRepository tripItemRepository,
             PlaceRepository placeRepository,
-            UserRepository userRepository
+            UserRepository userRepository,
+            TripChecklistItemRepository checklistRepository
     ) {
+        this.checklistRepository = checklistRepository;
         this.tripRepository = tripRepository;
         this.tripDayRepository = tripDayRepository;
         this.tripItemRepository = tripItemRepository;
@@ -152,6 +156,7 @@ public class TripService {
     public void deleteTrip(String email, Long tripId) {
         Trip trip = getOwnedTrip(email, tripId);
         deleteDaysAndItems(trip);
+        checklistRepository.deleteAllOfTrip(trip.getTripId());
         tripRepository.delete(trip);
     }
 

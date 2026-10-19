@@ -1,6 +1,5 @@
 package com.triplanner.backend.dto;
 
-import jakarta.validation.constraints.NotNull;
-
-public record NotificationSettingsRequest(@NotNull(message = "알림 설정 값이 필요합니다.") Boolean tripAlertsEnabled) {
+// 바꾸려는 설정만 보낸다 (null 인 항목은 그대로 둔다). 둘 다 비어 있으면 요청을 거절한다
+public record NotificationSettingsRequest(Boolean tripAlertsEnabled, Boolean scheduleAlertsEnabled) {
 }

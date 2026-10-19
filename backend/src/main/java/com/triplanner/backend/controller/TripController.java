@@ -1,6 +1,9 @@
 package com.triplanner.backend.controller;
 
 import com.triplanner.backend.dto.ChatPlanImportRequest;
+import com.triplanner.backend.dto.ChecklistCheckRequest;
+import com.triplanner.backend.dto.ChecklistItemRequest;
+import com.triplanner.backend.dto.ChecklistItemResponse;
 import com.triplanner.backend.dto.TripAlertsResponse;
 import com.triplanner.backend.dto.TripCreateRequest;
 import com.triplanner.backend.dto.TripDetailResponse;
@@ -9,6 +12,9 @@ import com.triplanner.backend.dto.TripItemResponse;
 import com.triplanner.backend.dto.TripSummaryResponse;
 import com.triplanner.backend.dto.TripUpdateRequest;
 import com.triplanner.backend.dto.RouteResponse;
+import com.triplanner.backend.dto.PrepAlertsResponse;
+import com.triplanner.backend.service.ChecklistService;
+import com.triplanner.backend.service.PrepAlertService;
 import com.triplanner.backend.service.RouteService;
 import com.triplanner.backend.service.TripAlertService;
 import com.triplanner.backend.service.TripService;
@@ -23,6 +29,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -32,11 +39,61 @@ public class TripController {
     private final TripService tripService;
     private final RouteService routeService;
     private final TripAlertService tripAlertService;
+    private final ChecklistService checklistService;
+    private final PrepAlertService prepAlertService;
 
-    public TripController(TripService tripService, RouteService routeService, TripAlertService tripAlertService) {
+    public TripController(
+            TripService tripService,
+            RouteService routeService,
+            TripAlertService tripAlertService,
+            ChecklistService checklistService,
+            PrepAlertService prepAlertService
+    ) {
         this.tripService = tripService;
         this.routeService = routeService;
         this.tripAlertService = tripAlertService;
+        this.checklistService = checklistService;
+        this.prepAlertService = prepAlertService;
+    }
+
+    // 일정 변경·준비 알림 (체크리스트 기한, 비어 있는 일정)
+    @GetMapping("/prep-alerts")
+    public ResponseEntity<PrepAlertsResponse> getPrepAlerts(Authentication authentication) {
+        return ResponseEntity.ok(prepAlertService.getAlerts(authentication.getName()));
+    }
+
+    @GetMapping("/{tripId}/checklist")
+    public ResponseEntity<List<ChecklistItemResponse>> getChecklist(Authentication authentication, @PathVariable Long tripId) {
+        return ResponseEntity.ok(checklistService.getChecklist(authentication.getName(), tripId));
+    }
+
+    @PostMapping("/{tripId}/checklist")
+    public ResponseEntity<ChecklistItemResponse> addChecklistItem(
+            Authentication authentication,
+            @PathVariable Long tripId,
+            @Valid @RequestBody ChecklistItemRequest request
+    ) {
+        return ResponseEntity.ok(checklistService.addItem(authentication.getName(), tripId, request));
+    }
+
+    @PutMapping("/{tripId}/checklist/{itemId}")
+    public ResponseEntity<ChecklistItemResponse> checkChecklistItem(
+            Authentication authentication,
+            @PathVariable Long tripId,
+            @PathVariable Long itemId,
+            @Valid @RequestBody ChecklistCheckRequest request
+    ) {
+        return ResponseEntity.ok(checklistService.setChecked(authentication.getName(), tripId, itemId, request.checked()));
+    }
+
+    @DeleteMapping("/{tripId}/checklist/{itemId}")
+    public ResponseEntity<Void> deleteChecklistItem(
+            Authentication authentication,
+            @PathVariable Long tripId,
+            @PathVariable Long itemId
+    ) {
+        checklistService.deleteItem(authentication.getName(), tripId, itemId);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/alerts")
@@ -48,9 +105,10 @@ public class TripController {
     public ResponseEntity<RouteResponse> getDayRoute(
             Authentication authentication,
             @PathVariable Long tripId,
-            @PathVariable Long tripDayId
+            @PathVariable Long tripDayId,
+            @RequestParam(defaultValue = "driving") String mode
     ) {
-        return ResponseEntity.ok(routeService.getDayRoute(authentication.getName(), tripId, tripDayId));
+        return ResponseEntity.ok(routeService.getDayRoute(authentication.getName(), tripId, tripDayId, mode));
     }
 
     @PostMapping

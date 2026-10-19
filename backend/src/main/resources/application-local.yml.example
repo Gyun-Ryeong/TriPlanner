@@ -32,3 +32,7 @@ naver:
 # data.go.kr(공공데이터포털) 발급 키 - 기상청, 에어코리아(한국환경공단) 공용
 public-data:
   service-key: your_data_go_kr_service_key
+
+# SK open API Tmap 앱 키 - 도보 길찾기(보행자 경로)에 사용 (없으면 백엔드가 시작되지 않는다)
+tmap:
+  app-key: your_tmap_app_key

@@ -30,7 +30,7 @@ public class RagChatController {
     @PostMapping
     public ResponseEntity<JsonNode> chat(@Valid @RequestBody RagChatRequest request, Authentication authentication) {
         boolean debug = Boolean.TRUE.equals(request.debug()) && AdminAccounts.isAdmin(authentication);
-        return ResponseEntity.ok(ragChatService.chat(request.sessionId(), request.message(), debug));
+        return ResponseEntity.ok(ragChatService.chat(authentication.getName(), request.sessionId(), request.message(), debug));
     }
 
     @DeleteMapping("/{sessionId}")
