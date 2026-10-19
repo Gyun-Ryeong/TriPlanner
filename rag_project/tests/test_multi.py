@@ -139,9 +139,9 @@ class MultiTripTests(Base):
         self.assertIn("이미 지났어요", body(r["reply"]))
         self.assertEqual(self.gathers, [])
         s2 = self.chat.ChatSession()
-        r = self.say("대구 9박10일, 부산 2박3일 짜줘", s2)
+        r = self.say("대구 14박15일, 부산 2박3일 짜줘", s2)
         r = self.say("10월 10일부터", s2)
-        self.assertIn("최대 7일", body(r["reply"]))
+        self.assertIn("최대 14일", body(r["reply"]))
 
     def test_pending_is_dropped_when_user_changes_to_another_request(self):
         self.say("대구 1박2일, 부산 2박3일 짜줘")

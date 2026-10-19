@@ -28,8 +28,8 @@ def stay_minutes(place: dict) -> int:
 
 
 def pick_restaurant(prev: dict | None, restaurants: list[dict], used: set[str]) -> dict | None:
-    """아직 쓰지 않은 음식점 중 직전 장소에서 가장 가까운 곳. 순위(취향 유사도) 상위 30곳 안에서 고른다."""
-    pool = [r for r in restaurants[:30] if (r.get("content_id") or r.get("title")) not in used]
+    """아직 쓰지 않은 음식점 중 직전 장소에서 가장 가까운 곳. 넘겨받은 음식점(취향 유사도 상위, 긴 일정일수록 많이) 안에서 고른다."""
+    pool = [r for r in restaurants if (r.get("content_id") or r.get("title")) not in used]
     if not pool:
         return None
     if prev is None:

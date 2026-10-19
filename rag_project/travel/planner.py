@@ -10,6 +10,7 @@
 import re
 
 from travel.conditions import display_line
+from travel.geo import straight_km
 from travel.schedule import build_timeline
 
 PLAN_SYSTEM_PROMPT = """너는 한국 여행 플래너 챗봇이다. 사용자와 대화하듯 친근한 존댓말로 답한다.
@@ -26,6 +27,7 @@ PLAN_SYSTEM_PROMPT = """너는 한국 여행 플래너 챗봇이다. 사용자�
 7. 기온·강수확률·미세먼지 수치와 후보 id(C1 등)는 message, theme, note에 쓰지 마라.
 8. 모드가 '수정'이면 [현재 일정]을 바탕으로 사용자의 요청만 반영해 days 전체를 다시 출력한다(바뀌지 않은 날도 포함).
    사용자가 일정 변경이 아니라 질문·인사·감사를 하면 days를 null로 하고 message로만 답한다.
+   [출력할 날짜]가 있으면 그 날짜들만 days에 출력한다. 긴 일정을 나눠서 짜는 중이라 다른 날짜는 따로 만든다.
 9. 반드시 아래 JSON 형식의 순수 JSON만 출력한다. 설명이나 코드블록은 금지.
 
 {
@@ -42,7 +44,7 @@ PLAN_SYSTEM_PROMPT = """너는 한국 여행 플래너 챗봇이다. 사용자�
 def build_plan_user_message(
     *, mode: str, region_label: str, start: str, end: str, n_days: int, party: str, preferences: str, avoid: str,
     condition_lines: list[str], candidate_lines: list[str], news_lines: list[str],
-    current_plan_text: str, user_request: str,
+    current_plan_text: str, user_request: str, target_dates: list[str] | None = None,
 ) -> str:
     parts = [
         f"[모드] {mode}",
@@ -55,6 +57,8 @@ def build_plan_user_message(
     ]
     if current_plan_text:
         parts.append("[현재 일정]\n" + current_plan_text)
+    if target_dates:
+        parts.append(f"[출력할 날짜] (이 {len(target_dates)}일만 days에 출력)\n" + ", ".join(target_dates))
     parts.append("[사용자 요청]\n" + user_request)
     return "\n\n".join(parts)
 
@@ -161,6 +165,40 @@ def fallback_plan(dates: list[str], conditions: list[dict], ranked_ids: list[str
         "days": days,
         "follow_up": "원하시면 \"2일차는 실내로 바꿔줘\"처럼 말씀해 주세요. 바로 고쳐드릴게요.",
     }
+
+
+def fill_thin_days(days: list[dict], dates: list[str], conditions: list[dict], ranked_ids: list[str],
+                   cand_map: dict[str, dict], min_items: int = 3, only: set[int] | None = None) -> int:
+    """
+    장소가 min_items곳보다 적은 날을 아직 안 쓴 후보로 채웁니다 (AI가 일부 날을 비우거나 적게 넣었을 때).
+    그날 이미 정한 장소와 가까운 후보를 먼저 고르고, 궂은 날(실내 위주)에는 실내 후보를 먼저 씁니다.
+    only: 채울 날의 순번 (None이면 모든 날). days는 그 자리에서 바뀌고, 채운 장소 수를 돌려줍니다.
+    """
+    used = {it["candidate_id"] for d in days for it in d["items"] if it["candidate_id"]}
+    remaining = [cid for cid in ranked_ids if cid in cand_map and cid not in used]
+    cond_by = {c["date"]: c for c in conditions}
+    added = 0
+    for i, (date_, day) in enumerate(zip(dates, days)):
+        if only is not None and i not in only:
+            continue
+        need = min_items - sum(1 for it in day["items"] if it["candidate_id"])
+        bad = cond_by.get(date_, {}).get("outdoor_ok") is False
+        anchors = [cand_map[it["candidate_id"]] for it in day["items"] if it["candidate_id"] in cand_map]
+        for _ in range(max(need, 0)):
+            if not remaining:
+                break
+            prefer = [cid for cid in remaining if bool(cand_map[cid].get("indoor")) == bad] or remaining
+
+            def dist(cid):
+                ds = [d for d in (straight_km(a, cand_map[cid]) for a in anchors) if d is not None]
+                return min(ds) if ds else 1e9
+
+            pick = min(prefer, key=lambda cid: (dist(cid), prefer.index(cid))) if anchors else prefer[0]
+            remaining.remove(pick)
+            anchors.append(cand_map[pick])
+            day["items"].append({"slot": "", "candidate_id": pick, "note": ""})
+            added += 1
+    return added
 
 
 # ── 구조화 / 렌더링 ───────────────────────────────────────────────────

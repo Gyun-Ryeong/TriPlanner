@@ -178,7 +178,11 @@ def parse_trip_dates(text: str, today: date) -> dict:
         nights = max(int(m.group(1)) - 1, 0)
     elif m := re.search(r"부터\s*(\d{1,2})\s*일(?!\s*(?:까지|에))", orig):
         nights = max(int(m.group(1)) - 1, 0)  # "오늘부터 7일" = 7일 일정
-    elif m := re.search(r"(이틀|사흘|나흘)", orig):
-        nights = {"이틀": 1, "사흘": 2, "나흘": 3}[m.group(1)]
+    elif m := re.search(r"(?<![\d.])(\d{1,2})\s*주(?:일)?(?=\s*(?:간|동안|일정|여행|코스|짜|$|\s))", orig):
+        nights = int(m.group(1)) * 7 - 1  # "2주 일정" = 14일 ("다음 주", "이번 주"는 숫자가 없어 해당 없음)
+    elif re.search(r"일주일|한\s*주\s*(?:간|동안|일정|여행)", orig):
+        nights = 6
+    elif m := re.search(r"(이틀|사흘|나흘|닷새|엿새|이레|열흘|보름)", orig):
+        nights = {"이틀": 1, "사흘": 2, "나흘": 3, "닷새": 4, "엿새": 5, "이레": 6, "열흘": 9, "보름": 14}[m.group(1)]
 
     return {"start": start, "end": end, "nights": nights, "rest": work}  # rest: 날짜 표현을 지운 나머지 문장

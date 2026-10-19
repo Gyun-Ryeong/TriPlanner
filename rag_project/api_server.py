@@ -18,6 +18,7 @@ from config import DEV_MODE, NEWS_DAYS_BACK, OLLAMA_MODEL
 from llm.ollama_client import OllamaConnectionError
 from travel.chat import GREETING, ChatSession, handle_message
 from travel.pipeline import recommend_trip, warm_up
+from travel.photos import region_photo
 from travel.regions import SIDO, normalize_region
 from travel.risk_scanner import scan_regional_risks
 
@@ -134,3 +135,15 @@ def risks(
         raise HTTPException(status_code=400, detail=f"지원하지 않는 지역입니다: {region}")
     items, warnings = scan_regional_risks(sido, area=area, days_back=days_back)
     return {"region": sido, "area": area, "items": items, **({"warnings": warnings} if DEV_MODE else {})}
+
+
+@app.get("/region-photo")
+def region_photo_api(
+    name: str = Query(..., description="지역 이름 (시·군·구 또는 시도). 예: 성남, 곡성, 부산", max_length=30),
+    region: str = Query("", description="앱의 권역 이름 (예: '경기도 / 인천'). 같은 이름의 시군구(고성 등)를 고를 때 씀", max_length=30),
+):
+    """
+    여행 목록에 보여줄 지역 대표 사진 (TourAPI 관광지 사진 중 하나, LLM 미사용).
+    못 찾으면 image가 빈 값입니다. 같은 지역은 서버 메모리에 기억해 다시 조회하지 않습니다.
+    """
+    return region_photo(name, region)

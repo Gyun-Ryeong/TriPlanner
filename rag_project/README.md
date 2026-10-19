@@ -124,6 +124,7 @@ python check_setup.py chat                # ④ 대화형 플래너 전체 (실�
 | DELETE | `/chat/{session_id}` | 대화 초기화 |
 | POST | `/recommend` | (단발) 조건을 한 번에 넘겨 추천 받기 |
 | GET | `/risks?region=부산&area=해운대&days_back=7` | 지역 이슈 뉴스만 조회 (LLM 없음). 저장 일정 알림용 |
+| GET | `/region-photo?name=성남&region=경기도 / 인천` | 지역(시·군) 대표 관광지 사진 1장 (LLM 없음). 여행 목록 사진용, 백엔드 `/api/regions/photo` 가 중계 |
 | GET | `/regions` | 지원 시도 목록 |
 | GET | `/health` | 서버 상태 확인 |
 
@@ -192,8 +193,9 @@ Encoding/Decoding 키는 어느 쪽을 넣어도 동작합니다. 문화정보·
 | `OLLAMA_THINK` | (없음) | `false`면 모델의 '생각' 단계를 꺼서 빨라짐 (gemma4 등) |
 | `OLLAMA_NUM_CTX` | 8192 | 컨텍스트 길이. 결과가 이상하면 늘리기 |
 | `OLLAMA_KEEP_ALIVE` | 30m | 모델을 메모리에 유지하는 시간 |
-| `CHAT_MAX_CANDIDATES` | 40 | LLM에 보낼 후보 장소 수 (느리면 20) |
-| `MAX_TRIP_DAYS` | 7 | 한 번에 짜는 최대 일수 |
+| `CHAT_MAX_CANDIDATES` | 40 | AI 호출 1번에 보낼 후보 장소 수 (느리면 20). 나눠 보내는 일수×4+2곳은 항상 보냄 |
+| `MAX_TRIP_DAYS` | 14 | 한 번에 짜는 최대 일수 |
+| `CHAT_PLAN_CHUNK_DAYS` | 3 | 긴 일정은 이 일수씩 나눠 AI에 보냄 (모든 날이 채워지게) |
 | `GATHER_TIMEOUT_SEC` | 40 | 외부 데이터 수집 최대 대기(초). 넘은 항목은 빼고 진행 |
 | `API_CACHE` | on | API 응답 캐시 (`cache/api/`). `off`로 끔 |
 | `CHAT_EXTRACT_LLM_MIN_CHARS` | 40 | 이 글자 수 이상일 때만 AI로 정보 추출 (짧은 답은 규칙으로) |
@@ -312,7 +314,7 @@ AI는 **날짜별로 방문할 장소와 순서**만 정하고, 나머지는 코
 ```
 rag_project/
 ├── chat_app.py            # ★ 채팅 화면 (Streamlit)
-├── api_server.py          # ★ FastAPI: /chat, /recommend, /risks, /regions, /health
+├── api_server.py          # ★ FastAPI: /chat, /recommend, /risks, /regions, /region-photo, /health
 ├── diagnose_api.py        # ★ 키 문제 vs API 문제 진단
 ├── check_setup.py         # 단계별 점검
 ├── config.py              # 설정 (.env 읽기, API 엔드포인트)

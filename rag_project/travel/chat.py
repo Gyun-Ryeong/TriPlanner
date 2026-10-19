@@ -18,16 +18,17 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from config import (
-    DEV_MODE, CHAT_EXTRACT_LLM_MIN_CHARS, CHAT_HISTORY_TURNS, CHAT_MAX_CANDIDATES, CHAT_MAX_NEWS, CONTEXT_TTL_SEC,
+    DEV_MODE, CHAT_EXTRACT_LLM_MIN_CHARS, CHAT_HISTORY_TURNS, CHAT_MAX_CANDIDATES, CHAT_MAX_NEWS, CHAT_PLAN_CHUNK_DAYS,
+    CONTEXT_TTL_SEC,
     MAX_TRIP_DAYS, NEWS_DAYS_BACK,
 )
 from collectors.tourism import enrich_intro
 from llm.ollama_client import LAST_STATS, chat_json_messages
 from travel.conditions import build_day_conditions, display_line, prompt_line
 from travel.context import enrich, gather_raw, rank_places, select_candidates
-from travel.dates import WD, fmt_korean, parse_iso, parse_trip_dates
+from travel.dates import WD, fmt_korean, fmt_md, parse_iso, parse_trip_dates
 from travel.geo import _coord, district_of
-from travel.gazetteer import lookup_regions
+from travel.gazetteer import METRO, ambiguous_regions, lookup_in_sido, lookup_regions
 from travel.lists import answer_list
 from travel.places import SIGHT_TYPES
 from travel.news import NEWS_RE, answer_news, parse_news_request
@@ -36,7 +37,8 @@ from travel.evaluation import evaluate_plan
 from travel.multi import parse_multi_trips
 from travel.pipeline import FORECAST_DAYS, _collect_candidates, _collect_festivals, _collect_type, wants_food
 from travel.planner import (
-    PLAN_SYSTEM_PROMPT, build_plan_user_message, fallback_plan, hydrate_plan, normalize_plan, render_markdown,
+    PLAN_SYSTEM_PROMPT, build_plan_user_message, fallback_plan, fill_thin_days, hydrate_plan, normalize_plan,
+    render_markdown,
 )
 from travel.regions import SIDO, _mentions, mentioned_regions, resolve_place
 
@@ -69,6 +71,14 @@ RECO_RE = re.compile(r"추천|가볼\s*만한|가볼만한|명소|관광지|볼�
 ASK_RE = re.compile(r"알려|추천|보여|찾아|어디|뭐\s*있|뭐가\s*있|있을까|가볼|\?")
 STAY_RE = re.compile(r"숙박|숙소|호텔|펜션|리조트|모텔|게스트하우스|한옥\s*스테이|민박|묵을|잘\s*곳")
 FEST_RE = re.compile(r"축제|행사|공연|페스티벌|이벤트")
+# 축제 질문이라도 이런 말이 있으면 일정 요청 ("축제 위주로 일정 짜줘", "축제도 넣어줘")
+# 일정이 있거나 동행·취향을 묻는 중에 축제를 "목록으로 달라"는 뜻으로 볼 표현 ("이 기간에 하는 축제 있어", "축제 언제 해")
+FEST_ASK_RE = re.compile(r"있어|있나|있니|열리|하는|언제|일정|스케줄")
+FEST_PLAN_RE = re.compile(r"짜|계획|플랜|만들어|위주|중심|포함|넣어|추가|코스")
+# 축제를 물을 때 "이 기간", "여행 때"처럼 이미 정한 여행 날짜를 가리키는 말
+PERIOD_REF_RE = re.compile(r"(?:이|그|여행|일정)\s*(?:기간|때|동안|날짜)|그때|여행\s*중|가는\s*날")
+MONTH_ONLY_RE = re.compile(r"(\d{1,2})\s*월(?!\s*\d{1,2}\s*일)")
+FEST_DAYS_AHEAD = 60  # 날짜를 말하지 않은 축제 질문은 오늘부터 이 기간에 열리는 것
 COURSE_LIST_RE = re.compile(r"추천\s*여행\s*코스|추천\s*코스|여행\s*코스\s*(목록|리스트)|코스\s*(목록|리스트)")
 LIST_INTENTS = ("recommend", "food", "stay", "festival", "course")
 MODIFY_RE = re.compile(r"넣어|추가|바꿔|빼|변경|수정|교체|대신|다시|늘려|줄여")
@@ -107,17 +117,45 @@ def _empty_slots() -> dict:
             "party": "", "preferences": "", "avoid": ""}
 
 
+def _province_city(text: str) -> tuple[str, str] | None:
+    """'경기 광주'처럼 도 이름 바로 뒤에 광역시와 이름이 같은 그 도의 시가 오면 (도, 시). 아니면 None."""
+    ms = _mentions(text)
+    for (_, b, s1, _, d1), (c, _, s2, tok2, d2) in zip(ms, ms[1:]):
+        if d1 and d2 and s1 not in METRO and s2 in METRO and not text[b:c].strip() and lookup_in_sido(tok2, s1) == tok2:
+            return s1, tok2
+    return None
+
+
 def regions_ext(text: str) -> list[tuple[str, str]]:
-    """문장 속 지역을 등장 순서대로. 도시 목록에 없는 기초지자체(곡성, 영월 등)는 시군구 사전으로 보충한다."""
-    return mentioned_regions(text) or lookup_regions(text)
+    """
+    문장 속 지역을 등장 순서대로. 도시 목록에 없는 기초지자체(곡성, 영월 등)는 시군구 사전으로 보충하고,
+    시도만 찾았으면 그 시도 안의 시군구 이름('강원 고성', '부산 중구')을 붙인다.
+    """
+    pc = _province_city(text)
+    if pc:
+        return [pc]
+    regs = mentioned_regions(text)
+    if regs:
+        return [(s, a or lookup_in_sido(text, s)) for s, a in regs]
+    return lookup_regions(text)
 
 
 def resolve_place_ext(text: str) -> tuple[str | None, str]:
+    """(시도, 세부지역). 도만 말하면 ('경기', ''), 시·군·구까지 말하면 ('경기', '성남') — 전국 시군구를 모두 인식한다."""
+    pc = _province_city(text)
+    if pc:
+        return pc
     sido, area = resolve_place(text)
     if sido:
-        return sido, area
+        return sido, area or lookup_in_sido(text, sido)
     found = lookup_regions(text)
     return found[-1] if found else (None, "")
+
+
+def _prev_user_text(session: "ChatSession") -> str:
+    """방금 들어온 메시지 바로 전의 사용자 메시지."""
+    users = [m["content"] for m in session.history if m["role"] == "user"]
+    return users[-2] if len(users) >= 2 else ""
 
 
 def _last_region(seg: str) -> tuple[str, str] | None:
@@ -172,7 +210,7 @@ def _leftover(text: str, today: date) -> str:
     work = parse_trip_dates(text, today)["rest"]  # 날짜 표현은 이미 공백으로 지워짐 (길이 유지)
     for a, b, *_ in _mentions(text):
         work = work[:a] + " " * (b - a) + work[b:]
-    work = re.sub(r"\d{1,2}\s*박(?:\s*\d{1,2}\s*일)?|당일치기|당일|\d{1,2}\s*일\s*(?:간|동안|일정|여행|코스)|이틀|사흘|나흘", " ", work)
+    work = re.sub(r"\d{1,2}\s*박(?:\s*\d{1,2}\s*일)?|당일치기|당일|\d{1,2}\s*일\s*(?:간|동안|일정|여행|코스)|\d{1,2}\s*주(?:일)?\s*(?:간|동안)?|일주일|이틀|사흘|나흘|닷새|엿새|이레|열흘|보름", " ", work)
     return re.sub(r"\s+", " ", work).strip()
 
 
@@ -219,11 +257,19 @@ def _apply_extraction(session: ChatSession, text: str, llm: dict | None, today: 
     llm = llm or {}
     # ── 지역 ──
     sido, area = resolve_place_ext(text)
+    ambiguous = [] if sido else ambiguous_regions(text)
+    if sido and not area and len(text) <= 12:
+        # "고성은 강원·경남 중 어디예요?"에 "강원"이라고만 답한 경우: 앞 메시지의 이름을 그 시도에서 찾는다
+        prev = _prev_user_text(session)
+        if any(sido in sidos for _, sidos in ambiguous_regions(prev)):
+            area = lookup_in_sido(prev, sido)
     # 일정이 나온 뒤에는 '바꿔줘/갈래' 같은 변경 의도가 있거나 '이전과 다른 새 지역'을 말했을 때만 지역·날짜를 바꾼다
     # (예: "내일 비 와?"라고 물었다고 출발일이 바뀌면 안 되지만, 새 지역을 말하면 이전 지역 데이터는 버린다)
     explicit_new_region = bool(sido) and (sido != s["region"] or bool(area and area != s["area"]))
     allow_change = (not in_plan) or bool(CHANGE_RE.search(text)) or explicit_new_region
-    if not sido:
+    if ambiguous and allow_change:
+        issues.append("ambiguous_region")  # AI가 한쪽을 짐작하지 않게 되묻는다
+    elif not sido:
         lr, la = str(llm.get("region") or "").strip(), str(llm.get("area") or "").strip()
         in_text = [t for t in (lr, la) if t and t in text]
         if in_text:  # 사용자가 실제로 말한 지명일 때만 LLM 결과를 신뢰 (지어낸 지역 방지)
@@ -341,8 +387,11 @@ def _ask_optional(s: dict) -> str:
     )
 
 
-def _issue_message(issues: list[str], today: date) -> str:
+def _issue_message(issues: list[str], today: date, text: str = "") -> str:
+    amb = ambiguous_regions(text) if "ambiguous_region" in issues else []
     msgs = {
+        "ambiguous_region": "\n".join(
+            f"'{name}'은(는) {', '.join(sidos)}에 모두 있어요. 어느 쪽인가요? (예: {sidos[0]} {name})" for name, sidos in amb),
         "past_date": f"말씀하신 날짜가 이미 지났어요. 오늘({fmt_korean(today)}) 이후 날짜로 다시 알려주시겠어요?",
         "bad_range": "도착일이 출발일보다 빠르네요. 날짜를 다시 알려주시겠어요?",
         "too_long": f"한 번에 최대 {MAX_TRIP_DAYS}일까지 일정을 짜드릴 수 있어요. 기간을 줄여서 다시 알려주시겠어요?",
@@ -435,17 +484,17 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
         return f"지금은 {area or sido} 일정에 넣을 장소를 찾지 못했어요. 잠시 뒤에 다시 말씀해 주시거나 다른 지역으로 알려주세요."
 
     # 3) 후보 선별: 취향과 유사한 순 + 궂은 날을 위한 실내 후보 보장
+    #    여행 기간 전체에 쓸 후보(하루 4곳 + 여유)를 한 번에 고른다. AI에는 아래 4)에서 며칠 치씩 나눠 보낸다.
     query = " ".join(x for x in [sido, area, s["party"], s["preferences"], text if refine else ""] if x)
     ranked = rank_places(sights, sido, query, ranker)
-    restaurants = rank_places(eateries, sido, query, ranker)[:30]  # 식사 장소 후보 (취향 유사도 상위)
+    restaurants = rank_places(eateries, sido, query, ranker)[:max(30, len(dates) * 3)]  # 식사 장소 후보 (취향 유사도 상위)
     wants_activity = bool(ACTIVITY_RE.search(f"{s['preferences']} {text}"))
     caps = {} if wants_activity else {"28": 3}  # 액티비티를 원한다고 하지 않았으면 레포츠가 후보를 독차지하지 않게
-    chosen = select_candidates(ranked, max(6, min(CHAT_MAX_CANDIDATES, len(dates) * 4 + 4)),
-                               min(2 * bad_days + 1, 8) if bad_days else 0, caps)
+    pool = select_candidates(ranked, max(6, len(dates) * 4 + 4), min(2 * bad_days + 1, 8 + bad_days) if bad_days else 0, caps)
     if refine and session.last_cand_map:  # 수정 요청일 때 기존 일정의 장소는 계속 후보에 포함
-        keys = {(p["content_id"] or p["title"]) for p in chosen}
-        chosen += [p for p in session.last_cand_map.values() if (p["content_id"] or p["title"]) not in keys]
-    warnings += enrich(chosen)
+        keys = {(p["content_id"] or p["title"]) for p in pool}
+        pool += [p for p in session.last_cand_map.values() if (p["content_id"] or p["title"]) not in keys]
+    warnings += enrich(pool)
 
     def cid_of(p):
         k = p["content_id"] or p["title"]
@@ -453,59 +502,96 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
             session.id_map[k] = f"C{len(session.id_map) + 1}"
         return session.id_map[k]
 
-    cand_map = {cid_of(p): p for p in chosen}
+    cand_map = {cid_of(p): p for p in pool}  # 순위순
     news_by_id = {n["id"]: n for n in raw["news"]}
+    news_lines = [f"{n['id']} | [{n['category']}] {n['pub_date']} | {n['title']} | {n['description'][:100]}" for n in raw["news"][:CHAT_MAX_NEWS]]
 
-    # 4) LLM 일정 생성/수정
+    # 4) LLM 일정 생성/수정 (긴 일정은 CHAT_PLAN_CHUNK_DAYS일씩 나눠서)
     mode = "수정" if refine and session.plan else "새 일정"
-    user_msg = build_plan_user_message(
-        mode=mode, region_label=_label(s), start=s["start_date"], end=s["end_date"], n_days=len(dates),
-        party=s["party"], preferences=s["preferences"], avoid=s["avoid"],
-        condition_lines=[prompt_line(c) for c in conditions],
-        candidate_lines=[_cand_line(cid, p, news_by_id) for cid, p in cand_map.items()],
-        news_lines=[f"{n['id']} | [{n['category']}] {n['pub_date']} | {n['title']} | {n['description'][:100]}" for n in raw["news"][:CHAT_MAX_NEWS]],
-        current_plan_text=_plan_text(session.plan, session.last_cand_map, dates) if mode == "수정" else "",
-        user_request=text,
-    )
+    groups = _day_groups(len(dates), text, mode)
+    current_text = _plan_text(session.plan, session.last_cand_map, dates) if mode == "수정" else ""
+    old_days = [{"theme": d["theme"], "items": list(d["items"])} for d in session.plan["days"]] if mode == "수정" else None
     t_ranked = time.perf_counter()
-    parsed, raw_txt, llm_error = None, "", False
-    try:
-        parsed, raw_txt = chat_json_messages(
-            [{"role": "system", "content": PLAN_SYSTEM_PROMPT}, *_history_for_llm(session), {"role": "user", "content": user_msg}],
-            temperature=0.4,
+    grounding: dict = {"proposed": 0, "dropped": 0}
+    merged = old_days or [{"theme": "", "items": []} for _ in dates]
+    message, follow, llm_stats = "", "", {}
+    ok_groups, question_reply = 0, None
+    failed_days: set[int] = set()
+    any_llm_error = False
+    used: set[str] = set()  # 앞 묶음에서 쓴 장소 (새 일정에서 다음 묶음 후보로 다시 보내지 않음)
+    for gi, idxs in enumerate(groups):
+        sub_dates = [dates[i] for i in idxs]
+        sub_map = _group_candidates(idxs, mode, old_days, cand_map, used, conditions)
+        note = "" if len(groups) == 1 else f"\n(전체 {len(dates)}일 일정을 나눠서 짜는 중: 이번에는 {', '.join(f'{i + 1}일차' for i in idxs)})"
+        user_msg = build_plan_user_message(
+            mode=mode, region_label=_label(s), start=sub_dates[0], end=sub_dates[-1], n_days=len(sub_dates),
+            party=s["party"], preferences=s["preferences"], avoid=s["avoid"],
+            condition_lines=[prompt_line(conditions[i]) for i in idxs],
+            candidate_lines=[_cand_line(cid, p, news_by_id) for cid, p in sub_map.items()],
+            news_lines=news_lines, current_plan_text=current_text, user_request=text + note,
+            target_dates=sub_dates if len(groups) > 1 or len(idxs) < len(dates) else None,
         )
-    except Exception as e:
-        llm_error = True
-        warnings.append(f"AI 연결 문제로 일정 생성/수정을 하지 못했어요 ({type(e).__name__}: {str(e)[:500]})")
+        parsed, raw_txt, llm_error = None, "", False
+        try:
+            parsed, raw_txt = chat_json_messages(
+                [{"role": "system", "content": PLAN_SYSTEM_PROMPT}, *_history_for_llm(session), {"role": "user", "content": user_msg}],
+                temperature=0.4,
+            )
+        except Exception as e:
+            llm_error = any_llm_error = True
+            warnings.append(f"AI 연결 문제로 일정 생성/수정을 하지 못했어요 ({type(e).__name__}: {str(e)[:500]})")
+        llm_stats = dict(LAST_STATS)
+        g: dict = {}
+        sub_plan, w = normalize_plan(parsed, sub_map, sub_dates, g)
+        grounding["proposed"] += g.get("proposed", 0)
+        grounding["dropped"] += g.get("dropped", 0)
+        warnings += w
+        if not llm_error and sub_plan is None:
+            # 오류 없이 응답했는데 못 쓰는 경우: 무슨 응답이었는지 보여준다 (원인 파악용)
+            if not raw_txt.strip():
+                warnings.append("AI가 빈 응답을 돌려줬어요. 모델이 '생각'만 하고 답을 못 냈을 수 있어요 (.env에 OLLAMA_THINK=false 를 넣어보세요).")
+            elif parsed is None:
+                warnings.append(f"AI 응답을 JSON으로 읽지 못했어요 (응답 앞부분: {raw_txt[:100]!r})")
+            else:
+                warnings.append("AI 응답에 쓸 수 있는 일정이 없었어요 (장소 id를 맞추지 못했을 수 있어요).")
+        if sub_plan is not None and sub_plan["days"] is None:
+            if mode == "수정" and gi == 0:
+                question_reply = sub_plan  # 일정 변경이 아닌 질문·인사: 나머지 묶음은 부르지 않는다
+                break
+            sub_plan = None  # 새 일정인데 days가 없으면 그 묶음은 실패로 간주
+        if sub_plan is None:
+            failed_days.update(idxs)
+            if llm_error:  # AI에 연결이 안 되면 나머지 묶음도 실패하므로 기다리지 않고 규칙으로 채운다
+                failed_days.update(i for later in groups[gi + 1:] for i in later)
+                break
+            continue
+        ok_groups += 1
+        message, follow = message or sub_plan["message"], sub_plan["follow_up"] or follow
+        for i, day in zip(idxs, sub_plan["days"]):
+            merged[i] = day
+            used.update(it["candidate_id"] for it in day["items"] if it["candidate_id"])
     t_llm_done = time.perf_counter()
-    llm_stats = dict(LAST_STATS)
-    grounding: dict = {}
-    plan, w = normalize_plan(parsed, cand_map, dates, grounding)
-    plan_source = "llm"
-    warnings += w
-    if not llm_error and plan is None:
-        # 오류 없이 응답했는데 못 쓰는 경우: 무슨 응답이었는지 보여준다 (원인 파악용)
-        if not raw_txt.strip():
-            warnings.append("AI가 빈 응답을 돌려줬어요. 모델이 '생각'만 하고 답을 못 냈을 수 있어요 (.env에 OLLAMA_THINK=false 를 넣어보세요).")
-        elif parsed is None:
-            warnings.append(f"AI 응답을 JSON으로 읽지 못했어요 (응답 앞부분: {raw_txt[:100]!r})")
-        else:
-            warnings.append("AI 응답에 쓸 수 있는 일정이 없었어요 (장소 id를 맞추지 못했을 수 있어요).")
-    if plan is not None and plan["days"] is None and mode == "새 일정":
-        plan = None  # 새 일정인데 days가 없으면 실패로 간주
+
+    plan, plan_source = None, "llm"
+    if question_reply is not None:
+        plan = question_reply
+    elif ok_groups:
+        plan = {"message": message, "days": merged, "follow_up": follow}
+        if mode == "새 일정" or failed_days:
+            # AI가 비우거나 적게 넣은 날(또는 실패한 묶음의 날)을 남은 후보로 채운다. 수정에서는 사용자가 줄인 날을 건드리지 않음
+            added = fill_thin_days(merged, dates, conditions, _fill_order(cand_map, s, text), cand_map,
+                                   only=None if mode == "새 일정" else failed_days)
+            if added:
+                warnings.append(f"AI가 채우지 못한 자리 {added}곳을 가까운 후보로 채웠어요.")
 
     if plan is None and mode == "수정":
         # 수정 실패: 기존 일정은 그대로 두고 알려준다
-        if not llm_error:
+        if not any_llm_error:
             warnings.append("AI 응답을 이해하지 못해 일정을 바꾸지 못했어요.")
         session.view = {**(session.view or {}), "caveats": _caveats(raw, conditions, warnings, start, end, today)}
         return "죄송해요, 지금은 요청하신 수정을 반영하지 못했어요. 잠시 후 다시 말씀해 주시거나 표현을 바꿔서 알려주세요."
     if plan is None:
-        order = list(cand_map)  # cand_map은 순위순
-        if not ACTIVITY_RE.search(f"{s['preferences']} {text}"):
-            # 액티비티를 원한다고 하지 않았으면 레포츠(28)는 뒤로 (순위는 그대로 유지)
-            order.sort(key=lambda cid: str(cand_map[cid].get("content_type_id")) == "28")
-        plan = fallback_plan(dates, conditions, order, cand_map)
+        plan = fallback_plan(dates, conditions, _fill_order(cand_map, s, text), cand_map)
         plan_source = "fallback"
         warnings.append("AI 일정 대신 규칙 기반 기본 일정을 보여드려요.")
 
@@ -541,6 +627,70 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
     return reply
 
 
+# 일차를 가리키는 말: "3일차", "셋째 날", "2번째 날", "첫날", "마지막 날"
+_ORDINAL = {"첫": 1, "둘": 2, "셋": 3, "넷": 4, "다섯": 5, "여섯": 6, "일곱": 7, "여덟": 8, "아홉": 9, "열": 10}
+_DAY_REF_RE = re.compile(r"(\d{1,2})\s*일\s*차|(\d{1,2})\s*번?\s*째\s*날|(첫|둘|셋|넷|다섯|여섯|일곱|여덟|아홉|열)\s*(?:째)?\s*날|(마지막|끝)\s*날")
+
+
+def _target_days(text: str, n: int) -> list[int]:
+    """수정 요청에서 말한 일차(0부터). 없으면 빈 리스트."""
+    out = set()
+    for m in _DAY_REF_RE.finditer(text or ""):
+        k = int(m.group(1) or m.group(2)) if (m.group(1) or m.group(2)) else (_ORDINAL[m.group(3)] if m.group(3) else n)
+        if 1 <= k <= n:
+            out.add(k - 1)
+    return sorted(out)
+
+
+def _day_groups(n: int, text: str, mode: str) -> list[list[int]]:
+    """
+    AI를 몇 번에 나눠 부를지: 일차 순번 묶음의 리스트.
+    - CHAT_PLAN_CHUNK_DAYS일 이하는 한 번에 (지금까지와 같음)
+    - 긴 일정은 CHAT_PLAN_CHUNK_DAYS일씩. 수정 요청에서 특정 일차를 말했으면 그 날만 다시 짠다.
+    """
+    if n <= CHAT_PLAN_CHUNK_DAYS:
+        return [list(range(n))]
+    if mode == "수정":
+        target = _target_days(text, n)
+        if target:
+            return [target[i:i + CHAT_PLAN_CHUNK_DAYS] for i in range(0, len(target), CHAT_PLAN_CHUNK_DAYS)]
+    return [list(range(i, min(i + CHAT_PLAN_CHUNK_DAYS, n))) for i in range(0, n, CHAT_PLAN_CHUNK_DAYS)]
+
+
+def _group_candidates(idxs: list[int], mode: str, old_days: list[dict] | None, cand_map: dict, used: set[str],
+                      conditions: list[dict]) -> dict:
+    """
+    한 묶음(며칠)에 보낼 후보. 앞 묶음에서 쓴 장소와 다른 날 일정에 있는 장소는 빼고 순위순으로 고른다.
+    수정 요청이면 그 날들에 원래 있던 장소를 먼저 넣는다. 묶음 일수×4+2곳은 항상 보낸다.
+    """
+    k = max(CHAT_MAX_CANDIDATES, len(idxs) * 4 + 2)
+    bad = sum(1 for i in idxs if conditions[i]["outdoor_ok"] is False)
+    own: list[str] = []
+    taken = set(used)
+    if old_days:
+        for i, day in enumerate(old_days):
+            for it in day["items"]:
+                if it["candidate_id"] not in cand_map:
+                    continue
+                if i in idxs:
+                    own.append(it["candidate_id"])
+                else:
+                    taken.add(it["candidate_id"])
+    rest = [cid for cid in cand_map if cid not in taken and cid not in own]
+    picked = select_candidates([cand_map[cid] for cid in rest], max(k - len(own), len(idxs) * 3),
+                               min(2 * bad + 1, 8) if bad else 0)
+    ids = {id(p) for p in picked}
+    return {**{cid: cand_map[cid] for cid in own}, **{cid: p for cid, p in cand_map.items() if id(p) in ids and cid not in own}}
+
+
+def _fill_order(cand_map: dict, s: dict, text: str) -> list[str]:
+    """규칙으로 채울 때의 후보 순서: 순위순, 액티비티를 원한다고 하지 않았으면 레포츠(28)는 뒤로."""
+    order = list(cand_map)  # cand_map은 순위순
+    if not ACTIVITY_RE.search(f"{s['preferences']} {text}"):
+        order.sort(key=lambda cid: str(cand_map[cid].get("content_type_id")) == "28")
+    return order
+
+
 def detect_intent(text: str, session: "ChatSession") -> str:
     """
     'about'(내부 정보 문의) | 'news'(지역 소식) | 'place_info'(특정 장소 정보) | 'plan'(일정)
@@ -559,13 +709,16 @@ def detect_intent(text: str, session: "ChatSession") -> str:
     has_days = bool(re.search(r"\d+\s*박|\d+\s*일", text))
     if COURSE_LIST_RE.search(text) and not has_days:
         return "course"  # '추천 여행코스' 목록 (일정을 짜달라는 '코스'와 구분)
-    if FEST_RE.search(text) and re.search(r"일정|스케줄", text) and not re.search(r"짜|계획|코스", text):
-        return "festival"  # "축제 일정 알려줘" = 축제 목록
+    list_ok = bool(ASK_RE.search(text)) if (mid or in_plan) else True
+    if (FEST_RE.search(text) and not FEST_PLAN_RE.search(text) and not (in_plan and MODIFY_RE.search(text))
+            and (list_ok or bool(FEST_ASK_RE.search(text)))):
+        # 축제를 물으면 날짜·기간이 함께 있어도 축제 목록 ("부산 2박3일 축제 추천해줘", "축제 일정 알려줘").
+        # "축제 위주로 일정 짜줘"처럼 짜달라는 말이 있으면 일정
+        return "festival"
     if PLAN_RE.search(text) or (in_plan and MODIFY_RE.search(text)):
         return "plan"
     if is_place_info_request(text):  # "OO식당 정보 알려줘", "XX공원 어떤 곳이야?" → 그 장소만 답한다 (추천 아님)
         return "place_info"
-    list_ok = bool(ASK_RE.search(text)) if (mid or in_plan) else True
     if list_ok and STAY_RE.search(text):
         return "stay"
     if list_ok and FEST_RE.search(text):
@@ -594,13 +747,47 @@ def _answer_list(session: "ChatSession", text: str, intent: str, today: date, ra
     if intent in ("stay", "course"):
         places, warnings = _collect_type(sido, area, "32" if intent == "stay" else "25")
     elif intent == "festival":
-        places, warnings = _collect_festivals(sido, area, today, today + timedelta(days=60))
+        f_start, f_end, dated = _festival_range(session, text, today, sido)
+        places, warnings = _collect_festivals(sido, area, f_start, f_end)
     else:
         places, warnings = _collect_candidates(sido, today, today, True, area)
+    label = area or sido
+    if intent == "festival" and dated:
+        label += f" ({fmt_md(f_start)}" + (f" ~ {fmt_md(f_end)})" if f_end != f_start else ")")
     query = " ".join(x for x in [sido, area, text] if x)
-    reply, views, w = answer_list(intent, area or sido, text, places, lambda pool: rank_places(pool, sido, query, ranker),
+    reply, views, w = answer_list(intent, label, text, places, lambda pool: rank_places(pool, sido, query, ranker),
                                   enrich, lambda items: enrich_intro(items, 12))
+    if intent == "festival" and not views:
+        when = label[len(area or sido):].strip() or f"앞으로 {FEST_DAYS_AHEAD}일 안"
+        reply = f"{area or sido}에서 {when}에 열리는 축제·행사를 찾지 못했어요. 날짜나 지역을 바꿔서 다시 물어봐 주세요."
     return reply, {"intent": intent, "places": views}, warnings + w
+
+
+def _festival_range(session: "ChatSession", text: str, today: date, sido: str) -> tuple[date, date, bool]:
+    """
+    축제를 찾을 기간 (시작, 끝, 날짜를 특정했는지).
+    - 말한 날짜·기간: "10월 10일 축제", "이번 주말 축제", "10월 10일부터 2박3일 축제"
+    - 달만 말함: "11월 축제" → 그 달 전체 (오늘 이전은 제외)
+    - "이 기간", "여행 때" 또는 같은 지역 일정이 이미 있으면 그 여행 날짜
+    - 아무것도 없으면 오늘부터 FEST_DAYS_AHEAD일
+    """
+    rd = parse_trip_dates(text, today)
+    if rd["start"]:
+        start = rd["start"]
+        end = rd["end"] or (start + timedelta(days=rd["nights"]) if rd["nights"] is not None else start)
+        return start, end, True
+    if m := MONTH_ONLY_RE.search(text):
+        month = int(m.group(1))
+        if 1 <= month <= 12:
+            year = today.year + (1 if month < today.month else 0)
+            first = date(year, month, 1)
+            last = (date(year + (month == 12), month % 12 + 1, 1) - timedelta(days=1))
+            return max(first, today), last, True
+    s = session.slots
+    ss, se = parse_iso(s["start_date"]), parse_iso(s["end_date"])
+    if ss and se and se >= today and s["region"] == sido and (PERIOD_REF_RE.search(text) or session.plan is not None):
+        return max(ss, today), se, True
+    return today, today + timedelta(days=FEST_DAYS_AHEAD), False
 
 
 def _multi_region_reply(session: "ChatSession", text: str, intent: str, regs: list[tuple[str, str]], today: date, ranker):
@@ -819,8 +1006,8 @@ def _handle_message(session: ChatSession, text: str, today: date | None, ranker)
         s = session.slots
 
         if issues:
-            reply = _issue_message(issues, today)
-            if missing:
+            reply = _issue_message(issues, today, text)
+            if missing and not ("ambiguous_region" in issues and missing[0] == "region"):  # 지역은 방금 되물었으니 또 묻지 않는다
                 reply += "\n\n" + _ask_missing(s)
             stage = "planned" if in_plan else "asking"
         elif missing:

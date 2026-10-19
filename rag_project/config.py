@@ -77,9 +77,11 @@ API_CACHE_ENABLED = os.getenv("API_CACHE", "on").strip().lower() not in ("off", 
 API_CACHE_DIR = os.getenv("API_CACHE_DIR", "./cache/api")
 # 일정 만들 때 외부 데이터를 모으는 최대 대기 시간(초). 이 시간까지 안 끝난 항목은 빼고 진행합니다.
 GATHER_TIMEOUT_SEC = float(os.getenv("GATHER_TIMEOUT_SEC", "40"))
-CHAT_MAX_CANDIDATES = int(os.getenv("CHAT_MAX_CANDIDATES", "40"))   # LLM에 보낼 후보 장소 최대 수 (줄이면 빨라짐)
+CHAT_MAX_CANDIDATES = int(os.getenv("CHAT_MAX_CANDIDATES", "40"))   # AI 호출 1번에 보낼 후보 장소 최대 수 (줄이면 빨라짐. 단 나눠 보내는 일수×4+2곳은 항상 보냄)
 CHAT_MAX_NEWS = int(os.getenv("CHAT_MAX_NEWS", "8"))                # LLM에 보낼 이슈 뉴스 최대 수
-MAX_TRIP_DAYS = int(os.getenv("MAX_TRIP_DAYS", "7"))              # 한 번에 짜줄 최대 일수
+MAX_TRIP_DAYS = int(os.getenv("MAX_TRIP_DAYS", "14"))             # 한 번에 짜줄 최대 일수
+# 긴 일정은 이 일수씩 나눠서 AI에 보낸다 (한 번에 보내는 후보·응답 길이를 일정하게 유지해 작은 모델도 모든 날을 채우게)
+CHAT_PLAN_CHUNK_DAYS = max(1, int(os.getenv("CHAT_PLAN_CHUNK_DAYS", "3")))
 CHAT_HISTORY_TURNS = int(os.getenv("CHAT_HISTORY_TURNS", "6"))    # LLM에 같이 보낼 최근 대화 턴 수
 CONTEXT_TTL_SEC = int(os.getenv("CONTEXT_TTL_SEC", "1800"))       # 수집한 데이터를 재사용하는 시간(초)
 LDONG_CACHE_PATH = os.getenv("LDONG_CACHE_PATH", "./cache/ldong_codes.json")

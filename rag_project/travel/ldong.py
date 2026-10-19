@@ -92,4 +92,6 @@ def resolve_sigungu(sido: str, area: str) -> list[tuple[str, str]]:
         mapping = fetch_ldong_sigungu(code)
     except Exception:
         return []
-    return [(name, c) for name, c in mapping.items() if area in name or name.replace(" ", "").startswith(area.replace(" ", ""))]
+    # 이름의 단어가 area로 시작해야 같은 곳 ('서구'가 '강서구'에, '중구'가 '부산진구'에 걸리지 않게)
+    return [(name, c) for name, c in mapping.items()
+            if any(tok.startswith(area) for tok in name.split()) or name.replace(" ", "").startswith(area.replace(" ", ""))]
