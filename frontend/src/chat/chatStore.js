@@ -13,7 +13,7 @@ export const CHAT_TTL_MS = 24 * 60 * 60 * 1000
 export const MAX_CHATS = 10
 export const MAX_PINNED = 5
 const NEW_CHAT_TITLE = '새 대화'
-const TITLE_MAX_LENGTH = 20
+export const TITLE_MAX_LENGTH = 20
 
 const listeners = new Set()
 // 응답을 기다리는 대화 id. 다른 대화로 옮겨도 응답은 원래 대화에 붙는다
@@ -264,6 +264,18 @@ export function selectConversation(id) {
   dropIfUnused(data.activeId)
   data = { ...data, activeId: id }
   commit()
+}
+
+// 대화 제목을 바꾼다 (앞뒤 공백 제거, 최대 TITLE_MAX_LENGTH 자). 'renamed' | 'unchanged' | 'empty'(빈 제목은 저장 안 함) | 'missing'
+export function renameConversation(id, title) {
+  const conversation = findConversation(id)
+  if (!conversation) return 'missing'
+  const next = title.trim().slice(0, TITLE_MAX_LENGTH)
+  if (!next) return 'empty'
+  if (next === conversation.title) return 'unchanged'
+  patchConversation(id, (c) => ({ ...c, title: next }))
+  commit()
+  return 'renamed'
 }
 
 // 'pinned' | 'unpinned' | 'limit'(고정 개수 초과) | 'missing'. 고정을 풀었을 때 24시간이 지난 대화는 바로 지워진다

@@ -35,6 +35,18 @@ export default function AlertBell() {
   const count = weatherCount + countPrepAlerts(prep)
   const strong = hasStrongAlert(data) || hasStrongPrepAlert(prep)
 
+  // 알림 수가 늘어나면 종을 잠깐 흔들어 새 알림이 왔음을 알린다 (시연 알림을 켤 때도 이 흔들림이 보인다)
+  const [ringing, setRinging] = useState(false)
+  const prevCountRef = useRef(null)
+  useEffect(() => {
+    const prev = prevCountRef.current
+    prevCountRef.current = count
+    if (prev === null || count <= prev) return undefined
+    setRinging(true)
+    const timer = setTimeout(() => setRinging(false), 1500)
+    return () => clearTimeout(timer)
+  }, [count])
+
   useEffect(() => {
     if (!open) return undefined
 
@@ -89,7 +101,7 @@ export default function AlertBell() {
     <div className="alert-bell" ref={rootRef}>
       <button
         type="button"
-        className="alert-bell__button"
+        className={`alert-bell__button${ringing ? ' alert-bell__button--ring' : ''}`}
         aria-label={count > 0 ? `여행 알림 ${count}건` : '여행 알림'}
         aria-expanded={open}
         onClick={() => setOpen((prev) => !prev)}

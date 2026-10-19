@@ -4,6 +4,7 @@ import { getAuth } from '../api/authStorage.js'
 import { getMyTrips } from '../api/trips.js'
 import { CalendarIcon, MapIcon, PinIcon, PlaneIcon, PlusIcon } from '../components/Icons.jsx'
 import TripDeleteButton from '../components/TripDeleteButton.jsx'
+import { regionPhoto } from '../lib/regionPhotos.js'
 import './TripStats.css'
 
 function formatDateRange(startDate, endDate) {
@@ -147,7 +148,9 @@ export default function TripStats() {
             {visibleTrips.map((t) => (
               <div key={t.tripId} className="trip-stats__place">
                 <Link to={`/schedule/${t.tripId}`} className="trip-stats__link">
-                  <div className="trip-stats__photo" aria-hidden="true" />
+                  <div className="trip-stats__photo" aria-hidden="true">
+                    {regionPhoto(t.region) && <img src={regionPhoto(t.region)} alt="" loading="lazy" />}
+                  </div>
                   <div className="trip-stats__place-body">
                     <div className="trip-stats__place-header">
                       <p className="trip-stats__place-name">{t.title}</p>

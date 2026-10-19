@@ -138,6 +138,17 @@
   text-align: right;
 }
 
+/* 시연용 숨김 버튼: 겉보기에는 일반 글자와 똑같고, 마우스를 올려도 달라지지 않는다 */
+.demo-alert-toggle {
+  margin: 0;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: default;
+}
+
 @media (max-width: 720px) {
   /* 좁은 화면: 윗줄에 로고와 사용자 영역, 아랫줄에 메뉴(가로 스크롤)를 둔다 */
   .app-header__inner {

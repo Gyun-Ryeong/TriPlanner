@@ -536,7 +536,7 @@ export default function TripSchedule({ mode = 'view' }) {
           <div className="trip-schedule__actions">
             <div className="trip-schedule__actions-row">
               <BackButton fallback="/mytrips/stats" />
-              <Link to={`/trips/${trip.tripId}/checklist`} className="btn btn-sm">📋 체크리스트</Link>
+              <Link to={`/trips/${trip.tripId}/checklist`} state={{ fromSchedule: true }} className="btn btn-sm">📋 체크리스트</Link>
               <div className="trip-schedule__mode" role="group" aria-label="이동 수단">
                 {[
                   ['driving', '🚗 자동차'],

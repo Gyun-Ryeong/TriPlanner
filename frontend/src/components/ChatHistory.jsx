@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { PencilIcon } from './Icons.jsx'
 import Toast from './Toast.jsx'
 import {
   CHAT_TTL_MS,
   MAX_PINNED,
+  TITLE_MAX_LENGTH,
   deleteConversation,
   newConversation,
+  renameConversation,
   selectConversation,
   togglePin,
   useRagChat,
@@ -26,12 +29,37 @@ export default function ChatHistory({ onPick, showNewButton = false }) {
   const [notice, setNotice] = useState('')
   const [toast, setToast] = useState(null)
   const clearToast = useCallback(() => setToast(null), [])
+  const [editingId, setEditingId] = useState(null)
+  const [draft, setDraft] = useState('')
+  const renameDoneRef = useRef(true)
 
   // 남은 시간 표시가 흐르도록 1분마다 다시 그린다
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 60 * 1000)
     return () => clearInterval(id)
   }, [])
+
+  function startRename(conversation) {
+    renameDoneRef.current = false
+    setDraft(conversation.title)
+    setEditingId(conversation.id)
+  }
+
+  // 저장(Enter·입력칸 밖 클릭)과 취소(Esc)를 한 번만 처리한다. 저장하면서 입력칸이 사라질 때 blur 가 또 오는 것을 막는다
+  function finishRename(save) {
+    if (renameDoneRef.current) return
+    renameDoneRef.current = true
+    const id = editingId
+    setEditingId(null)
+    if (save && id) renameConversation(id, draft)
+  }
+
+  function handleRenameKeyDown(event) {
+    // 한글 조합 중에 누른 Enter 는 글자 확정이므로 저장으로 보지 않는다
+    if (event.nativeEvent.isComposing) return
+    if (event.key === 'Enter') finishRename(true)
+    else if (event.key === 'Escape') finishRename(false)
+  }
 
   function handlePin(conversation) {
     const result = togglePin(conversation.id)
@@ -70,18 +98,43 @@ export default function ChatHistory({ onPick, showNewButton = false }) {
               key={conversation.id}
               className={`chat-history__item${conversation.id === activeId ? ' chat-history__item--active' : ''}`}
             >
-              <button
-                type="button"
-                className="chat-history__pick"
-                aria-current={conversation.id === activeId}
-                onClick={() => {
-                  selectConversation(conversation.id)
-                  onPick?.()
-                }}
-              >
-                <span className="chat-history__title">{conversation.title}</span>
-                <span className="chat-history__meta">{expiryLabel(conversation, now)}</span>
-              </button>
+              {editingId === conversation.id ? (
+                <input
+                  className="chat-history__rename-input"
+                  value={draft}
+                  maxLength={TITLE_MAX_LENGTH}
+                  aria-label="대화 제목 수정"
+                  autoFocus
+                  onFocus={(event) => event.target.select()}
+                  onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={handleRenameKeyDown}
+                  onBlur={() => finishRename(true)}
+                />
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="chat-history__pick"
+                    aria-current={conversation.id === activeId}
+                    onClick={() => {
+                      selectConversation(conversation.id)
+                      onPick?.()
+                    }}
+                  >
+                    <span className="chat-history__title">{conversation.title}</span>
+                    <span className="chat-history__meta">{expiryLabel(conversation, now)}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="chat-history__rename"
+                    aria-label={`${conversation.title} 제목 수정`}
+                    title="제목 수정"
+                    onClick={() => startRename(conversation)}
+                  >
+                    <PencilIcon size={14} />
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 className={`chat-history__pin${conversation.pinned ? ' chat-history__pin--on' : ''}`}

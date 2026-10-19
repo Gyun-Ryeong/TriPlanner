@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
+import { getAuth } from '../api/authStorage.js'
 import { getPrepAlerts, getTripAlerts } from '../api/trips.js'
+import { withDemoAlerts } from '../lib/demoAlerts.js'
+import { restoreAlerts } from '../lib/dismissedAlerts.js'
 import { TRIP_ALERTS_REFRESH_EVENT, TripAlertsContext } from '../lib/tripAlertsContext.js'
 
 // 예보는 계속 바뀌므로 페이지를 옮길 때와 10분마다 다시 불러온다 (서버가 짧게 캐시하므로 부담이 적다)
@@ -11,6 +14,7 @@ export default function TripAlertsProvider({ token, children }) {
   const [tick, setTick] = useState(0)
   const [state, setState] = useState({ data: null, loading: Boolean(token), error: false })
   const [prep, setPrep] = useState(null)
+  const [demoOn, setDemoOn] = useState(false)
 
   useEffect(() => {
     const refresh = () => setTick((n) => n + 1)
@@ -50,6 +54,15 @@ export default function TripAlertsProvider({ token, children }) {
     }
   }, [token, pathname, tick])
 
-  const value = useMemo(() => ({ ...state, prep }), [state, prep])
+  // 시연 알림은 화면에서만 덧붙이므로, 끄면 서버에서 받아 둔 실제 알림이 그대로 보인다. 새로고침하면 꺼진다
+  const toggleDemo = useCallback(() => {
+    if (!demoOn) restoreAlerts(getAuth()?.userId, withDemoAlerts(state.data, prep).keys)
+    setDemoOn(!demoOn)
+  }, [demoOn, state.data, prep])
+
+  const value = useMemo(() => {
+    const shown = demoOn ? withDemoAlerts(state.data, prep) : { data: state.data, prep }
+    return { ...state, data: shown.data, prep: shown.prep, demoOn, toggleDemo }
+  }, [state, prep, demoOn, toggleDemo])
   return <TripAlertsContext.Provider value={value}>{children}</TripAlertsContext.Provider>
 }

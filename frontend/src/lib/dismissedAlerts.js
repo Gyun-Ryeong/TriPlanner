@@ -71,6 +71,12 @@ export function allAlertKeys(data, prep) {
   return keys
 }
 
+// 지운 알림을 다시 보이게 한다 (시연 알림을 다시 켤 때 이전에 지운 것도 나타나도록)
+export function restoreAlerts(userId, keys) {
+  save(userId, load(userId).filter((key) => !keys.includes(key)))
+  window.dispatchEvent(new Event(CHANGED_EVENT))
+}
+
 export function useDismissedAlerts(userId) {
   const [keys, setKeys] = useState(() => load(userId))
 

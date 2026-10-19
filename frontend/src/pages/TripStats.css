@@ -111,7 +111,15 @@
 
 .trip-stats__photo {
   height: 120px;
+  overflow: hidden;
   background: linear-gradient(135deg, #93a5f0, #2f5fe0);
+}
+
+.trip-stats__photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .trip-stats__place-body {

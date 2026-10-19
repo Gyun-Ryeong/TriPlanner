@@ -54,6 +54,14 @@ TriPlanner/
 ## 데이터 출처
 
 - **대한민국 시도 경계 지도 데이터** (`frontend/public/korea-provinces.json`): 통계청 통계지리정보서비스(SGIS)가 공개한 자료를 [southkorea/southkorea-maps](https://github.com/southkorea/southkorea-maps) 저장소가 정리해 배포한 것을 사용했습니다. [공공누리 제1유형](http://www.kogl.or.kr/info/license.do) 라이선스.
+- **여행 목록 지역 대표 사진** (`frontend/public/images/regions/`): 위키미디어 커먼즈 (640px 축소본). 이용 조건에 따라 출처를 밝힙니다.
+  - 서울: Gyeonghoeru at Gyeongbokgung Palace — Frank Schulenburg, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
+  - 경기도/인천: Hwaseong Fortress 01 — Bernard Gagnon, CC0
+  - 강원도: Seoraksan National Park panorama 3 — kallerna, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
+  - 충청도: Sindu sandhills image 3 — Jjw, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
+  - 전라도: Suncheon Bay Ecological Park — Jakob Reichmann, [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/)
+  - 경상도: Haeundae Beach in Busan — StephNurnberg, [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/)
+  - 제주도: Seongsan Ilchulbong 01 — Bernard Gagnon, CC0
 - **날씨·기상특보**: 기상청 단기예보·기상특보 조회서비스 (공공데이터포털)
 - **대기질**: 한국환경공단 에어코리아 대기오염정보 (공공데이터포털)
 - **장소 검색**: 네이버 지역 검색 API (NAVER API HUB, `naver.app` 키 사용, 한 번에 최대 5건)

@@ -18,7 +18,11 @@ export default function TripChecklist() {
   const { tripId } = useParams()
   const navigate = useNavigate()
   // 새 여행을 만든 직후 '다음'으로 넘어온 경우: 기본 항목을 정리하는 단계로 보여준다
-  const setup = useLocation().state?.setup === true
+  const { state: locationState } = useLocation()
+  const setup = locationState?.setup === true
+  // 일정 화면의 '체크리스트' 버튼으로 넘어온 경우: '일정 보기'는 새로 이동하지 않고 바로 이전(일정) 화면으로 돌아간다.
+  // 새로 이동하면 기록이 일정 → 체크리스트 → 일정으로 쌓여, 일정에서 뒤로가기를 눌렀을 때 체크리스트로 되돌아간다
+  const fromSchedule = locationState?.fromSchedule === true
   const { dismiss } = useDismissedAlerts(getAuth()?.userId)
   const [trip, setTrip] = useState(null)
   const [items, setItems] = useState(null)
@@ -141,6 +145,8 @@ export default function TripChecklist() {
         </div>
         {setup ? (
           <button type="button" className="btn btn-primary" onClick={finishSetup}>완료</button>
+        ) : fromSchedule ? (
+          <button type="button" className="btn" onClick={() => navigate(-1)}>일정 보기</button>
         ) : (
           <Link to={`/schedule/${trip.tripId}`} className="btn">일정 보기</Link>
         )}

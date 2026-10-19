@@ -65,6 +65,54 @@
   color: var(--color-text-muted);
 }
 
+/* 제목 수정(연필)은 항목에 마우스를 올리거나 키보드로 이동했을 때만 보인다 (터치 화면은 항상 보임) */
+.chat-history__rename {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.chat-history__item:hover .chat-history__rename,
+.chat-history__rename:focus-visible {
+  opacity: 0.7;
+}
+
+.chat-history__rename:hover {
+  opacity: 1;
+  color: var(--color-primary);
+  background: rgba(16, 24, 40, 0.06);
+}
+
+@media (hover: none) {
+  .chat-history__rename {
+    opacity: 0.6;
+  }
+}
+
+.chat-history__rename-input {
+  flex: 1;
+  min-width: 0;
+  margin: 4px 0 4px 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+}
+
 .chat-history__pin {
   flex-shrink: 0;
   width: 32px;
