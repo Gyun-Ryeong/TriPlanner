@@ -152,6 +152,14 @@ def resolve_place_ext(text: str) -> tuple[str | None, str]:
     return found[-1] if found else (None, "")
 
 
+def _prev_assistant_text(session: "ChatSession") -> str:
+    """방금 들어온 사용자 메시지 바로 전의 챗봇 답변."""
+    for m in reversed(session.history[:-1]):
+        if m["role"] == "assistant":
+            return m["content"]
+    return ""
+
+
 def _prev_user_text(session: "ChatSession") -> str:
     """방금 들어온 메시지 바로 전의 사용자 메시지."""
     users = [m["content"] for m in session.history if m["role"] == "user"]
@@ -177,6 +185,7 @@ class ChatSession:
     asked_optional: bool = False
     trips: dict = field(default_factory=dict)          # 다중 지역 일정: 지역 이름 → 그 지역 전용 하위 세션
     pending_multi: dict | None = None                  # 다중 지역 일정에서 출발일을 기다리는 중
+    last_festivals: list = field(default_factory=list)  # 마지막으로 보여준 축제 목록 ("저거 기준으로 다시 짜줘"용)
     last_used: float = field(default_factory=time.time)
     lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
@@ -184,7 +193,7 @@ class ChatSession:
         self.slots, self.history = _empty_slots(), []
         self.raw = self.raw_key = self.plan = self.view = None
         self.last_cand_map, self.id_map, self.asked_optional = {}, {}, False
-        self.trips, self.pending_multi = {}, None
+        self.trips, self.pending_multi, self.last_festivals = {}, None, []
 
 
 # ── 슬롯 추출 ─────────────────────────────────────────────────────────
@@ -269,6 +278,8 @@ def _apply_extraction(session: ChatSession, text: str, llm: dict | None, today: 
     allow_change = (not in_plan) or bool(CHANGE_RE.search(text)) or explicit_new_region
     if ambiguous and allow_change:
         issues.append("ambiguous_region")  # AI가 한쪽을 짐작하지 않게 되묻는다
+    elif not sido and _province_group(text) and allow_change:
+        issues.append("province_group")  # '전라도'처럼 시도 여러 개를 묶은 이름: 어느 시도·도시인지 되묻는다
     elif not sido:
         lr, la = str(llm.get("region") or "").strip(), str(llm.get("area") or "").strip()
         in_text = [t for t in (lr, la) if t and t in text]
@@ -388,6 +399,29 @@ def _ask_optional(s: dict) -> str:
     )
 
 
+# 앱의 권역 이름(새 여행 화면)처럼 시도 여러 개를 묶은 말 → (시도들, 예시 도시)
+PROVINCE_GROUPS = {
+    "전라도": (["전북", "전남", "광주"], "전주, 여수, 순천, 목포, 광주"),
+    "경상도": (["경북", "경남", "부산", "대구", "울산"], "경주, 안동, 창원, 통영, 부산"),
+    "충청도": (["충북", "충남", "대전", "세종"], "청주, 단양, 공주, 태안, 대전"),
+}
+_GROUP_RE = re.compile(r"(전라|경상|충청)\s*도")
+
+
+def _province_group(text: str) -> str:
+    """'전라도'처럼 시도 여러 개를 묶은 이름이 있으면 그 이름 ('전라남도'처럼 한 시도를 말한 것은 아님)."""
+    m = _GROUP_RE.search(text or "")
+    return f"{m.group(1)}도" if m else ""
+
+
+def _province_group_question(text: str) -> str:
+    name = _province_group(text)
+    if not name:
+        return ""
+    sidos, examples = PROVINCE_GROUPS[name]
+    return f"{name}는 {'·'.join(sidos)}로 나뉘어 있어서 한 곳을 정해야 일정을 짤 수 있어요. 어느 도시로 가실 건가요? (예: {examples})"
+
+
 def _issue_message(issues: list[str], today: date, text: str = "") -> str:
     amb = ambiguous_regions(text) if "ambiguous_region" in issues else []
     msgs = {
@@ -397,6 +431,7 @@ def _issue_message(issues: list[str], today: date, text: str = "") -> str:
         "bad_range": "도착일이 출발일보다 빠르네요. 날짜를 다시 알려주시겠어요?",
         "too_long": f"한 번에 최대 {MAX_TRIP_DAYS}일까지 일정을 짜드릴 수 있어요. 기간을 줄여서 다시 알려주시겠어요?",
         "unknown_region": "아직 지원하지 않는 지역이에요. 가능한 지역: " + ", ".join(SIDO),
+        "province_group": _province_group_question(text),
     }
     return "\n".join(msgs[i] for i in dict.fromkeys(issues) if i in msgs)
 
@@ -477,6 +512,49 @@ def _expand_nearby(raw: dict, sido: str, area: str, start: date, end: date) -> N
         raw["warnings"].append(f"'{area}' 안의 장소만으로는 긴 일정을 채우기 어려워 가까운 {sido} 지역 장소 {len(added)}곳을 함께 후보로 썼어요.")
 
 
+# "저거 기준으로", "그 축제로"처럼 방금 보여준 축제 목록을 가리키는 말 / 축제를 빼달라는 말
+FEST_REF_RE = re.compile(r"저거|그거|이거|그것|이것|위에|위의|방금|아까|그\s*축제|그\s*행사|기준|맞춰")
+FEST_DROP_RE = re.compile(r"빼|제외|없이|말고|싫")
+
+
+def _festival_pins(session: "ChatSession", text: str, raw: dict, dates: list[str]) -> dict[int, dict]:
+    """
+    일정에 꼭 넣을 축제 {일차 순번: 축제}. 축제를 말했거나("축제 방문 기준으로 짜줘") 방금 보여준 축제 목록을
+    가리키면("저거 기준으로 다시 짜줘") 여행 기간과 겹치는 축제를 그 축제가 열리는 날에 하루 하나씩 배치한다.
+    """
+    # '저거/기준' 같은 말은 바로 앞 답변이 축제 목록일 때만 축제를 가리킨다 ("실내 기준으로 바꿔줘"와 구분)
+    refers = bool(session.last_festivals) and bool(FEST_REF_RE.search(text)) and "축제·행사" in _prev_assistant_text(session)
+    if FEST_DROP_RE.search(text) or not (FEST_RE.search(text) or refers):
+        return {}
+    area = session.slots["area"]
+    shown = [p for p in session.last_festivals if not area or area in p["addr"] or area in p["title"]]
+    pool = shown or [p for p in raw["places"] if str(p.get("content_type_id")) == "15"]
+    days = [d.replace("-", "") for d in dates]
+    pins: dict[int, dict] = {}
+    for p in sorted(pool, key=lambda p: p.get("event_end") or p.get("event_start") or "99999999"):  # 일찍 끝나는 축제부터
+        fs = p.get("event_start") or ""
+        fe = p.get("event_end") or fs
+        free = [i for i, d in enumerate(days) if (not fs or fs <= d) and (not fe or d <= fe) and i not in pins]
+        if free:
+            pins[free[0]] = p
+    return pins
+
+
+def _apply_pins(days: list[dict], pin_cids: dict[int, str]) -> None:
+    """축제를 정해진 날로 옮겨 넣는다 (다른 날에 있으면 빼고). 하루 5곳을 넘으면 뒤쪽 일반 장소를 뺀다."""
+    pinned = set(pin_cids.values())
+    for d in days:
+        d["items"] = [it for it in d["items"] if it["candidate_id"] not in pinned]
+    for i, cid in pin_cids.items():
+        items = days[i]["items"]
+        items.insert(min(1, len(items)), {"slot": "", "candidate_id": cid, "note": "축제 기간에 맞춰 넣었어요."})
+        while sum(1 for it in items if it["candidate_id"]) > 5:
+            j = next((j for j in range(len(items) - 1, -1, -1) if items[j]["candidate_id"] not in pinned), None)
+            if j is None:
+                break
+            items.pop(j)
+
+
 def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: bool, warnings: list[str]) -> str:
     t_start = time.perf_counter()
     s = session.slots
@@ -530,6 +608,9 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
     if refine and session.last_cand_map:  # 수정 요청일 때 기존 일정의 장소는 계속 후보에 포함
         keys = {(p["content_id"] or p["title"]) for p in pool}
         pool += [p for p in session.last_cand_map.values() if (p["content_id"] or p["title"]) not in keys]
+    pins = _festival_pins(session, text, raw, dates)  # 꼭 넣을 축제 {일차: 축제}
+    keys = {(p["content_id"] or p["title"]) for p in pool}
+    pool += [p for p in pins.values() if (p["content_id"] or p["title"]) not in keys]
     warnings += enrich(pool)
 
     def cid_of(p):
@@ -539,6 +620,7 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
         return session.id_map[k]
 
     cand_map = {cid_of(p): p for p in pool}  # 순위순
+    pin_cids = {i: cid_of(p) for i, p in pins.items()}
     news_by_id = {n["id"]: n for n in raw["news"]}
     news_lines = [f"{n['id']} | [{n['category']}] {n['pub_date']} | {n['title']} | {n['description'][:100]}" for n in raw["news"][:CHAT_MAX_NEWS]]
 
@@ -558,6 +640,7 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
     for gi, idxs in enumerate(groups):
         sub_dates = [dates[i] for i in idxs]
         sub_map = _group_candidates(idxs, mode, old_days, cand_map, used, conditions)
+        sub_map.update({pin_cids[i]: cand_map[pin_cids[i]] for i in idxs if i in pin_cids})
         note = "" if len(groups) == 1 else f"\n(전체 {len(dates)}일 일정을 나눠서 짜는 중: 이번에는 {', '.join(f'{i + 1}일차' for i in idxs)})"
         user_msg = build_plan_user_message(
             mode=mode, region_label=_label(s), start=sub_dates[0], end=sub_dates[-1], n_days=len(sub_dates),
@@ -566,6 +649,7 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
             candidate_lines=[_cand_line(cid, p, news_by_id) for cid, p in sub_map.items()],
             news_lines=news_lines, current_plan_text=current_text, user_request=text + note,
             target_dates=sub_dates if len(groups) > 1 or len(idxs) < len(dates) else None,
+            must_include=[f"{pin_cids[i]} → {dates[i]}" for i in idxs if i in pin_cids],
         )
         parsed, raw_txt, llm_error = None, "", False
         try:
@@ -620,6 +704,10 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
             if added:
                 warnings.append(f"AI가 채우지 못한 자리 {added}곳을 가까운 후보로 채웠어요.")
 
+    if plan is None and mode == "수정" and pins:
+        # AI 없이도 축제 기준 수정은 할 수 있다: 기존 일정에 축제를 그 날짜로 넣는다 (아래 _apply_pins)
+        plan = {"message": "", "days": [{"theme": d["theme"], "items": list(d["items"])} for d in old_days], "follow_up": ""}
+        plan_source = "fallback"
     if plan is None and mode == "수정":
         # 수정 실패: 기존 일정은 그대로 두고 알려준다
         if not any_llm_error:
@@ -636,11 +724,18 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
         session.view = {**(session.view or {}), "caveats": _caveats(raw, conditions, warnings, start, end, today)}
         return reply
 
+    if pin_cids:
+        _apply_pins(plan["days"], pin_cids)
+        fill_thin_days(plan["days"], dates, conditions, _fill_order(cand_map, s, text), cand_map)
+
     # 5) 구조화 + 렌더링
     session.plan, session.last_cand_map = plan, {cid: p for cid, p in cand_map.items()}
     days_view = hydrate_plan(plan, cand_map, conditions, restaurants)
     # 일정을 물었으니 일정만 답한다 (뉴스·마무리 질문 같은 묻지 않은 내용은 붙이지 않음. 뉴스는 risks 필드에만 남김)
     reply = render_markdown(plan["message"], days_view, conditions, "", [], place_label=area or sido)
+    if pins:
+        festivals = ", ".join(f"{i + 1}일차 {p['title']}" for i, p in sorted(pins.items()))
+        reply = f"🎉 축제 기간에 맞춰 넣었어요: {festivals}\n\n{reply}"
 
     sources = ["tourism"]
     if raw["news"]:
@@ -793,6 +888,9 @@ def _answer_list(session: "ChatSession", text: str, intent: str, today: date, ra
     query = " ".join(x for x in [sido, area, text] if x)
     reply, views, w = answer_list(intent, label, text, places, lambda pool: rank_places(pool, sido, query, ranker),
                                   enrich, lambda items: enrich_intro(items, 12))
+    if intent == "festival" and views:
+        shown = {v["name"] for v in views}
+        session.last_festivals = [p for p in places if p["title"] in shown]  # "저거 기준으로 다시 짜줘"에 쓴다
     if intent == "festival" and not views:
         when = label[len(area or sido):].strip() or f"앞으로 {FEST_DAYS_AHEAD}일 안"
         reply = f"{area or sido}에서 {when}에 열리는 축제·행사를 찾지 못했어요. 날짜나 지역을 바꿔서 다시 물어봐 주세요."
@@ -1043,7 +1141,8 @@ def _handle_message(session: ChatSession, text: str, today: date | None, ranker)
 
         if issues:
             reply = _issue_message(issues, today, text)
-            if missing and not ("ambiguous_region" in issues and missing[0] == "region"):  # 지역은 방금 되물었으니 또 묻지 않는다
+            asked_region = bool({"ambiguous_region", "province_group"} & set(issues))
+            if missing and not (asked_region and missing[0] == "region"):  # 지역은 방금 되물었으니 또 묻지 않는다
                 reply += "\n\n" + _ask_missing(s)
             stage = "planned" if in_plan else "asking"
         elif missing:
