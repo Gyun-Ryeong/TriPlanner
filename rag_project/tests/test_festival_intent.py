@@ -83,5 +83,69 @@ class FestivalRangeTests(unittest.TestCase):
         self.assertEqual(self.ranges[-1], (TODAY, date(2026, 12, 5)))
 
 
+
+class FestivalPlanTests(unittest.TestCase):
+    """축제 목록을 본 뒤 '저거 기준으로 다시 짜줘' → 축제를 열리는 날짜에 넣는다 (AI가 꺼져 있어도)."""
+
+    def setUp(self):
+        import travel.chat as chat
+        from tests.test_offline import _place
+        self.chat = chat
+        self.fests = [
+            _place("f1", "노상놀이야", content_type_id="15", ctype="축제", addr="전북 전주시 완산구", event_start="20260418", event_end="20261031"),
+            _place("f2", "전라관찰사의 탄생", content_type_id="15", ctype="축제", addr="전북 전주시 완산구", event_start="20261018", event_end="20261129"),
+        ]
+        sights = [_place(str(i), f"명소{i}", addr="전북 전주시 덕진구", mapx=str(127.1 + i * 0.001)) for i in range(40)]
+
+        def fake_gather(sido, area, start, end, include_food, today):
+            return {"sido": sido, "area": area, "start": start.isoformat(), "end": end.isoformat(), "include_food": include_food,
+                    "places": [dict(p, related_news_ids=[]) for p in sights], "news": [], "weather": [], "weather_status": "out_of_range",
+                    "air": {"by_date": {}, "realtime": None, "warnings": []}, "warnings": [], "fetched_at": __import__("time").time()}
+
+        for p in [patch.object(chat, "chat_json_messages", side_effect=RuntimeError("ollama down")),
+                  patch.object(chat, "gather_raw", side_effect=fake_gather), patch.object(chat, "enrich", return_value=[]),
+                  patch.object(chat, "_collect_festivals", return_value=(self.fests, []))]:
+            p.start()
+            self.addCleanup(p.stop)
+        self.session = chat.ChatSession()
+
+    def say(self, text):
+        return self.chat.handle_message(self.session, text, today=date(2026, 10, 21), ranker=FakeRanker())
+
+    def visits(self, r):
+        return [[e["place"]["name"] for e in d["events"] if e["kind"] == "visit"] for d in r["plan"]]
+
+    def test_province_group_is_asked_once_then_city_works(self):
+        r = self.say("전라도 여행 다음주 주말에 4박 5일로 일정 짜줘")
+        self.assertIn("전북·전남·광주", r["reply"])
+        self.assertNotIn("어느 지역으로 가실 건가요", r["reply"])
+        r = self.say("전주")
+        self.assertEqual((r["slots"]["region"], r["slots"]["area"]), ("전북", "전주"))
+        self.assertEqual((r["slots"]["start_date"], r["slots"]["end_date"]), ("2026-10-31", "2026-11-04"))
+
+    def test_plan_again_around_the_listed_festivals_without_ai(self):
+        self.say("전주 다음주 주말에 4박 5일 혼자 여행 일정 짜줘")
+        r = self.say("그 기간에 축제가 뭐가 있어?")
+        self.assertEqual(r["intent"], "festival")
+        for text in ["저거 기준으로 다시 짜줘", "축제 방문 기준으로 일정 짜줘"]:
+            with self.subTest(text=text):
+                r = self.say(text)
+                self.assertNotIn("반영하지 못했어요", r["reply"])
+                v = self.visits(r)
+                self.assertIn("노상놀이야", v[0])          # 10/31 에 끝나는 축제 → 1일차
+                self.assertIn("전라관찰사의 탄생", v[1])    # 다음 날
+                self.assertTrue(all(3 <= len(d) <= 5 for d in v), v)
+                flat = [x for d in v for x in d]
+                self.assertEqual(len(flat), len(set(flat)))
+                self.say("그 기간에 축제가 뭐가 있어?")    # 다음 문장도 목록 직후로 맞춘다
+
+    def test_generic_words_do_not_pin_festivals_later(self):
+        self.say("전주 다음주 주말에 4박 5일 혼자 여행 일정 짜줘")
+        self.say("그 기간에 축제가 뭐가 있어?")
+        self.say("고마워")
+        r = self.say("실내 기준으로 바꿔줘")
+        self.assertNotIn("축제 기간에 맞춰", r["reply"])
+
+
 if __name__ == "__main__":
     unittest.main()

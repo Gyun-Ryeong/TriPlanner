@@ -45,6 +45,7 @@ def build_plan_user_message(
     *, mode: str, region_label: str, start: str, end: str, n_days: int, party: str, preferences: str, avoid: str,
     condition_lines: list[str], candidate_lines: list[str], news_lines: list[str],
     current_plan_text: str, user_request: str, target_dates: list[str] | None = None,
+    must_include: list[str] | None = None,
 ) -> str:
     parts = [
         f"[모드] {mode}",
@@ -57,6 +58,8 @@ def build_plan_user_message(
     ]
     if current_plan_text:
         parts.append("[현재 일정]\n" + current_plan_text)
+    if must_include:
+        parts.append("[꼭 넣을 축제] (후보 id → 그 날짜의 days에 반드시 넣는다)\n" + "\n".join(must_include))
     if target_dates:
         parts.append(f"[출력할 날짜] (이 {len(target_dates)}일만 days에 출력)\n" + ", ".join(target_dates))
     parts.append("[사용자 요청]\n" + user_request)
