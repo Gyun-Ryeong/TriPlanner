@@ -422,3 +422,8 @@
   font-size: 12px;
   color: var(--color-text-muted);
 }
+
+.trip-schedule__leg--unavailable {
+  --leg-color: var(--color-text-muted);
+  line-height: 1.5;
+}

@@ -115,6 +115,7 @@ export default function ChatHistory({ onPick, showNewButton = false }) {
                   <button
                     type="button"
                     className="chat-history__pick"
+                    title={conversation.title}
                     aria-current={conversation.id === activeId}
                     onClick={() => {
                       selectConversation(conversation.id)
