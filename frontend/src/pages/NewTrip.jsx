@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createTrip } from '../api/trips.js'
 import { getRegionCatalog } from '../api/weather.js'
@@ -54,11 +54,18 @@ export default function NewTrip() {
     }
   }, [])
 
-  function selectRegion(id) {
+  // 시작일을 고르면 종료일이 시작일보다 빠를 때 시작일로 맞춘다
+  function handleStartDateChange(value) {
+    setStartDate(value)
+    if (value && endDate < value) setEndDate(value)
+  }
+
+  // 지도(memo)에 넘기는 함수라 매 렌더마다 새로 만들면 제목을 칠 때마다 지도가 다시 그려진다
+  const selectRegion = useCallback((id) => {
     setSelected(id)
     setCity('')
     setCustomCity('')
-  }
+  }, [])
 
   async function handleSubmit() {
     if (!title.trim()) {
@@ -80,7 +87,8 @@ export default function NewTrip() {
     try {
       const trip = await createTrip({ title, region: selectedRegion.name, city: chosenCity, startDate, endDate })
       // 생성 직후에는 기존 일정 화면이 아닌 전용 '일정 만들기' 화면에서 일차별 계획을 입력한다
-      navigate(`/trips/${trip.tripId}/plan`)
+      // replace: 뒤로가기로 이미 만든 여행의 '새 여행 생성' 폼에 다시 돌아오지 않도록 폼 기록을 대체한다
+      navigate(`/trips/${trip.tripId}/plan`, { replace: true })
     } catch (err) {
       setError(err.message ?? '여행 생성에 실패했습니다.')
     } finally {
@@ -177,7 +185,7 @@ export default function NewTrip() {
             id="trip-start"
             type="date"
             value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
+            onChange={(e) => handleStartDateChange(e.target.value)}
           />
         </div>
 
@@ -186,6 +194,7 @@ export default function NewTrip() {
           <input
             id="trip-end"
             type="date"
+            min={startDate}
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
           />

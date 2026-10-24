@@ -140,6 +140,8 @@ export default function TripSchedule({ mode = 'view' }) {
       : null
   const isWalking = routeMode === 'walking'
   const routeLegs = new Map(activeRoute?.legs.map((leg) => [leg.fromItemId, leg]))
+  // 도보로 갈 수 없는 구간(available=false)은 합계와 지도에서 빠진다
+  const availableLegCount = activeRoute?.legs.filter((leg) => leg.available !== false).length ?? 0
   // 경로 계산에는 좌표가 서로 다른 장소가 2곳 이상 필요하다
   const routableCount = new Set(
     selectedDay?.items
@@ -662,7 +664,8 @@ export default function TripSchedule({ mode = 'view' }) {
             <div className="trip-schedule__route-summary">
               <div>
                 <p className="trip-schedule__stop-label">
-                  {activeRoute.mode === 'WALKING' ? '🚶 도보' : '🚗 자동차'} · {activeRoute.legs.length}구간 합계
+                  {activeRoute.mode === 'WALKING' ? '🚶 도보' : '🚗 자동차'} · {availableLegCount}구간 합계
+                  {availableLegCount < activeRoute.legs.length && ` (${activeRoute.legs.length - availableLegCount}구간 제외)`}
                 </p>
                 <p className="trip-schedule__route-total">
                   {formatDistance(activeRoute.totalDistanceMeters)} · {formatDuration(activeRoute.totalDurationSeconds)}
@@ -769,7 +772,13 @@ export default function TripSchedule({ mode = 'view' }) {
                 </div>
               )}
             </div>
-            {routeLegs.has(item.tripItemId) && (
+            {routeLegs.get(item.tripItemId)?.available === false && (
+              <div className="trip-schedule__leg trip-schedule__leg--unavailable" role="note">
+                🚶 도보 경로를 추천드리기 어려운 구간이에요. 두 장소 사이의 거리가 너무 멀거나 걸어서 이동하기 어렵습니다.
+                다른 지도 서비스를 이용하시거나 자동차 경로를 이용해 주시면 감사하겠습니다.
+              </div>
+            )}
+            {routeLegs.get(item.tripItemId)?.available !== false && routeLegs.has(item.tripItemId) && (
               <div
                 className="trip-schedule__leg"
                 style={{ '--leg-color': legColor(activeRoute.legs.indexOf(routeLegs.get(item.tripItemId))) }}

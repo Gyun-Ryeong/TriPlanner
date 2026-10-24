@@ -9,6 +9,7 @@ import {
   startChat,
   useRagChat,
 } from '../chat/chatStore.js'
+import { BotIcon, CheckIcon, CopyIcon, SendIcon } from './Icons.jsx'
 import './ChatPanel.css'
 
 // RAG 서버는 모든 답변 끝에 '---' 와 고정 안내문(🛠 개발자 정보)을 붙인다 → 접어서 보여준다
@@ -142,26 +143,83 @@ function PlanSaveBar({ messageIndex, plans, saved }) {
   )
 }
 
-function AssistantMessage({ content, debug }) {
+function BotAvatar() {
+  return (
+    <span className="chat-panel__avatar" aria-hidden="true">
+      <BotIcon size={16} />
+    </span>
+  )
+}
+
+function CopyButton({ text }) {
+  const [copied, setCopied] = useState(false)
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // 클립보드를 못 쓰는 환경(http 등)에서는 조용히 넘어간다
+    }
+  }
+
+  return (
+    <button type="button" className="chat-panel__copy" onClick={handleCopy}>
+      {copied ? <CheckIcon size={14} /> : <CopyIcon size={14} />} {copied ? '복사됨' : '복사'}
+    </button>
+  )
+}
+
+function AssistantMessage({ content, debug, copyable }) {
   const footerIndex = content.indexOf(FOOTER_SEPARATOR)
   const body = footerIndex === -1 ? content : content.slice(0, footerIndex)
   const footer = footerIndex === -1 ? '' : content.slice(footerIndex + '\n---\n'.length)
   const [footerTitle, ...footerLines] = footer.split('\n')
 
   return (
-    <div className="chat-panel__bubble chat-panel__bubble--assistant">
-      <div className="chat-panel__markdown">
-        <Markdown components={MARKDOWN_COMPONENTS}>{body}</Markdown>
+    <div className="chat-panel__assistant">
+      <BotAvatar />
+      <div className="chat-panel__assistant-body">
+        <div className="chat-panel__markdown">
+          <Markdown components={MARKDOWN_COMPONENTS}>{body}</Markdown>
+        </div>
+        {footer && (
+          <details className="chat-panel__footer">
+            <summary>{footerTitle}</summary>
+            <div className="chat-panel__markdown">
+              <Markdown components={MARKDOWN_COMPONENTS}>{footerLines.join('\n')}</Markdown>
+            </div>
+          </details>
+        )}
+        {debug && <DebugInfo debug={debug} />}
+        {copyable && <CopyButton text={body} />}
       </div>
-      {footer && (
-        <details className="chat-panel__footer">
-          <summary>{footerTitle}</summary>
-          <div className="chat-panel__markdown">
-            <Markdown components={MARKDOWN_COMPONENTS}>{footerLines.join('\n')}</Markdown>
-          </div>
-        </details>
-      )}
-      {debug && <DebugInfo debug={debug} />}
+    </div>
+  )
+}
+
+// 답변을 기다리는 동안 점 애니메이션과 경과 시간을 보여 준다 (대기 중에만 마운트되므로 0초부터 센다)
+function PendingMessage() {
+  const [seconds, setSeconds] = useState(0)
+
+  useEffect(() => {
+    const timer = setInterval(() => setSeconds((prev) => prev + 1), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  return (
+    <div className="chat-panel__assistant">
+      <BotAvatar />
+      <div className="chat-panel__assistant-body chat-panel__pending">
+        <span className="chat-panel__dots" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </span>
+        <span>답변을 준비하고 있어요 · {seconds}초</span>
+        <p>일정을 만들 때는 1~3분 정도 걸릴 수 있어요.</p>
+      </div>
     </div>
   )
 }
@@ -172,6 +230,15 @@ export default function ChatPanel({ compact = false }) {
   const devMode = isDevModeActive(chatState)
   const [input, setInput] = useState('')
   const listRef = useRef(null)
+  const inputRef = useRef(null)
+
+  // 입력 내용 길이에 맞춰 입력창 높이를 늘린다 (기본 줄 수보다 작아지지 않고, 최대 높이는 CSS 가 막는다)
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [input])
 
   // 열려 있는 대화가 없을 때(처음 열었거나 24시간이 지나 지워졌을 때) 새 대화를 시작하고, 다른 대화로 옮기면 쓰던 입력은 비운다
   useEffect(() => {
@@ -210,10 +277,21 @@ export default function ChatPanel({ compact = false }) {
       </div>
 
       <div className="chat-panel__messages" ref={listRef} aria-live="polite">
+        {showExamples && (
+          <div className="chat-panel__welcome">
+            <span className="chat-panel__welcome-icon" aria-hidden="true">
+              <BotIcon size={compact ? 22 : 28} />
+            </span>
+            <h2>어디로 떠나볼까요?</h2>
+            <p>일정부터 맛집·숙소·축제까지 편하게 물어보세요.</p>
+          </div>
+        )}
+
         {messages.map((message, index) =>
           message.role === 'assistant' ? (
             <Fragment key={index}>
-              <AssistantMessage content={message.content} debug={devMode ? message.debug : null} />
+              {/* 맨 처음 인사말은 복사할 내용이 아니라서 버튼을 두지 않는다 */}
+              <AssistantMessage content={message.content} debug={devMode ? message.debug : null} copyable={index > 0} />
               {message.plans?.length > 0 && (
                 <PlanSaveBar messageIndex={index} plans={message.plans} saved={message.saved} />
               )}
@@ -225,11 +303,7 @@ export default function ChatPanel({ compact = false }) {
           ),
         )}
 
-        {pending && (
-          <div className="chat-panel__bubble chat-panel__bubble--assistant chat-panel__pending">
-            답변을 준비하고 있어요… 일정을 만들 때는 1~3분 정도 걸릴 수 있어요.
-          </div>
-        )}
+        {pending && <PendingMessage />}
 
         {showExamples && (
           <div className="chat-panel__examples">
@@ -250,6 +324,7 @@ export default function ChatPanel({ compact = false }) {
         }}
       >
         <textarea
+          ref={inputRef}
           className="chat-panel__input"
           rows={compact ? 3 : 2}
           maxLength={1000}
@@ -258,8 +333,13 @@ export default function ChatPanel({ compact = false }) {
           onChange={(event) => setInput(event.target.value)}
           onKeyDown={handleKeyDown}
         />
-        <button type="submit" className="btn btn-primary chat-panel__send" disabled={pending || !input.trim()}>
-          전송
+        <button
+          type="submit"
+          className="chat-panel__send"
+          aria-label="전송"
+          disabled={pending || !input.trim()}
+        >
+          <SendIcon size={18} />
         </button>
       </form>
     </div>

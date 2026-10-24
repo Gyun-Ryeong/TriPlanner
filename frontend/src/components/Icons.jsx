@@ -119,3 +119,28 @@ export function PhoneIcon(props) {
     </Svg>
   )
 }
+
+export function SendIcon(props) {
+  return (
+    <Svg {...props}>
+      <path d="M12 19V5M5 12l7-7 7 7" />
+    </Svg>
+  )
+}
+
+export function CopyIcon(props) {
+  return (
+    <Svg {...props}>
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15V6a2 2 0 0 1 2-2h9" />
+    </Svg>
+  )
+}
+
+export function CheckIcon(props) {
+  return (
+    <Svg {...props}>
+      <path d="m5 12.5 4.5 4.5L19 7.5" />
+    </Svg>
+  )
+}
