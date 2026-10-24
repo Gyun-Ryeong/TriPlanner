@@ -39,7 +39,7 @@ public class RouteService {
     }
 
     @FunctionalInterface
-    private interface LegFetcher {
+    interface LegFetcher {
         Leg fetch(Stop from, Stop to);
     }
 
@@ -109,7 +109,7 @@ public class RouteService {
     }
 
     // 인접한 장소 쌍마다 fetcher 를 한 번씩 호출하고, 구간 경로·거리·시간·요금을 이어 붙여 하나의 결과로 만든다
-    private RouteResponse buildRoute(String mode, List<Stop> stops, LegFetcher fetcher) {
+    RouteResponse buildRoute(String mode, List<Stop> stops, LegFetcher fetcher) {
         List<RouteLegResponse> legs = new ArrayList<>();
         List<List<Double>> fullPath = new ArrayList<>();
         int totalDistance = 0;
@@ -128,7 +128,9 @@ public class RouteService {
             fuelPrice += leg.fuelPrice();
             // 구간이 만나는 지점(앞 구간의 끝 = 뒤 구간의 시작)은 한 번만 넣는다
             List<List<Double>> legPath = leg.response().path();
-            fullPath.addAll(fullPath.isEmpty() ? legPath : legPath.subList(1, legPath.size()));
+            if (!legPath.isEmpty()) {
+                fullPath.addAll(fullPath.isEmpty() ? legPath : legPath.subList(1, legPath.size()));
+            }
         }
 
         return new RouteResponse(mode, totalDistance, totalDuration, tollFare, taxiFare, fuelPrice, fullPath, legs);
@@ -183,7 +185,8 @@ public class RouteService {
                 toIds.get(0),
                 summary.path("distance").asInt(),
                 summary.path("duration").asInt() / 1000,   // Directions 의 duration 은 밀리초
-                path
+                path,
+                true
         );
         return new Leg(leg, summary.path("tollFare").asInt(), summary.path("taxiFare").asInt(),
                 summary.path("fuelPrice").asInt());
@@ -191,7 +194,19 @@ public class RouteService {
 
     // ---- 도보: Tmap 보행자 경로 ----
 
+    // 거리가 너무 멀어 걸을 수 없는 구간은 전체를 실패시키지 않고 빈 구간으로 돌려준다 (서버 장애는 그대로 예외)
     private Leg requestWalkingLeg(Stop from, Stop to) {
+        try {
+            return fetchWalkingLeg(from, to);
+        } catch (ResponseStatusException e) {
+            if (e.getStatusCode() != HttpStatus.BAD_REQUEST) {
+                throw e;
+            }
+            return unavailableLeg(from, to);
+        }
+    }
+
+    private Leg fetchWalkingLeg(Stop from, Stop to) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("startX", from.lng());
         body.put("startY", from.lat());
@@ -256,8 +271,17 @@ public class RouteService {
                 toIds.get(0),
                 summary.path("totalDistance").asInt(),
                 summary.path("totalTime").asInt(),
-                path
+                path,
+                true
         );
+    }
+
+    // 경로를 만들 수 없는 구간. 한 구간 때문에 나머지 구간의 결과까지 버리지 않도록 빈 구간으로 표시한다
+    static Leg unavailableLeg(Stop from, Stop to) {
+        List<Long> fromIds = from.itemIds();
+        List<Long> toIds = to.itemIds();
+        return new Leg(new RouteLegResponse(fromIds.get(fromIds.size() - 1), toIds.get(0), 0, 0, List.of(), false),
+                0, 0, 0);
     }
 
     private static ResponseStatusException noRoute(String modeName, Stop from, Stop to) {

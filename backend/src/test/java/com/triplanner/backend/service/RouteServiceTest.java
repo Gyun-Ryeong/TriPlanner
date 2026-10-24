@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.triplanner.backend.dto.RouteLegResponse;
+import com.triplanner.backend.dto.RouteResponse;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -70,6 +71,27 @@ class RouteServiceTest {
 
         assertEquals(400, e.getStatusCode().value());
         assertEquals("'경복궁' → '남산타워' 사이의 도보 경로를 찾을 수 없습니다.", e.getReason());
+    }
+
+    @Test
+    void 걸을_수_없는_구간이_있어도_나머지_구간의_경로와_합계는_남는다() {
+        RouteService service = new RouteService(null);
+        List<RouteService.Stop> stops = List.of(stop("A", 1), stop("B", 2), stop("C", 3));
+        RouteService.LegFetcher fetcher = (from, to) -> to.name().equals("B")
+                ? new RouteService.Leg(new RouteLegResponse(1L, 2L, 500, 400,
+                        List.of(List.of(37.0, 127.0), List.of(37.1, 127.1)), true), 0, 0, 0)
+                : RouteService.unavailableLeg(from, to);
+
+        RouteResponse route = service.buildRoute("WALKING", stops, fetcher);
+
+        assertEquals(2, route.legs().size());
+        assertEquals(true, route.legs().get(0).available());
+        assertEquals(false, route.legs().get(1).available());
+        assertEquals(2L, route.legs().get(1).fromItemId());
+        assertEquals(3L, route.legs().get(1).toItemId());
+        assertEquals(500, route.totalDistanceMeters());
+        assertEquals(400, route.totalDurationSeconds());
+        assertEquals(2, route.path().size());
     }
 
     @Test
