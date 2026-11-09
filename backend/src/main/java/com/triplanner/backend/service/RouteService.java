@@ -138,7 +138,19 @@ public class RouteService {
 
     // ---- 자동차: 네이버 Directions 15 ----
 
+    // 도로로 이어지지 않는 구간(섬·바다 건너 등)은 전체를 실패시키지 않고 빈 구간으로 돌려준다 (서버 장애는 그대로 예외)
     private Leg requestDrivingLeg(Stop from, Stop to) {
+        try {
+            return fetchDrivingLeg(from, to);
+        } catch (ResponseStatusException e) {
+            if (e.getStatusCode() != HttpStatus.BAD_REQUEST) {
+                throw e;
+            }
+            return unavailableLeg(from, to);
+        }
+    }
+
+    private Leg fetchDrivingLeg(Stop from, Stop to) {
         JsonNode root;
         try {
             root = restClient.get()

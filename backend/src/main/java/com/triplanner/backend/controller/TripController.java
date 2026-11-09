@@ -4,6 +4,7 @@ import com.triplanner.backend.dto.ChatPlanImportRequest;
 import com.triplanner.backend.dto.ChecklistCheckRequest;
 import com.triplanner.backend.dto.ChecklistItemRequest;
 import com.triplanner.backend.dto.ChecklistItemResponse;
+import com.triplanner.backend.dto.ShareResponse;
 import com.triplanner.backend.dto.TripAlertsResponse;
 import com.triplanner.backend.dto.TripCreateRequest;
 import com.triplanner.backend.dto.TripDetailResponse;
@@ -136,6 +137,17 @@ public class TripController {
     @GetMapping("/{tripId}")
     public ResponseEntity<TripDetailResponse> getTrip(Authentication authentication, @PathVariable Long tripId) {
         return ResponseEntity.ok(tripService.getTrip(authentication.getName(), tripId));
+    }
+
+    @PostMapping("/{tripId}/share")
+    public ResponseEntity<ShareResponse> enableSharing(Authentication authentication, @PathVariable Long tripId) {
+        return ResponseEntity.ok(tripService.enableSharing(authentication.getName(), tripId));
+    }
+
+    @DeleteMapping("/{tripId}/share")
+    public ResponseEntity<Void> disableSharing(Authentication authentication, @PathVariable Long tripId) {
+        tripService.disableSharing(authentication.getName(), tripId);
+        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{tripId}")

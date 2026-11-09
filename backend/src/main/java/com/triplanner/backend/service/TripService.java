@@ -6,6 +6,8 @@ import com.triplanner.backend.domain.TripDay;
 import com.triplanner.backend.domain.TripItem;
 import com.triplanner.backend.domain.User;
 import com.triplanner.backend.dto.ChatPlanImportRequest;
+import com.triplanner.backend.dto.ShareResponse;
+import com.triplanner.backend.dto.SharedTripResponse;
 import com.triplanner.backend.dto.TripCreateRequest;
 import com.triplanner.backend.dto.TripDayResponse;
 import com.triplanner.backend.dto.TripDetailResponse;
@@ -21,6 +23,8 @@ import com.triplanner.backend.repository.TripRepository;
 import com.triplanner.backend.repository.UserRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
@@ -42,6 +46,10 @@ public class TripService {
     private static final int MAX_TRIP_DAYS = MAX_IMPORT_DAYS;
 
     // 시·군 이름으로 받을 값: 한글 1~15자 (예: 성남, 곡성군, 서귀포시)
+    // 공유 코드: 무작위 18바이트(추측할 수 없는 값)를 URL 에 쓸 수 있는 24자로 바꾼 것
+    private static final SecureRandom RANDOM = new SecureRandom();
+    private static final Pattern SHARE_CODE = Pattern.compile("[A-Za-z0-9_-]{20,32}");
+
     private static final Pattern CITY_NAME = Pattern.compile("[가-힣]{1,15}");
 
     // 그 자체가 세부 지역(시) 목록의 도시인 광역시
@@ -246,6 +254,37 @@ public class TripService {
                 .toList();
     }
 
+    // 읽기 전용 공유 링크를 만든다. 이미 공유 중이면 같은 코드를 그대로 돌려준다 (링크가 바뀌지 않게)
+    public ShareResponse enableSharing(String email, Long tripId) {
+        Trip trip = getOwnedTrip(email, tripId);
+        if (trip.getShareCode() == null) {
+            byte[] bytes = new byte[18];
+            RANDOM.nextBytes(bytes);
+            trip.enableSharing(Base64.getUrlEncoder().withoutPadding().encodeToString(bytes));
+        }
+        return new ShareResponse(trip.getShareCode());
+    }
+
+    // 공유를 멈춘다. 코드를 지우므로 이미 나눠 준 링크는 바로 열리지 않는다 (다시 공유하면 새 코드가 만들어진다)
+    public void disableSharing(String email, Long tripId) {
+        getOwnedTrip(email, tripId).disableSharing();
+    }
+
+    // 공유 링크로 여행을 본다 (로그인 불필요). 없는 코드·공유를 멈춘 코드·탈퇴한 주인의 여행은 똑같이 404 로 답한다
+    @Transactional(readOnly = true)
+    public SharedTripResponse getSharedTrip(String shareCode) {
+        Trip trip = shareCode == null || !SHARE_CODE.matcher(shareCode).matches()
+                ? null
+                : tripRepository.findByShareCode(shareCode).orElse(null);
+        if (trip == null || trip.getUser().isWithdrawn()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "공유가 중단되었거나 존재하지 않는 일정입니다.");
+        }
+        TripDetailResponse detail = toDetail(trip);
+        return new SharedTripResponse(
+                detail.title(), detail.region(), detail.city(), detail.startDate(), detail.endDate(),
+                trip.getUser().getNickname(), detail.days());
+    }
+
     private User currentUser(String email) {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "사용자를 찾을 수 없습니다."));
@@ -387,7 +426,8 @@ public class TripService {
                 trip.getCity(),
                 trip.getStartDate(),
                 trip.getEndDate(),
-                trip.getStatus()
+                trip.getStatus(),
+                trip.getShareCode()
         );
     }
 
@@ -411,6 +451,7 @@ public class TripService {
                 trip.getStartDate(),
                 trip.getEndDate(),
                 trip.getStatus(),
+                trip.getShareCode(),
                 days
         );
     }

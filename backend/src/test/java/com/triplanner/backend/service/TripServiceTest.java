@@ -38,6 +38,8 @@ class TripServiceTest {
     private TripRepository tripRepository;
     private TripDayRepository tripDayRepository;
     private TripItemRepository tripItemRepository;
+    private UserRepository userRepository;
+    private User owner;
     private TripService service;
     private Trip trip;
     private List<TripDay> days;
@@ -47,7 +49,7 @@ class TripServiceTest {
         tripRepository = mock(TripRepository.class);
         tripDayRepository = mock(TripDayRepository.class);
         tripItemRepository = mock(TripItemRepository.class);
-        UserRepository userRepository = mock(UserRepository.class);
+        userRepository = mock(UserRepository.class);
         service = new TripService(
                 tripRepository,
                 tripDayRepository,
@@ -57,7 +59,9 @@ class TripServiceTest {
                 mock(TripChecklistItemRepository.class));
 
         User user = mock(User.class);
+        owner = user;
         when(user.getUserId()).thenReturn(1L);
+        when(user.getNickname()).thenReturn("여행러");
         when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(user));
 
         // 2박 3일 (10/20 ~ 10/22)
@@ -223,5 +227,95 @@ class TripServiceTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, failure.getStatusCode());
         verify(tripDayRepository, never()).delete(any(TripDay.class));
+    }
+// ── 읽기 전용 공유 링크 ──────────────────────────────────────────────
+    @Test
+    void sharingCreatesAnUnguessableCodeAndKeepsItWhenAskedAgain() {
+        String first = service.enableSharing(EMAIL, 1L).shareCode();
+        String again = service.enableSharing(EMAIL, 1L).shareCode();
+
+        assertEquals(first, again); // 링크가 바뀌지 않는다
+        assertEquals(24, first.length());
+        assertEquals(true, first.matches("[A-Za-z0-9_-]+"));
+        assertEquals(first, trip.getShareCode());
+    }
+
+    @Test
+    void tripListShowsTheShareCodeOnlyWhileSharing() {
+        when(tripRepository.findByUser_UserIdOrderByStartDateAsc(1L)).thenReturn(List.of(trip));
+        assertEquals(null, service.getMyTrips(EMAIL).get(0).shareCode());
+
+        String code = service.enableSharing(EMAIL, 1L).shareCode();
+        assertEquals(code, service.getMyTrips(EMAIL).get(0).shareCode());
+
+        service.disableSharing(EMAIL, 1L);
+        assertEquals(null, service.getMyTrips(EMAIL).get(0).shareCode());
+    }
+
+    @Test
+    void ownerSeesTheShareCodeInTheTripDetailOnlyWhileSharing() {
+        assertEquals(null, service.getTrip(EMAIL, 1L).shareCode());
+
+        String code = service.enableSharing(EMAIL, 1L).shareCode();
+        assertEquals(code, service.getTrip(EMAIL, 1L).shareCode());
+
+        service.disableSharing(EMAIL, 1L);
+        assertEquals(null, service.getTrip(EMAIL, 1L).shareCode());
+    }
+
+    @Test
+    void eachTripGetsADifferentCode() {
+        String a = service.enableSharing(EMAIL, 1L).shareCode();
+        trip.disableSharing();
+        String b = service.enableSharing(EMAIL, 1L).shareCode();
+
+        assertEquals(false, a.equals(b)); // 다시 공유하면 새 코드 (예전 링크는 되살아나지 않는다)
+    }
+
+    @Test
+    void onlyTheOwnerCanStartOrStopSharing() {
+        User other = mock(User.class);
+        when(other.getUserId()).thenReturn(2L);
+        when(userRepository.findByEmail("other@test.local")).thenReturn(Optional.of(other));
+
+        assertEquals(HttpStatus.FORBIDDEN, assertThrows(ResponseStatusException.class,
+                () -> service.enableSharing("other@test.local", 1L)).getStatusCode());
+        assertEquals(HttpStatus.FORBIDDEN, assertThrows(ResponseStatusException.class,
+                () -> service.disableSharing("other@test.local", 1L)).getStatusCode());
+    }
+
+    @Test
+    void sharedLinkShowsTheTripWithoutPrivateDetails() {
+        String code = service.enableSharing(EMAIL, 1L).shareCode();
+        when(tripRepository.findByShareCode(code)).thenReturn(Optional.of(trip));
+
+        var shared = service.getSharedTrip(code);
+
+        assertEquals("가을 여행", shared.title());
+        assertEquals("여행러", shared.ownerNickname());
+        assertEquals(3, shared.days().size());
+    }
+
+    @Test
+    void stoppedUnknownMalformedAndWithdrawnOwnerLinksAllLookLikeNotFound() {
+        String code = service.enableSharing(EMAIL, 1L).shareCode();
+        when(tripRepository.findByShareCode(code)).thenReturn(Optional.of(trip));
+        service.disableSharing(EMAIL, 1L);
+        when(tripRepository.findByShareCode(code)).thenReturn(Optional.empty()); // 코드를 지웠으니 더는 찾지 못한다
+
+        assertNotFound(code);
+        assertNotFound("a".repeat(24)); // 없는 코드
+        assertNotFound("짧음");           // 형식이 다른 값은 DB 를 조회하지도 않는다
+        assertNotFound(null);
+
+        String code2 = service.enableSharing(EMAIL, 1L).shareCode();
+        when(tripRepository.findByShareCode(code2)).thenReturn(Optional.of(trip));
+        when(owner.isWithdrawn()).thenReturn(true);
+        assertNotFound(code2); // 탈퇴한 주인의 여행
+    }
+
+    private void assertNotFound(String code) {
+        assertEquals(HttpStatus.NOT_FOUND, assertThrows(ResponseStatusException.class,
+                () -> service.getSharedTrip(code)).getStatusCode());
     }
 }

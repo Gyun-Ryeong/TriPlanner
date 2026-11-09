@@ -33,12 +33,24 @@ public class RagChatController {
         return ResponseEntity.ok(ragChatService.chat(authentication.getName(), request.sessionId(), request.message(), debug));
     }
 
+    // 방금 보낸 말을 취소한다 (챗봇이 그 말로 바꿔 둔 조건·일정을 보내기 전으로 되돌림)
+    @PostMapping("/{sessionId}/cancel")
+    public ResponseEntity<Void> cancel(@PathVariable String sessionId) {
+        validateSessionId(sessionId);
+        ragChatService.cancel(sessionId);
+        return ResponseEntity.noContent().build();
+    }
+
     @DeleteMapping("/{sessionId}")
     public ResponseEntity<Void> reset(@PathVariable String sessionId) {
+        validateSessionId(sessionId);
+        ragChatService.reset(sessionId);
+        return ResponseEntity.noContent().build();
+    }
+
+    private static void validateSessionId(String sessionId) {
         if (!sessionId.matches("^[a-f0-9]{1,32}$")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "대화 정보가 올바르지 않습니다.");
         }
-        ragChatService.reset(sessionId);
-        return ResponseEntity.noContent().build();
     }
 }

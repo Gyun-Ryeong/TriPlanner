@@ -51,6 +51,10 @@ public class Trip {
     @Column(name = "checklist_initialized", nullable = false)
     private boolean checklistInitialized = false;
 
+    // 읽기 전용 공유 링크의 비밀 코드. null 이면 공유하지 않는 여행 (코드를 지우면 링크가 바로 막힌다)
+    @Column(name = "share_code", length = 32, unique = true)
+    private String shareCode;
+
     protected Trip() {
     }
 
@@ -99,6 +103,18 @@ public class Trip {
 
     public String getStatus() {
         return status;
+    }
+
+    public String getShareCode() {
+        return shareCode;
+    }
+
+    public void enableSharing(String shareCode) {
+        this.shareCode = shareCode;
+    }
+
+    public void disableSharing() {
+        this.shareCode = null;
     }
 
     public boolean isChecklistInitialized() {

@@ -104,6 +104,18 @@ public class RagChatService {
         }
     }
 
+    // 사용자가 방금 보낸 말을 취소한다: RAG 서버가 그 말로 바꿔 둔 대화 기억을 되돌린다. 실패해도 화면은 이미 취소돼 있어 무시한다
+    public void cancel(String sessionId) {
+        try {
+            restClient.post()
+                    .uri("/chat/{sessionId}/cancel", sessionId)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientException e) {
+            // RAG 서버에 닿지 않으면 되돌릴 대화 기억도 없다
+        }
+    }
+
     public void reset(String sessionId) {
         try {
             restClient.delete()
