@@ -8,6 +8,7 @@ import { PrepAlertsSection, TripAlertsOverview, TripAlertSummary, upcomingAlerts
 import { useTripAlerts } from '../lib/tripAlertsContext.js'
 import { pickUpcomingTrip } from '../lib/upcomingTrip.js'
 import { placeLabel } from '../lib/tripPlace.js'
+import { durationLabel } from '../lib/tripDuration.js'
 import './Home.css'
 
 function formatUpcomingDate(startDate, endDate) {
@@ -16,7 +17,7 @@ function formatUpcomingDate(startDate, endDate) {
   const nights = Math.round((end - start) / (1000 * 60 * 60 * 24))
   const startLabel = `${start.getFullYear()}. ${start.getMonth() + 1}. ${start.getDate()}`
   const endLabel = `${end.getMonth() + 1}. ${end.getDate()}`
-  return `${startLabel} — ${endLabel} · ${nights}박 ${nights + 1}일`
+  return `${startLabel} — ${endLabel} · ${durationLabel(nights)}`
 }
 
 // 홈 가운데의 바로가기 3칸

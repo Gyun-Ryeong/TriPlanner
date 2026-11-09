@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom'
 import { getAuth } from '../api/authStorage.js'
 import { getMyTrips } from '../api/trips.js'
 import { CalendarIcon, MapIcon, PinIcon, PlaneIcon, PlusIcon } from '../components/Icons.jsx'
+import TripCalendar from '../components/TripCalendar.jsx'
 import TripDeleteButton from '../components/TripDeleteButton.jsx'
+import TripShareButton from '../components/TripShareButton.jsx'
 import { useTripPhoto } from '../lib/regionPhotos.js'
 import { placeLabel } from '../lib/tripPlace.js'
 import './TripStats.css'
@@ -48,6 +50,7 @@ const FILTERS = [
   { key: 'all', label: '전체', match: () => true },
   { key: 'upcoming', label: '다가오는 여행', match: (trip, today) => trip.endDate >= today },
   { key: 'past', label: '지난 여행', match: (trip, today) => trip.endDate < today },
+  { key: 'sharing', label: '공유 중', match: (trip) => Boolean(trip.shareCode) },
 ]
 
 export default function TripStats() {
@@ -55,6 +58,8 @@ export default function TripStats() {
   const [trips, setTrips] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
+  // 'list': 카드 목록 / 'calendar': 여행 기간이 막대로 이어진 달력
+  const [view, setView] = useState('list')
 
   useEffect(() => {
     let cancelled = false
@@ -81,6 +86,11 @@ export default function TripStats() {
   const today = localToday()
   const activeFilter = FILTERS.find((f) => f.key === filter)
   const visibleTrips = trips.filter((t) => activeFilter.match(t, today))
+  const sharingCount = trips.filter((t) => t.shareCode).length
+
+  function updateShareCode(tripId, shareCode) {
+    setTrips((prev) => prev.map((trip) => (trip.tripId === tripId ? { ...trip, shareCode } : trip)))
+  }
 
   return (
     <div className="trip-stats">
@@ -122,25 +132,49 @@ export default function TripStats() {
       <div className="card trip-stats__list-card">
         <div className="card-head">
           <h2 className="card-title">여행 목록</h2>
-          <div className="trip-stats__tabs" role="tablist" aria-label="여행 목록 필터">
-            {FILTERS.map((f) => (
-              <button
-                key={f.key}
-                type="button"
-                role="tab"
-                aria-selected={filter === f.key}
-                className={`trip-stats__tab${filter === f.key ? ' trip-stats__tab--active' : ''}`}
-                onClick={() => setFilter(f.key)}
-              >
-                {f.label}
-              </button>
-            ))}
+          <div className="trip-stats__head-tools">
+            <div className="trip-stats__tabs" role="tablist" aria-label="보기 방식">
+              {[
+                ['list', '목록'],
+                ['calendar', '달력'],
+              ].map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={view === key}
+                  className={`trip-stats__tab${view === key ? ' trip-stats__tab--active' : ''}`}
+                  onClick={() => setView(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {view === 'list' && (
+              <div className="trip-stats__tabs" role="tablist" aria-label="여행 목록 필터">
+                {FILTERS.map((f) => (
+                  <button
+                    key={f.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={filter === f.key}
+                    className={`trip-stats__tab${filter === f.key ? ' trip-stats__tab--active' : ''}`}
+                    onClick={() => setFilter(f.key)}
+                  >
+                    {f.label}
+                    {f.key === 'sharing' && sharingCount > 0 && ` ${sharingCount}`}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
         {loading && <p className="trip-stats__place-desc">불러오는 중...</p>}
 
-        {!loading && visibleTrips.length === 0 && (
+        {!loading && view === 'calendar' && <TripCalendar trips={trips} />}
+
+        {view === 'list' && !loading && visibleTrips.length === 0 && (
           <div className="empty-state">
             <span className="empty-state__icon"><MapIcon size={24} /></span>
             <p className="empty-state__title">
@@ -159,12 +193,13 @@ export default function TripStats() {
           </div>
         )}
 
-        {visibleTrips.length > 0 && (
+        {view === 'list' && visibleTrips.length > 0 && (
           <div className="trip-stats__grid">
             {visibleTrips.map((t) => (
               <div key={t.tripId} className="trip-stats__place">
                 <Link to={`/schedule/${t.tripId}`} className="trip-stats__link">
                   <TripPhoto trip={t} />
+                  {t.shareCode && <span className="trip-stats__shared-badge">● 공유 중</span>}
                   <div className="trip-stats__place-body">
                     <div className="trip-stats__place-header">
                       <p className="trip-stats__place-name">{t.title}</p>
@@ -174,7 +209,14 @@ export default function TripStats() {
                   </div>
                 </Link>
                 <div className="trip-stats__place-actions">
+                  <TripShareButton
+                    tripId={t.tripId}
+                    initialShareCode={t.shareCode}
+                    compact
+                    onChange={(code) => updateShareCode(t.tripId, code)}
+                  />
                   <TripDeleteButton
+                    compact
                     tripId={t.tripId}
                     title={t.title}
                     onDeleted={(id) => setTrips((prev) => prev.filter((trip) => trip.tripId !== id))}

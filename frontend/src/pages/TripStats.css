@@ -92,27 +92,58 @@
   gap: 20px;
 }
 
+/* 공유 설명 패널이 카드 밖으로 나올 수 있도록 overflow 를 막지 않는다 (사진 모서리는 사진이 직접 둥글게 처리) */
 .trip-stats__place {
-  overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
 }
 
 .trip-stats__link {
+  position: relative;
   display: block;
   color: inherit;
   text-decoration: none;
 }
 
 .trip-stats__place-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   padding: 0 18px 16px;
+}
+
+/* 휴지통 아이콘은 오른쪽 끝으로 */
+.trip-stats__place-actions > .trip-delete__trigger--icon {
+  margin-left: auto;
+}
+
+.trip-stats__shared-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--color-safe);
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.2);
+}
+
+.trip-stats__head-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
 }
 
 .trip-stats__photo {
   position: relative;
   height: 200px;
   overflow: hidden;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   background: linear-gradient(135deg, #93a5f0, #2f5fe0);
 }
 
@@ -175,5 +206,20 @@
 
   .trip-stats__list-card .card-head {
     flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  /* 탭이 길어지면 줄바꿈 대신 옆으로 밀어 볼 수 있게 한다 */
+  .trip-stats__head-tools,
+  .trip-stats__tabs {
+    max-width: 100%;
+  }
+
+  .trip-stats__tabs {
+    overflow-x: auto;
+  }
+
+  .trip-stats__tab {
+    white-space: nowrap;
   }
 }

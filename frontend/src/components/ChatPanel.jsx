@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 import Markdown from 'react-markdown'
 import { Link } from 'react-router-dom'
 import {
+  cancelMessage,
   isDevModeActive,
   newConversation,
   saveChatPlan,
@@ -199,14 +200,17 @@ function AssistantMessage({ content, debug, copyable }) {
   )
 }
 
-// 답변을 기다리는 동안 점 애니메이션과 경과 시간을 보여 준다 (대기 중에만 마운트되므로 0초부터 센다)
-function PendingMessage() {
-  const [seconds, setSeconds] = useState(0)
+// 답변을 기다리는 동안 점 애니메이션과 경과 시간을 보여 준다.
+// 경과 시간은 요청을 보낸 시각(since)에서 계산한다. 다른 대화에 갔다 와서 이 컴포넌트가 새로 만들어져도 이어서 센다
+function PendingMessage({ since, onCancel }) {
+  const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
-    const timer = setInterval(() => setSeconds((prev) => prev + 1), 1000)
+    const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [])
+
+  const seconds = since ? Math.max(0, Math.floor((now - since) / 1000)) : 0
 
   return (
     <div className="chat-panel__assistant">
@@ -219,6 +223,11 @@ function PendingMessage() {
         </span>
         <span>답변을 준비하고 있어요 · {seconds}초</span>
         <p>일정을 만들 때는 1~3분 정도 걸릴 수 있어요.</p>
+        {onCancel && (
+          <button type="button" className="chat-panel__cancel" onClick={onCancel}>
+            보내기 취소
+          </button>
+        )}
       </div>
     </div>
   )
@@ -226,7 +235,7 @@ function PendingMessage() {
 
 export default function ChatPanel({ compact = false }) {
   const chatState = useRagChat()
-  const { messages, pending, activeId } = chatState
+  const { messages, pending, pendingSince, activeId } = chatState
   const devMode = isDevModeActive(chatState)
   const [input, setInput] = useState('')
   const listRef = useRef(null)
@@ -255,6 +264,15 @@ export default function ChatPanel({ compact = false }) {
     if (!text.trim() || pending) return
     sendMessage(text)
     setInput('')
+  }
+
+  // 보낸 말을 취소하고, 그 말을 입력창에 되돌려 놓아 고쳐서 다시 보낼 수 있게 한다
+  function handleCancel() {
+    const text = cancelMessage()
+    if (text) {
+      setInput(text)
+      inputRef.current?.focus()
+    }
   }
 
   function handleKeyDown(event) {
@@ -303,7 +321,12 @@ export default function ChatPanel({ compact = false }) {
           ),
         )}
 
-        {pending && <PendingMessage />}
+        {pending && (
+          <PendingMessage
+            since={pendingSince}
+            onCancel={messages[messages.length - 1]?.role === 'user' ? handleCancel : null}
+          />
+        )}
 
         {showExamples && (
           <div className="chat-panel__examples">

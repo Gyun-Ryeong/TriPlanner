@@ -1,5 +1,5 @@
 // 챗봇(/api/chat) 응답의 일정을 '내 여행' 저장 요청(/api/trips/import) 형식으로 바꾼다.
-// 장소·시간·활동 설명은 챗봇 시간표(plan[].events) 그대로 쓰고, 이동·자유 시간은 저장하지 않는다.
+// 장소·시간·활동 설명은 챗봇 시간표(plan[].events) 그대로 쓰고, 이동·자유 시간은 저장하지 않는다. 숙소(체크인·체크아웃)는 장소로 저장한다.
 
 function cut(value, max) {
   const text = (value ?? '').toString().trim()
@@ -29,6 +29,12 @@ function toItem(event) {
     const place = toPlace(event.place)
     const memo = place ? event.note : [event.place?.name, event.note].filter(Boolean).join(' - ')
     return { itemType: cut(event.place?.type || '관광지', 20), startTime: event.start, memo: cut(memo, 255) || null, place }
+  }
+  if (event.kind === 'stay') {
+    // 사용자가 알려준 숙소: 첫날 체크인, 마지막 날 체크아웃을 '숙소' 항목(장소 포함)으로 저장한다
+    const place = toPlace(event.place)
+    const memo = place ? event.label : [event.place?.name, event.label].filter(Boolean).join(' - ')
+    return { itemType: '숙소', startTime: event.start, memo: cut(memo, 255) || null, place }
   }
   if (event.kind === 'meal') {
     const place = toPlace(event.place)

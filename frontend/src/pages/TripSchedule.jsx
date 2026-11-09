@@ -7,11 +7,13 @@ import { loadNaverMapsScript } from '../lib/naverMaps.js'
 import BackButton from '../components/BackButton.jsx'
 import TripDayControls from '../components/TripDayControls.jsx'
 import TripDeleteButton from '../components/TripDeleteButton.jsx'
+import TripShareButton from '../components/TripShareButton.jsx'
 import { TripAlertBlock } from '../components/TripAlertList.jsx'
 import { getAuth } from '../api/authStorage.js'
 import { prepAlertKey, useDismissedAlerts, weatherAlertKey } from '../lib/dismissedAlerts.js'
 import { useTripAlerts } from '../lib/tripAlertsContext.js'
 import { placeLabel } from '../lib/tripPlace.js'
+import { dayLabel, durationLabel } from '../lib/tripDuration.js'
 import './TripSchedule.css'
 
 const REGION_CENTERS = {
@@ -39,7 +41,7 @@ function formatDateRange(startDate, endDate) {
   const nights = Math.round((end - start) / (1000 * 60 * 60 * 24))
   const startLabel = `${start.getFullYear()}. ${start.getMonth() + 1}. ${start.getDate()}`
   const endLabel = `${end.getMonth() + 1}. ${end.getDate()}`
-  return `${startLabel} – ${endLabel} · ${nights}박 ${nights + 1}일`
+  return `${startLabel} – ${endLabel} · ${durationLabel(nights)}`
 }
 
 function formatTime(time) {
@@ -89,6 +91,8 @@ export default function TripSchedule({ mode = 'view' }) {
   const [routeLoading, setRouteLoading] = useState(false)
   const routeLock = useRef(false)
   const [routeError, setRouteError] = useState('')
+  // 갈 수 없는 구간이 섞여 있어 '그 구간만 빼고 안내할까요?' 하고 사용자 답을 기다리는 경로 결과
+  const [pendingRoute, setPendingRoute] = useState(null)
   const mapContainerRef = useRef(null)
   const mapInstanceRef = useRef(null)
   const markersRef = useRef([])
@@ -139,6 +143,14 @@ export default function TripSchedule({ mode = 'view' }) {
       ? route.data
       : null
   const isWalking = routeMode === 'walking'
+  // 날짜·항목·이동 수단이 바뀌었으면 기다리던 질문은 무효
+  const activePending =
+    pendingRoute &&
+    pendingRoute.dayId === selectedDay?.tripDayId &&
+    pendingRoute.signature === itemsSignature &&
+    pendingRoute.mode === routeMode
+      ? pendingRoute
+      : null
   const routeLegs = new Map(activeRoute?.legs.map((leg) => [leg.fromItemId, leg]))
   // 도보로 갈 수 없는 구간(available=false)은 합계와 지도에서 빠진다
   const availableLegCount = activeRoute?.legs.filter((leg) => leg.available !== false).length ?? 0
@@ -299,7 +311,15 @@ export default function TripSchedule({ mode = 'view' }) {
     if (mode === routeMode || routeLoading) return
     setRouteMode(mode)
     setRouteError('')
+    setPendingRoute(null)
     if (activeRoute) loadRoute(mode)
+  }
+
+  // '안내받기': 갈 수 없는 구간은 빼고 나머지 구간 경로를 지도에 그린다
+  function acceptPendingRoute() {
+    if (!activePending) return
+    setRoute(activePending)
+    setPendingRoute(null)
   }
 
   async function loadRoute(mode) {
@@ -307,9 +327,23 @@ export default function TripSchedule({ mode = 'view' }) {
     routeLock.current = true
     setRouteLoading(true)
     setRouteError('')
+    setPendingRoute(null)
     try {
       const data = await getDayRoute(trip.tripId, selectedDay.tripDayId, mode)
-      setRoute({ dayId: selectedDay.tripDayId, signature: itemsSignature, mode, data })
+      const result = { dayId: selectedDay.tripDayId, signature: itemsSignature, mode, data }
+      const blocked = data.legs.filter((leg) => leg.available === false).length
+      if (blocked > 0 && blocked === data.legs.length) {
+        setRouteError(
+          mode === 'walking'
+            ? '모든 구간이 도보로 가기 어려워요. 자동차로 바꿔 보세요.'
+            : '모든 구간에서 자동차 경로를 찾지 못했어요.'
+        )
+      } else if (blocked > 0) {
+        // 일부 구간만 갈 수 없으면 바로 그리지 않고 먼저 물어본다
+        setPendingRoute({ ...result, blocked })
+      } else {
+        setRoute(result)
+      }
     } catch (err) {
       setRouteError(err.message ?? '경로를 불러오지 못했습니다.')
     } finally {
@@ -550,6 +584,7 @@ export default function TripSchedule({ mode = 'view' }) {
             <div className="trip-schedule__actions-row">
               <BackButton fallback="/mytrips/stats" />
               <Link to={`/trips/${trip.tripId}/checklist`} state={{ fromSchedule: true }} className="btn btn-sm">📋 체크리스트</Link>
+              <TripShareButton key={trip.tripId} tripId={trip.tripId} initialShareCode={trip.shareCode} />
               <div className="trip-schedule__mode" role="group" aria-label="이동 수단">
                 {[
                   ['driving', '🚗 자동차'],
@@ -569,7 +604,7 @@ export default function TripSchedule({ mode = 'view' }) {
               </div>
               <button
                 type="button"
-                className={activeRoute ? 'btn trip-schedule__route-close' : 'btn btn-primary'}
+                className={activeRoute ? 'btn btn-sm trip-schedule__route-close' : 'btn btn-sm btn-primary'}
                 disabled={routeLoading || (!activeRoute && routableCount < 2)}
                 title={routableCount < 2 ? '서로 다른 위치의 장소가 2곳 이상 필요합니다' : undefined}
                 onClick={handleRoute}
@@ -577,7 +612,13 @@ export default function TripSchedule({ mode = 'view' }) {
                 {routeLoading ? '경로 계산 중...' : activeRoute ? '✕ 경로 지우기' : '🧭 길찾기 시작'}
               </button>
             </div>
-            {routeError ? (
+            {activePending ? (
+              <div className="trip-schedule__route-ask" role="alert">
+                <span>갈 수 없는 {activePending.blocked}구간만 빼고 안내할까요?</span>
+                <button type="button" className="btn btn-sm btn-primary" onClick={acceptPendingRoute}>안내받기</button>
+                <button type="button" className="btn btn-sm" onClick={() => setPendingRoute(null)}>취소</button>
+              </div>
+            ) : routeError ? (
               <p className="trip-schedule__actions-note trip-schedule__search-error">{routeError}</p>
             ) : (
               <p className="trip-schedule__actions-note">
@@ -611,7 +652,7 @@ export default function TripSchedule({ mode = 'view' }) {
         <div className="card trip-schedule__list">
           <div className="trip-schedule__list-header">
             <div>
-              <h2>{selectedDay?.dayNumber}일차 동선</h2>
+              <h2>{dayLabel(selectedDay?.dayNumber, trip.days.length)} 동선</h2>
             </div>
             <span className="badge badge-safe">{stopNumbers.size}개 장소</span>
           </div>
@@ -774,8 +815,7 @@ export default function TripSchedule({ mode = 'view' }) {
             </div>
             {routeLegs.get(item.tripItemId)?.available === false && (
               <div className="trip-schedule__leg trip-schedule__leg--unavailable" role="note">
-                🚶 도보 경로를 추천드리기 어려운 구간이에요. 두 장소 사이의 거리가 너무 멀거나 걸어서 이동하기 어렵습니다.
-                다른 지도 서비스를 이용하시거나 자동차 경로를 이용해 주시면 감사하겠습니다.
+                {activeRoute.mode === 'WALKING' ? '🚶 도보' : '🚗 자동차'} 안내가 어려운 구간이에요 (제외됨)
               </div>
             )}
             {routeLegs.get(item.tripItemId)?.available !== false && routeLegs.has(item.tripItemId) && (

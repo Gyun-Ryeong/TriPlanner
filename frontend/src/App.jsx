@@ -7,6 +7,8 @@ import Signup from './pages/Signup.jsx'
 import NaverCallback from './pages/NaverCallback.jsx'
 import Home from './pages/Home.jsx'
 import Chatbot from './pages/Chatbot.jsx'
+import Festivals from './pages/Festivals.jsx'
+import SharedTrip from './pages/SharedTrip.jsx'
 import TripSchedule from './pages/TripSchedule.jsx'
 import NewTrip from './pages/NewTrip.jsx'
 import TripChecklist from './pages/TripChecklist.jsx'
@@ -25,6 +27,8 @@ export default function App() {
 
       <Route element={<MainLayout />}>
         <Route path="/" element={<Home />} />
+        <Route path="/festivals" element={<Festivals />} />
+        <Route path="/shared/:code" element={<SharedTrip />} />
 
         <Route element={<RequireAuth />}>
           <Route path="/schedule" element={<TripSchedule />} />

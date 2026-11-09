@@ -1,0 +1,148 @@
+.trip-cal__nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.trip-cal__month {
+  margin: 0;
+  min-width: 110px;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.trip-cal__today {
+  margin-left: auto;
+}
+
+.trip-cal__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  margin-bottom: 4px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.trip-cal__sun {
+  color: var(--color-danger);
+}
+
+.trip-cal__sat {
+  color: var(--color-primary);
+}
+
+.trip-cal__weeks {
+  border-top: 1px solid var(--color-border);
+  border-left: 1px solid var(--color-border);
+}
+
+/* 한 주 = 7칸 격자. 날짜 칸은 모든 줄에 걸쳐 깔리고, 여행 막대는 그 위 줄에 얹힌다 */
+.trip-cal__week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  min-height: 72px;
+}
+
+.trip-cal__cell {
+  padding: 4px 6px;
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.trip-cal__cell--blank {
+  background: var(--color-bg);
+}
+
+.trip-cal__date {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* 공휴일 이름: 날짜 옆에 작은 붉은 글씨 (칸 안 첫 줄에만 들어가서 여행 막대와 겹치지 않는다) */
+.trip-cal__cell {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.trip-cal__holiday {
+  margin-left: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-danger);
+}
+
+.trip-cal__cell--today .trip-cal__date {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.trip-cal__bar {
+  align-self: center;
+  z-index: 1;
+  height: 18px;
+  margin: 0 3px;
+  padding: 0 7px;
+  overflow: hidden;
+  border-radius: 9px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trip-cal__bar:hover {
+  filter: brightness(0.9);
+}
+
+/* 이전/다음 주로 이어지는 쪽은 둥글지 않고 칸 끝까지 닿게 해서 '계속 이어진다'를 보여준다 */
+.trip-cal__bar--cont-before {
+  margin-left: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.trip-cal__bar--cont-after {
+  margin-right: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.trip-cal__empty {
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 560px) {
+  .trip-cal__week {
+    min-height: 60px;
+  }
+
+  .trip-cal__cell {
+    padding: 3px 3px;
+  }
+
+  .trip-cal__holiday {
+    display: none;
+  }
+
+  .trip-cal__bar {
+    margin: 0 1px;
+    padding: 0 4px;
+    font-size: 10px;
+  }
+}

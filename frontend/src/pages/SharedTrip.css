@@ -1,0 +1,5 @@
+/* 공유 링크 화면: 레이아웃은 TripSchedule.css 를 그대로 쓰고, 없는 링크 안내만 따로 꾸민다 */
+.shared-trip__empty {
+  margin: 48px auto;
+  max-width: 480px;
+}

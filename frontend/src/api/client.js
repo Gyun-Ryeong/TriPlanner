@@ -2,7 +2,8 @@
 // (ngrok 등 외부 주소로 접속해도 동작하도록 localhost:8080 을 직접 부르지 않는다)
 export const API_BASE_URL = ''
 
-export async function apiRequest(path, { method = 'GET', body, token } = {}) {
+// signal: AbortController.signal — 요청을 도중에 취소할 때 쓴다 (취소하면 AbortError 로 끝난다)
+export async function apiRequest(path, { method = 'GET', body, token, signal } = {}) {
   const headers = { 'Content-Type': 'application/json' }
   if (token) headers.Authorization = `Bearer ${token}`
 
@@ -10,6 +11,7 @@ export async function apiRequest(path, { method = 'GET', body, token } = {}) {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
+    signal,
   })
 
   const contentType = response.headers.get('content-type') ?? ''

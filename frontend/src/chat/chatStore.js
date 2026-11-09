@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { AUTH_CHANGED_EVENT, getAuth } from '../api/authStorage.js'
-import { resetChat, sendChatMessage } from '../api/chat.js'
+import { cancelChatMessage, resetChat, sendChatMessage } from '../api/chat.js'
 import { importChatPlan } from '../api/trips.js'
 import { toSavablePlans } from './planExport.js'
 
@@ -16,8 +16,11 @@ const NEW_CHAT_TITLE = '새 대화'
 export const TITLE_MAX_LENGTH = 20
 
 const listeners = new Set()
-// 응답을 기다리는 대화 id. 다른 대화로 옮겨도 응답은 원래 대화에 붙는다
-const pendingIds = new Set()
+// 응답을 기다리는 대화 id → 요청을 보낸 시각(ms). 다른 대화로 옮겨도 응답은 원래 대화에 붙고,
+// 경과 시간은 이 시작 시각에서 계산하므로 대화를 오가도 0초로 돌아가지 않는다
+const pendingSince = new Map()
+// 응답을 기다리는 대화 id → 그 요청의 AbortController (취소할 때 쓴다)
+const pendingControllers = new Map()
 let devMode = loadDevMode()
 let data = load(currentUserId())
 // 저장해 둔 대화 중 이미 24시간이 지난 것은 처음부터 지운다
@@ -89,7 +92,8 @@ function isExpired(conversation, now) {
 // 서버(RAG)에 남은 대화 기억도 함께 정리한다
 function discard(conversations) {
   conversations.forEach((conversation) => {
-    pendingIds.delete(conversation.id)
+    pendingSince.delete(conversation.id)
+    pendingControllers.delete(conversation.id)
     if (conversation.sessionId) resetChat(conversation.sessionId).catch(() => {})
   })
 }
@@ -119,7 +123,8 @@ function buildState() {
     pinnedCount: conversations.filter((conversation) => conversation.pinned).length,
     sessionId: active?.sessionId ?? null,
     messages: active?.messages ?? [],
-    pending: active ? pendingIds.has(active.id) : false,
+    pending: active ? pendingSince.has(active.id) : false,
+    pendingSince: active ? (pendingSince.get(active.id) ?? null) : null,
   }
 }
 
@@ -144,7 +149,8 @@ function subscribe(listener) {
 
 window.addEventListener(AUTH_CHANGED_EVENT, () => {
   if (data.userId !== currentUserId()) {
-    pendingIds.clear()
+    pendingSince.clear()
+    pendingControllers.clear()
     data = load(currentUserId())
     commit()
   }
@@ -180,12 +186,14 @@ function debugInfo(response) {
 async function request(id, message) {
   const conversation = findConversation(id)
   if (!conversation) return
-  pendingIds.add(id)
+  const controller = new AbortController()
+  pendingSince.set(id, Date.now())
+  pendingControllers.set(id, controller)
   commit()
   try {
-    const response = await sendChatMessage(conversation.sessionId, message, isAdmin() && devMode)
-    // 응답을 기다리는 사이 지워진 대화면 버린다
-    if (!findConversation(id)) return
+    const response = await sendChatMessage(conversation.sessionId, message, isAdmin() && devMode, controller.signal)
+    // 사용자가 취소했거나, 응답을 기다리는 사이 지워진 대화면 버린다
+    if (controller.signal.aborted || !findConversation(id)) return
     patchConversation(id, (c) => ({
       ...c,
       // RAG 서버가 재시작돼 세션이 사라졌으면 새 session_id 가 오므로 항상 갱신한다
@@ -197,13 +205,39 @@ async function request(id, message) {
       ],
     }))
   } catch (error) {
-    if (findConversation(id)) {
+    if (!controller.signal.aborted && findConversation(id)) {
       patchConversation(id, (c) => ({ ...c, messages: [...c.messages, { role: 'error', content: error.message }] }))
     }
   } finally {
-    pendingIds.delete(id)
-    commit()
+    // 취소한 요청은 cancelMessage 가 이미 정리했다 (그 사이 같은 대화에서 새 요청을 보냈을 수 있어 건드리지 않는다)
+    if (!controller.signal.aborted) {
+      pendingSince.delete(id)
+      pendingControllers.delete(id)
+      commit()
+    }
   }
+}
+
+// 답변을 기다리는 중인 말을 취소한다: 요청을 끊고, 보낸 말을 대화에서 지우고, 서버의 대화 기억도 그 말을 보내기 전으로 되돌린다.
+// 지운 말(입력창에 다시 채워 고쳐 쓸 수 있게)을 돌려준다. 취소할 게 없으면 null
+export function cancelMessage() {
+  const active = findConversation(data.activeId)
+  const controller = active ? pendingControllers.get(active.id) : null
+  if (!active || !controller) return null
+  const last = active.messages[active.messages.length - 1]
+  if (last?.role !== 'user') return null // 인사말을 기다리는 중이면 취소할 말이 없다
+
+  controller.abort()
+  pendingControllers.delete(active.id)
+  pendingSince.delete(active.id)
+  patchConversation(active.id, (c) => {
+    const messages = c.messages.slice(0, -1)
+    // 이 말이 첫 질문이라 대화 제목이 됐다면 제목도 되돌린다
+    return { ...c, messages, title: messages.some((m) => m.role === 'user') ? c.title : NEW_CHAT_TITLE }
+  })
+  commit()
+  if (active.sessionId) cancelChatMessage(active.sessionId).catch(() => {})
+  return last.content
 }
 
 // 사용자가 말을 걸지 않은(인사말뿐인) 대화는 목록에 남기지 않고 정리한다
@@ -235,13 +269,13 @@ export function startChat() {
   purgeExpired()
   const active = findConversation(data.activeId)
   if (!active) createConversation()
-  else if (active.messages.length === 0 && !pendingIds.has(active.id)) request(active.id, '')
+  else if (active.messages.length === 0 && !pendingSince.has(active.id)) request(active.id, '')
 }
 
 export function sendMessage(text) {
   const message = text.trim()
   const active = findConversation(data.activeId)
-  if (!message || !active || pendingIds.has(active.id)) return
+  if (!message || !active || pendingSince.has(active.id)) return
   patchConversation(active.id, (c) => ({
     ...c,
     // 대화 제목은 첫 질문의 앞부분

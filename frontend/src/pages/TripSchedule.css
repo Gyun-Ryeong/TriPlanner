@@ -83,6 +83,17 @@
   cursor: not-allowed;
 }
 
+/* 일부 구간만 갈 수 없을 때 '그 구간만 빼고 안내할까요?' 한 줄 질문 */
+.trip-schedule__route-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .trip-schedule__actions-note {
   font-size: 12px;
   color: var(--color-text-muted);
