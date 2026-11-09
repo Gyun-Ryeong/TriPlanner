@@ -188,6 +188,72 @@ class ChatNewsTests(unittest.TestCase):
         self.assertEqual(r["stage"], "planned")
 
 
+class SafetyNewsTests(unittest.TestCase):
+    ITEMS = [
+        news("인천 부평서 음주운전 차량 가로등 들이받아", "인천 부평경찰서는 음주운전 혐의로 운전자를 입건했다", 3, "http://a"),
+        news("인천 연수구 상가 화재…2명 부상", "인천 연수구 상가에서 불이 나 소방당국이 진화했다", 10, "http://b"),
+        news("명탐정 코난 신작 극장판 인천 상영", "인천 극장에서 범죄 추리 영화 코난이 개봉한다", 2, "http://c"),   # 영화 기사
+        news("드라마 속 인천 범죄 조직 화제", "인천을 배경으로 한 범죄 드라마 시청률 상승", 2, "http://d"),      # 드라마 기사
+        news("부산 해운대 폭행 사건 피의자 검거", "부산경찰청은 피의자를 검거했다", 2, "http://e"),             # 다른 지역
+        news("인천 맛집 베스트 10", "인천 맛집을 소개한다", 1, "http://f"),                                    # 사건 아님
+        news("인천 도심 절도 사건 피의자 구속", "인천 남동경찰서는 상습 절도 피의자를 구속했다", 70, "http://g"),  # 두 달 지남
+    ]
+
+    def test_parse_marks_crime_questions_as_safety(self):
+        from travel.news import parse_news_request as p
+        for q in ("인천 범죄 뉴스", "인천 범죄 사건사고 알려줘", "인천 여행 가는데 알아야 할 범죄 정보"):
+            r = p(q)
+            self.assertTrue(r["safety"], q)
+            self.assertEqual(r["sido"], "인천")
+        self.assertFalse(p("성남 야외공연장 뉴스")["safety"])
+        self.assertFalse(p("성남시 요즘 소식")["safety"])
+
+    def test_pick_keeps_only_recent_real_incidents_in_the_region(self):
+        from travel.news import pick_safety
+        titles = [i["title"] for i in pick_safety(self.ITEMS, "인천")]
+        self.assertEqual(titles, ["인천 부평서 음주운전 차량 가로등 들이받아", "인천 연수구 상가 화재…2명 부상"])
+
+    def test_any_region_name_filters_to_that_region_only(self):
+        from travel.news import pick_safety
+        items = [news("성남 중원구 상가 화재…인명피해 없어", "성남 소방 당국", 1), news("부산 영도 주택 화재", "부산 소방", 1),
+                 news("춘천소방서 어린이 화재 안전교육 실시", "춘천", 1), news("제주 건입동서 SUV 식당 돌진…3명 부상", "제주 경찰", 1),
+                 news("서울 문화재단 공연", "성남 소식 화재", 1)]                       # '문화재단'의 '화재'는 사건 아님
+        self.assertEqual([i["title"] for i in pick_safety(items, "성남")], ["성남 중원구 상가 화재…인명피해 없어"])
+        self.assertEqual(len(pick_safety(items, "부산")), 1)
+        self.assertEqual([i["title"] for i in pick_safety(items, "제주")], ["제주 건입동서 SUV 식당 돌진…3명 부상"])
+        self.assertEqual(pick_safety(items, "춘천"), [])                             # 교육 행사는 사건이 아님
+
+    def test_answer_has_links_and_empty_message(self):
+        from travel.news import render_safety
+        text, views = render_safety("인천", self.ITEMS[:2])
+        self.assertTrue(text.startswith("## 인천 최근 사건·사고 소식"))
+        self.assertIn("[기사 보기](http://a)", text)
+        self.assertEqual(len(views), 2)
+        self.assertIn("찾지 못했어요", render_safety("인천", [])[0])
+
+    def test_chat_routes_and_never_searches_the_bare_keyword(self):
+        import travel.chat as chat
+        queries = []
+
+        def fake_search(query, display=10, sort="date"):
+            queries.append(query)
+            return list(self.ITEMS)
+
+        with patch("travel.news.search_news", side_effect=fake_search), \
+                patch.object(chat, "chat_json_messages", side_effect=AssertionError("AI 불필요")):
+            session = chat.ChatSession()
+            for q in ("인천 범죄 뉴스", "인천 사건사고 알려줘"):
+                self.assertEqual(chat.detect_intent(q, chat.ChatSession()), "news", q)
+            r = chat.handle_message(session, "인천 범죄 뉴스", today=TODAY, ranker=__import__("tests.test_offline", fromlist=["x"]).FakeRanker())
+        self.assertEqual(len(r["news"]), 2)
+        self.assertTrue(all(q.startswith("인천 ") for q in queries), queries)   # 지역 없는 '범죄' 단독 검색 금지
+        self.assertNotIn("코난", r["reply"])
+
+    def test_crime_free_plan_request_stays_a_plan(self):
+        import travel.chat as chat
+        self.assertEqual(chat.detect_intent("범죄 걱정 없는 인천 2박 3일 일정 짜줘", chat.ChatSession()), "plan")
+
+
 class RecommendWithFoodTests(unittest.TestCase):
     def test_general_recommendation_includes_a_food_category_but_sights_only_does_not(self):
         from tests.test_chat import ListAnswerTests

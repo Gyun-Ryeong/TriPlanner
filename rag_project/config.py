@@ -112,5 +112,6 @@ ENDPOINTS = {
     "traffic": "https://apis.data.go.kr/1613000/TrafficVolumeService/getTrafficVolumeList",
     # 네이버 검색/검색어 트렌드: NAVER API HUB
     "naver_news_hub": "https://naverapihub.apigw.ntruss.com/search/v1/news",
-    "naver_datalab_hub": "https://naverapihub.apigw.ntruss.com/search-trend/v1/search",
+    "naver_local_hub": "https://naverapihub.apigw.ntruss.com/search/v1/local",  # 지역(장소) 검색: 사용자가 말한 카페·식당·숙소 위치 찾기
+    "naver_datalab_hub":"https://naverapihub.apigw.ntruss.com/search-trend/v1/search",
 }
