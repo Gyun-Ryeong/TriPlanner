@@ -82,6 +82,7 @@ python -m streamlit run chat_app.py        # 채팅 화면 → http://localhost:
 | 오프라인 테스트 | `python -m unittest discover -s tests -v` | – | 없음 | 로직 검증 (네트워크·키 불필요) |
 | API 키 진단 | `python diagnose_api.py [tour\|weather\|air\|naver\|ollama]` | – | 키 | 어느 API가 왜 실패하는지 원문 표시 |
 | 단계별 점검 | `python check_setup.py [ollama\|apis\|vector\|e2e\|travel\|chat]` | – | 단계별 상이 | 연결 확인, `chat`은 실제 대화 1회 + 소요 시간 |
+| 장소 벡터 DB 채우기 | `python build_vector_db.py [시도...]` | – | 키 | 전국 장소를 `chroma_db/` 에 미리 저장 (아래 4) 참고) |
 
 > Streamlit 화면을 두 개 동시에 띄우려면 포트를 바꾸세요: `python -m streamlit run travel_app.py --server.port 8502`
 
@@ -113,6 +114,22 @@ python diagnose_api.py                    # ② 키·API (어느 API가 왜 실�
 python check_setup.py ollama              # ③ Ollama 연결
 python check_setup.py chat                # ④ 대화형 플래너 전체 (실제 API + Ollama, 단계별 소요 시간)
 ```
+
+### 4) 장소 벡터 DB (ChromaDB)
+
+전국 관광지·음식점 등을 `chroma_db/` 폴더에 미리 저장해 두면, 일정을 짤 때 TourAPI를 부르지 않고 DB에서 꺼내 씁니다.
+DB에 없는 지역은 지금처럼 TourAPI로 받고, 받은 결과를 DB에 저장합니다 (쓰면서 채워짐). 축제는 날짜가 자주 바뀌어 저장하지 않습니다.
+
+```bash
+python build_vector_db.py                  # 전국 (이미 넣은 시군구는 건너뜀, 멈춰도 다시 실행하면 이어서)
+python build_vector_db.py 전북 강원         # 원하는 시도만
+python build_vector_db.py --stats           # 저장된 장소 수
+python build_vector_db.py --search "아이랑 갈 실내 박물관" 부산   # DB에서 바로 검색
+```
+
+- TourAPI 호출: 시군구 하나에 1~2번, 전국 300번 안팎. 30일(`PLACE_DB_MAX_AGE_DAYS`)이 지난 지역은 다시 받아 새로 고칩니다.
+- `chroma_db/` 는 git에 올리지 않습니다. 팀원은 각자 위 명령으로 만듭니다.
+- 끄려면 `.env` 에 `PLACE_DB_ENABLED=off` (그러면 예전처럼 TourAPI만 씀).
 
 ---
 

@@ -84,6 +84,75 @@ def _filter_by_sido_addr(places: list[dict], sido: str) -> list[dict]:
 
 
 WANTED_TYPES = {"12", "14", "15", "25", "28", "32", "38", "39"}  # 관광지·문화시설·축제·여행코스·레포츠·숙박·쇼핑·음식점
+SIDO_TYPES = ["12", "14", "28", "39"]  # 시도 단위로 받을 때의 유형
+
+
+def sido_of_place(place: dict, sido: str, shared: bool) -> str:
+    """여러 시도가 한 코드를 함께 쓸 때(광주·전남) 주소로 그 장소의 시도를 정한다."""
+    if not shared:
+        return sido
+    addr = place.get("addr", "")
+    for s, info in SIDO.items():
+        if any(t in addr for t in [s] + info["aliases"]):
+            return s
+    return sido
+
+
+def _area_places(sido: str, code: str, scode: str, shared: bool) -> list[dict]:
+    """
+    한 시군구의 장소. 벡터 DB에 최근 것이 있으면 DB에서, 없으면 TourAPI에서 받아 DB에 저장한다.
+    TourAPI가 실패하면 오래된 DB 내용이라도 쓴다.
+    """
+    from travel.place_db import get_db
+    db = get_db()
+    if db is not None:
+        try:
+            if db.is_fresh(code, scode):
+                stored = db.get_places(code, scode)
+                if stored:
+                    return stored
+        except Exception:
+            db = None  # DB 문제는 TourAPI로 넘어간다
+    try:
+        got = get_tourism_info(l_dong_regn_cd=code, l_dong_signgu_cd=scode, num_rows=TOUR_AREA_ROWS)
+    except Exception:
+        if db is not None and db.region_age_days(code, scode) is not None:
+            stored = db.get_places(code, scode)
+            if stored:
+                return stored
+        raise
+    if db is not None and got:
+        try:
+            db.put_region(code, scode, [p for p in got if p["content_type_id"] in WANTED_TYPES],
+                          lambda p: sido_of_place(p, sido, shared))
+        except Exception:
+            pass  # 저장 실패는 다음 요청에서 다시 시도
+    return got
+
+
+def _db_sido_places(sido: str, code: str, shared: bool) -> list[dict]:
+    """시도의 모든 시군구가 벡터 DB에 최근 것으로 있으면, 유형별 최근 수정순 TOUR_ROWS_PER_TYPE곳. 아니면 [].
+    (광주·전남처럼 코드를 함께 쓰면 그 시도 몫의 시군구만 본다)"""
+    from travel.place_db import get_db
+    db = get_db()
+    if db is None:
+        return []
+    try:
+        from collectors.tourism import fetch_ldong_sigungu
+        names = fetch_ldong_sigungu(code)
+        if shared:
+            from travel.gazetteer import _owners
+            sharing = [s for s in SIDO if resolve_ldong(s)[0] == code]
+            names = {n: c for n, c in names.items() if sido in _owners(n, sharing)}
+        codes = list(names.values())
+        if not codes or not all(db.is_fresh(code, c) for c in codes):
+            return []
+        out = []
+        for t in SIDO_TYPES:
+            out += db.get_places(code, types={t}, sido=sido if shared else None)[:TOUR_ROWS_PER_TYPE]
+        return out
+    except Exception:
+        return []
 
 
 def _collect_candidates(sido: str, start: date, end: date, include_food: bool, area: str):
@@ -105,7 +174,7 @@ def _collect_candidates(sido: str, start: date, end: date, include_food: bool, a
         sigungu = resolve_sigungu(sido, area)
         for name, scode in sigungu:
             try:
-                got = get_tourism_info(l_dong_regn_cd=code, l_dong_signgu_cd=scode, num_rows=TOUR_AREA_ROWS)
+                got = _area_places(sido, code, scode, shared)
                 places += [p for p in got if p["content_type_id"] in WANTED_TYPES]
             except Exception as e:
                 warnings.append(f"관광정보({name}) 조회 실패: {type(e).__name__}: {str(e)[:120]}")
@@ -114,7 +183,7 @@ def _collect_candidates(sido: str, start: date, end: date, include_food: bool, a
             warnings.append(f"'{area}' 시군구({', '.join(n for n, _ in sigungu)})에서 장소를 받지 못해 {sido} 전체에서 찾아봤습니다.")
 
     if not places:
-        types = ["12", "14", "28", "39"]
+        types = SIDO_TYPES
 
         def fetch(t, **kw):
             return get_tourism_info(content_type_id=t, num_rows=TOUR_ROWS_PER_TYPE, **kw)
@@ -133,7 +202,11 @@ def _collect_candidates(sido: str, start: date, end: date, include_food: bool, a
                         errs.append(f"관광정보(타입 {t}) 조회 실패: {type(e).__name__}: {str(e)[:120]}")
             return got, errs, counts
 
-        places, errs, counts = run_all(l_dong_regn_cd=code)
+        stored = _db_sido_places(sido, code, shared)
+        if stored:  # 시도 전체가 벡터 DB에 있으면 TourAPI를 부르지 않는다
+            places, errs, counts = stored, [], {}
+        else:
+            places, errs, counts = run_all(l_dong_regn_cd=code)
         tried = f"lDongRegnCd={code} → {counts}"
         if not places and sido in LEGACY_AREA_CODE:
             legacy, errs2, counts2 = run_all(area_code=LEGACY_AREA_CODE[sido])

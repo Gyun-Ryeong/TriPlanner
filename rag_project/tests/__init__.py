@@ -15,3 +15,5 @@ os.environ["OVERVIEW_CACHE_PATH"] = os.path.join(_tmp, "overview.json")
 os.environ["EMBED_CACHE_PATH"] = os.path.join(_tmp, "embed.npz")
 os.environ["GAZETTEER_CACHE_PATH"] = os.path.join(_tmp, "gazetteer.json")
 os.environ["LDONG_CACHE_PATH"] = os.path.join(_tmp, "ldong.json")
+os.environ["CHROMA_PERSIST_DIR"] = os.path.join(_tmp, "chroma")
+os.environ["PLACE_DB_ENABLED"] = "off"  # 기존 테스트는 TourAPI 가짜 응답을 쓴다. 벡터 DB는 test_place_db.py 에서 따로 켠다

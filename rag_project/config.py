@@ -49,8 +49,13 @@ EMBEDDING_MODEL_NAME = os.getenv(
     "EMBEDDING_MODEL_NAME", "paraphrase-multilingual-MiniLM-L12-v2"
 )
 CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db")
+# 임베딩을 돌리는 방식. onnx = PyTorch 없이 ONNX Runtime (메모리 적게, 처음 한 번 모델 파일 내려받음) / torch = 예전 방식
+EMBEDDING_BACKEND = os.getenv("EMBEDDING_BACKEND", "onnx").strip().lower()
 # 장소 임베딩을 저장해 두는 파일. 처음 본 장소만 계산하므로 두 번째 요청부터 후보 검색이 거의 즉시 끝납니다.
 EMBED_CACHE_PATH = os.getenv("EMBED_CACHE_PATH", "./cache/place_embeddings.npz")
+# 장소 벡터 DB (travel/place_db.py). 켜면 저장된 지역은 TourAPI를 부르지 않고 DB에서 꺼내 쓴다. 채우기: python build_vector_db.py
+PLACE_DB_ENABLED = os.getenv("PLACE_DB_ENABLED", "on").strip().lower() not in ("off", "false", "0", "")
+PLACE_DB_MAX_AGE_DAYS = float(os.getenv("PLACE_DB_MAX_AGE_DAYS", "30"))  # 이보다 오래된 지역은 TourAPI로 다시 받아 새로 고침
 
 # ── 검색 시 반환할 문서 개수 ──────────────────────────────────────────
 TOP_K = int(os.getenv("TOP_K", "5"))

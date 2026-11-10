@@ -84,6 +84,23 @@ def _keyword_rank(places: list[dict], query: str) -> list[dict]:
     return sorted(places, key=lambda p: -len(q & set((p["title"] + p["addr"]).replace(" ", ""))))
 
 
+def _prime_from_db(ranker, items: list[tuple[str, str]]) -> None:
+    """벡터 DB에 저장된 장소는 벡터를 DB에서 가져와 다시 계산하지 않는다 (문장이 같을 때만)."""
+    if not hasattr(ranker, "prime"):
+        return
+    try:
+        from travel.place_db import get_db, text_hash
+        db = get_db()
+        if db is None:
+            return
+        stored = db.vectors([k for k, _ in items])
+        hit = {f"{k}|{text_hash(t)}": stored[k][1] for k, t in items if k in stored and stored[k][0] == text_hash(t)}
+        if hit:
+            ranker.prime(hit)
+    except Exception:
+        pass  # DB 문제는 무시하고 평소처럼 계산
+
+
 def rank_places(places: list[dict], sido: str, query: str, ranker=None) -> list[dict]:
     """
     취향(query)과 유사한 순서로 정렬. 한 번 계산한 장소 임베딩은 파일에 저장해 재사용합니다.
@@ -94,7 +111,9 @@ def rank_places(places: list[dict], sido: str, query: str, ranker=None) -> list[
     by_key = {(p["content_id"] or p["title"]): p for p in places}
     try:
         ranker = ranker or get_ranker()
-        order = ranker.rank([(k, place_text(p, sido)) for k, p in by_key.items()], query)
+        items = [(k, place_text(p, sido)) for k, p in by_key.items()]
+        _prime_from_db(ranker, items)
+        order = ranker.rank(items, query)
         return [by_key[k] for k in order]
     except Exception:
         return _keyword_rank(places, query)

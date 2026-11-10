@@ -26,7 +26,8 @@ from collectors.tourism import enrich_intro
 from llm.ollama_client import LAST_STATS, chat_json_messages
 from travel.conditions import build_day_conditions, display_line, prompt_line
 from travel.context import enrich, gather_raw, rank_places, select_candidates
-from travel.dates import WD, fmt_korean, fmt_md, parse_iso, parse_trip_dates
+from travel.dates import (WD, date_in_month, day_of_month, fmt_korean, fmt_md, normalize_casual, parse_iso,
+                          parse_trip_dates)
 from travel.geo import _coord, district_of, straight_km
 from travel.gazetteer import METRO, ambiguous_regions, lookup_in_sido, lookup_regions
 from travel.lists import answer_list
@@ -67,7 +68,7 @@ ABOUT_REPLY = "본 서비스는 한국관광공사 TourAPI 및 최신 위치 데
 # 요청 유형 판별 (일정 / 단발 여행지 추천 / 단발 맛집·카페)
 PLAN_RE = re.compile(r"일정|코스|계획|플랜|스케줄|\d+\s*박|\d+\s*일\s*(?:간|동안|여행)|짜\s*줘")
 FOOD_RE = re.compile(r"맛집|식당|밥집|음식점|먹거리|먹을|카페|커피|디저트|브런치|술집")
-RECO_RE = re.compile(r"추천|가볼\s*만한|가볼만한|명소|관광지|볼거리|놀거리|구경|데이트\s*장소|갈\s*만한|핫플|여행지")
+RECO_RE = re.compile(r"어디가\s*좋|어디\s*갈까|어디\s*가지|어디\s*가면\s*좋|추천|가볼\s*만한|가볼만한|명소|관광지|볼거리|놀거리|구경|데이트\s*장소|갈\s*만한|핫플|여행지")
 ASK_RE = re.compile(r"알려|추천|보여|찾아|어디|뭐\s*있|뭐가\s*있|있을까|가볼|\?")
 STAY_RE = re.compile(r"숙박|숙소|호텔|펜션|리조트|모텔|게스트하우스|한옥\s*스테이|민박|묵을|잘\s*곳")
 FEST_RE = re.compile(r"축제|행사|공연|페스티벌|이벤트")
@@ -84,7 +85,7 @@ LIST_INTENTS = ("recommend", "food", "stay", "festival", "course")
 MODIFY_RE = re.compile(r"넣어|추가|바꿔|빼|변경|수정|교체|대신|다시|늘려|줄여")
 
 CHANGE_RE = re.compile(r"(바꿔|바꾸|변경|옮겨|미뤄|당겨|출발|떠나|말고|대신|로 갈|으로 갈|로 가|으로 가|갈래|가고 싶|다시 짜|새로)")
-DATE_HINT_RE = re.compile(r"\d|오늘|내일|모레|글피|주말|다음|이번|담주|요일|당일|이틀|사흘|나흘")
+DATE_HINT_RE = re.compile(r"\d|오늘|내일|낼|모레|글피|주말|다음|이번|저번|지난|담주|담달|요일|욜|당일|이틀|사흘|나흘|크리스마스|성탄")
 RESET_RE = re.compile(r"(처음부터|새로 시작|초기화|리셋|다시 시작)")
 ACTIVITY_RE = re.compile(r"액티비티|레포츠|체험|서핑|요트|낚시|등산|스포츠|래프팅|패러|스키|카트")
 EMPTY_ANSWER_RE = re.compile(r"^(상관\s*없|없음|없어|없습니다|모름|딱히|x$|-$)")
@@ -114,7 +115,7 @@ EXTRACT_SYSTEM = """너는 여행 플래너 챗봇의 '정보 추출기'다. 사
 # ── 세션 ──────────────────────────────────────────────────────────────
 def _empty_slots() -> dict:
     return {"region": "", "area": "", "start_date": "", "end_date": "", "nights": None,
-            "party": "", "preferences": "", "avoid": ""}
+            "party": "", "preferences": "", "avoid": "", "date_hint": None}
 
 
 def _province_city(text: str) -> tuple[str, str] | None:
@@ -216,11 +217,12 @@ def _leftover(text: str, today: date) -> str:
     메시지에서 지역·날짜·기간 표현을 지우고 남은 말. 취향이 들어 있는지 판단하는 데 씁니다.
     예) "내일 당일치기 조용히 걷고 싶어요" → "조용히 걷고 싶어요",  "부산 가려고요" → "가려고요"
     """
-    work = parse_trip_dates(text, today)["rest"]  # 날짜 표현은 이미 공백으로 지워짐 (길이 유지)
-    for a, b, *_ in _mentions(text):
+    work = parse_trip_dates(text, today)["rest"]  # 날짜 표현은 이미 공백으로 지워짐 (줄임말을 바꾼 문장 기준)
+    for a, b, *_ in _mentions(normalize_casual(text, today)):
         work = work[:a] + " " * (b - a) + work[b:]
     work = re.sub(r"\d{1,2}\s*박(?:\s*\d{1,2}\s*일)?|당일치기|당일|\d{1,2}\s*일\s*(?:간|동안|일정|여행|코스)|\d{1,2}\s*주(?:일)?\s*(?:간|동안)?|일주일|한\s*달|이틀|사흘|나흘|닷새|엿새|이레|열흘|보름", " ", work)
-    return re.sub(r"\s+", " ", work).strip()
+    work = re.sub(r"\s+", " ", work).strip()
+    return re.sub(r"^(?:에서|에|부터|까지|으로|로)\s+", "", work)  # "주말에 바다" → "바다 …" (날짜를 지우고 남은 조사)
 
 
 def _heuristic_party(text: str) -> str:
@@ -300,6 +302,33 @@ def _apply_extraction(session: ChatSession, text: str, llm: dict | None, today: 
     if allow_change:
         rd = parse_trip_dates(text, today)
         s_new, e_new, n_new = rd["start"], rd["end"], rd["nights"]
+        hint = s.get("date_hint") or {}
+        if rd.get("rough", {}) and rd["rough"].get("past") and not s_new:
+            issues.append("past_date")  # '저번 주', '지난달'만 말함 → 이미 지난 때
+        elif rd.get("rough") and not s_new:
+            s["date_hint"] = hint = rd["rough"]  # '다음달', '다다음주'만 말함 → 며칠·무슨 요일인지 되묻는다
+        elif hint and not s["start_date"] and not re.search(r"\d\s*월|이번|다음|주\s*말|오늘|내일|모레|글피", text):
+            plain = re.sub(r"\d{1,2}\s*박\s*\d{1,2}\s*일", " ", text)  # "2박3일"의 "3일"은 날짜가 아님
+            dm = re.search(r"(?<!\d)(\d{1,2})\s*일(?!\s*(?:차|째|간|동안|일정|여행))", plain)
+            one = re.fullmatch(r"\s*([월화수목금토일])\s*", text)
+            if "month" in hint and dm:
+                # "12월" → "5일(부터)" = 12월 5일
+                first = date_in_month(hint["month"], int(dm.group(1)), today)
+                if first:
+                    if s_new and e_new:
+                        e_new = first + (e_new - s_new)
+                    s_new = first
+                    if not re.search(r"\d+\s*박|당일", text):
+                        n_new = None
+            elif "week" in hint and one:
+                s_new = parse_iso(hint["week"]) + timedelta(days=WD.index(one.group(1)))  # "토" 한 글자 답
+            elif "week" in hint and s_new:
+                # "다음주" → "금요일" = 그 주 금요일
+                shift = (parse_iso(hint["week"]) + timedelta(days=s_new.weekday())) - s_new
+                s_new, e_new = s_new + shift, (e_new + shift if e_new else None)
+        if rd.get("bare_day") and s["nights"] is not None and not s["start_date"] and not s_new and not re.search(r"\d+\s*박", text):
+            # 기간은 이미 알고 출발일을 묻는 중에 "20일"이라고 답하면 기간이 아니라 날짜
+            s_new, n_new = day_of_month(rd["bare_day"], today), None
         if not (s_new or e_new) and DATE_HINT_RE.search(text):
             ls, le = parse_iso(llm.get("start_date")), parse_iso(llm.get("end_date"))
             if ls and ls >= today:  # LLM이 계산한 과거 날짜는 환각일 가능성이 커서 무시
@@ -337,6 +366,8 @@ def _apply_extraction(session: ChatSession, text: str, llm: dict | None, today: 
             end = None
         s["start_date"] = start.isoformat() if start else ""
         s["end_date"] = end.isoformat() if end else ""
+        if start:
+            s["date_hint"] = None
         if start and end:
             s["nights"] = (end - start).days
 
@@ -363,6 +394,8 @@ def _missing(s: dict) -> list[str]:
 
 
 def _label(s: dict) -> str:
+    if s["area"] == s["region"]:  # "제주 제주" → "제주"
+        return s["region"]
     return f"{s['region']} {s['area']}".strip()
 
 
@@ -387,6 +420,14 @@ def _ask_missing(s: dict) -> str:
         return "어디로 떠나고 싶으세요? 지역(예: 부산, 제주, 강릉)과 날짜를 알려주세요 😊"
     if not s["start_date"]:
         extra = f"{_date_phrase(s)} 일정이군요. " if s["nights"] is not None else ""
+        hint = s.get("date_hint") or {}
+        if "month" in hint:
+            m = hint["month"]
+            return f"{_label(s)} 좋아요! {extra}{m}월 며칠에 출발하실까요? (예: {m}월 5일, 20일부터)"
+        if "week" in hint:
+            mon = parse_iso(hint["week"])
+            return (f"{_label(s)} 좋아요! {extra}{fmt_md(mon)}~{fmt_md(mon + timedelta(days=6))} 주의 무슨 요일에 출발하실까요? "
+                    "(예: 금요일, 토일)")
         return f"{_label(s)} 좋아요! {extra}언제 출발하시나요? (예: 10월 10일, 이번 주말, 내일)"
     return f"{_label(s)}, {_date_phrase(s)}이군요. 몇 박 며칠로 다녀오실 예정인가요? (예: 2박 3일, 당일치기)"
 
