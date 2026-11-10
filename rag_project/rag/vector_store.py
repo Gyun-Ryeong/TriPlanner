@@ -11,15 +11,39 @@ from chromadb.utils import embedding_functions
 from config import EMBEDDING_MODEL_NAME, CHROMA_PERSIST_DIR, TOP_K
 
 
+class SharedEmbedding(embedding_functions.EmbeddingFunction):
+    """챗봇의 PlaceRanker 모델을 같이 쓴다 (같은 모델을 메모리에 두 번 올리지 않도록)"""
+
+    def __init__(self):
+        pass
+
+    def __call__(self, input):
+        from travel.embeddings import get_ranker
+        return [v.tolist() for v in get_ranker().embed_texts(list(input))]
+
+    @staticmethod
+    def name() -> str:
+        return "triplanner_shared"
+
+    def get_config(self) -> dict:
+        return {}
+
+    @staticmethod
+    def build_from_config(config: dict) -> "SharedEmbedding":
+        return SharedEmbedding()
+
+
 class VectorStore:
     def __init__(self, collection_name: str = "public_data_rag", persist: bool = True):
         if persist:
             self._client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
+            # 예전에 만든 디스크 컬렉션과 맞추기 위해 기존 방식 유지 (범용 챗봇 app.py 전용)
+            self._embed_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+                model_name=EMBEDDING_MODEL_NAME
+            )
         else:
             self._client = chromadb.EphemeralClient()
-        self._embed_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name=EMBEDDING_MODEL_NAME
-        )
+            self._embed_fn = SharedEmbedding()
         self._collection = self._client.get_or_create_collection(
             name=collection_name, embedding_function=self._embed_fn
         )

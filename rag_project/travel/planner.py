@@ -11,7 +11,7 @@ import re
 
 from travel.conditions import display_line
 from travel.geo import straight_km
-from travel.schedule import build_timeline
+from travel.schedule import build_timeline, stay_minutes
 
 PLAN_SYSTEM_PROMPT = """너는 한국 여행 플래너 챗봇이다. 사용자와 대화하듯 친근한 존댓말로 답한다.
 [여행 조건], [일자별 컨디션], [후보 장소], [지역 이슈 뉴스]에 있는 정보만 근거로 '날짜별로 방문할 장소와 순서'를 정한다.
@@ -221,12 +221,16 @@ def _place_view(p: dict) -> dict:
     }
 
 
-def hydrate_plan(plan: dict, cand_map: dict[str, dict], conditions: list[dict], restaurants: list[dict] | None = None) -> list[dict]:
+def hydrate_plan(plan: dict, cand_map: dict[str, dict], conditions: list[dict], restaurants: list[dict] | None = None,
+                 fixed_times: dict[str, tuple[int, int | None]] | None = None, base: dict | None = None) -> list[dict]:
     """
     일자별 시간표(장소·이동·식사)를 만들어 화면/API용 구조로 변환합니다.
     같은 음식점이 여러 날 반복되지 않도록 여행 전체에서 사용한 음식점을 기억합니다.
+    fixed_times: {장소 key(content_id 또는 제목): (시작 분, 끝 분 또는 None)} 사용자가 알려준 축제·장소 시간. 그 시각은 그대로 두고 나머지를 맞춥니다.
+    base: 사용자가 알려준 숙소. 매일 숙소에서 출발해 숙소로 돌아오는 동선으로 짭니다.
     """
     restaurants = restaurants or []
+    fixed_times = fixed_times or {}
     used_restaurants: set[str] = set()
     out = []
     for cond, day in zip(conditions, plan["days"]):
@@ -234,12 +238,16 @@ def hydrate_plan(plan: dict, cand_map: dict[str, dict], conditions: list[dict], 
         for it in day["items"]:
             p = cand_map.get(it["candidate_id"]) if it["candidate_id"] else None
             if p:  # 후보 없는 항목(식사 등 자유 문구)은 시간표에서 시스템이 채우므로 버린다
-                day_items.append({"place": p, "note": clean_text(it["note"])})
+                d_item = {"place": p, "note": clean_text(it["note"])}
+                fx = fixed_times.get(p.get("content_id") or p.get("title"))
+                if fx:
+                    d_item["fixed"] = (fx[0], fx[1] if fx[1] else fx[0] + stay_minutes(p))
+                day_items.append(d_item)
         events = []
-        for e in build_timeline(day_items, restaurants, used_restaurants):
+        for e in build_timeline(day_items, restaurants, used_restaurants, base):
             ev = {"kind": e["kind"], "start": e["start"], "end": e["end"]}
             if e["kind"] == "visit":
-                ev.update(place=_place_view(e["place"]), note=e.get("note", ""))
+                ev.update(place=_place_view(e["place"]), note=e.get("note", ""), fixed=bool(e.get("fixed")))
             elif e["kind"] == "meal":
                 ev.update(label=e["label"], place=_place_view(e["place"]) if e["place"] else None)
             elif e["kind"] == "move":
@@ -253,7 +261,8 @@ def hydrate_plan(plan: dict, cand_map: dict[str, dict], conditions: list[dict], 
             "weather": cond["weather"], "air": cond["air"], "outdoor_ok": cond["outdoor_ok"],
             "bad_reasons": cond["bad_reasons"], "outdoor_count": sum(1 for v in visits if not v["place"]["indoor"]),
             "events": events,
-            "items": [{"start": v["start"], "end": v["end"], "note": v["note"], "place": v["place"]} for v in visits],
+            "items": [{"start": v["start"], "end": v["end"], "note": v["note"], "place": v["place"], "fixed": v.get("fixed", False)}
+                      for v in visits],
         })
     return out
 
@@ -264,7 +273,8 @@ def _render_event(e: dict) -> list[str]:
         p = e["place"]
         tag = "🏠 실내" if p["indoor"] else "🌳 실외"
         note = f" — {e['note']}" if e.get("note") else ""
-        lines = [f"- **{span}** | **{p['name']}** ({p['type']} · {tag}){note}"]
+        fixed = " ⏰ 시간 지정" if e.get("fixed") else ""
+        lines = [f"- **{span}** | **{p['name']}** ({p['type']} · {tag}){fixed}{note}"]
         if p["address"]:
             lines.append(f"  - 📍 위치: {p['address']}")
         return lines

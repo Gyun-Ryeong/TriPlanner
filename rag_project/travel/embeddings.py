@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 
-from config import EMBED_CACHE_PATH, EMBEDDING_MODEL_NAME
+from config import EMBED_CACHE_PATH, EMBEDDING_BACKEND, EMBEDDING_MODEL_NAME
 
 
 class PlaceRanker:
@@ -21,14 +21,23 @@ class PlaceRanker:
         self._path = Path(cache_path)
         self._model = None
         self._vecs: dict[str, np.ndarray] = {}
+        self._extra: dict[str, np.ndarray] = {}  # 벡터 DB에서 받은 벡터 (파일 캐시와 따로 둔다)
         self._cache_loaded = False
         self._lock = threading.RLock()
 
     # ── 모델 / 캐시 ─────────────────────────────────────────────────
     def _load_model(self) -> None:
-        if self._model is None:
-            from sentence_transformers import SentenceTransformer  # 무거워서 필요할 때만 import
-            self._model = SentenceTransformer(self._model_name)
+        if self._model is not None:
+            return
+        if EMBEDDING_BACKEND == "onnx":
+            try:
+                from travel.onnx_embedder import OnnxEmbedder  # PyTorch 없이 돌려 메모리를 아낀다
+                self._model = OnnxEmbedder(self._model_name)
+                return
+            except Exception:
+                pass  # 내려받기 실패 등 → 예전 방식(PyTorch)으로
+        from sentence_transformers import SentenceTransformer  # 무거워서 필요할 때만 import
+        self._model = SentenceTransformer(self._model_name)
 
     def _embed(self, texts: list[str]) -> np.ndarray:
         self._load_model()
@@ -64,6 +73,17 @@ class PlaceRanker:
             self._load_cache()
             self._load_model()
 
+    def embed_texts(self, texts: list[str]) -> np.ndarray:
+        """문장 목록의 벡터 (캐시하지 않음, 벡터 DB 저장용)"""
+        with self._lock:
+            return self._embed(texts)
+
+    def prime(self, vecs: dict[str, np.ndarray]) -> None:
+        """벡터 DB에 이미 있는 벡터를 메모리에 올려 다시 계산하지 않게 한다 (파일 캐시에는 저장하지 않음)"""
+        with self._lock:
+            for k, v in vecs.items():
+                self._extra[k] = np.asarray(v, dtype=np.float32)
+
     # ── 순위 ────────────────────────────────────────────────────────
     def rank(self, items: list[tuple[str, str]], query: str) -> list[str]:
         """
@@ -79,13 +99,13 @@ class PlaceRanker:
             self._load_cache()
             # 문장이 바뀌면(예: 소개글 추가) 다시 계산되도록 키에 문장 해시를 넣는다
             keyed = [(f"{i}|{hashlib.sha1(t.encode('utf-8')).hexdigest()[:10]}", i, t) for i, t in items]
-            missing = [(k, t) for k, _, t in keyed if k not in self._vecs]
+            missing = [(k, t) for k, _, t in keyed if k not in self._vecs and k not in self._extra]
             if missing:
                 for (k, _), v in zip(missing, self._embed([t for _, t in missing])):
                     self._vecs[k] = v
                 self._save_cache()
             q = self._embed([query])[0]
-            scores = np.stack([self._vecs[k] for k, _, _ in keyed]) @ q
+            scores = np.stack([self._vecs[k] if k in self._vecs else self._extra[k] for k, _, _ in keyed]) @ q
             return [keyed[i][1] for i in np.argsort(-scores, kind="stable")]
 
 

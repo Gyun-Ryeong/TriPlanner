@@ -71,6 +71,19 @@ def order_by_proximity(items: list[dict]) -> list[dict]:
     return ordered + without
 
 
+def order_from(base: dict, items: list[dict]) -> list[dict]:
+    """base(숙소 등)에서 가장 가까운 곳부터 차례로 가까운 곳을 잇는 순서. 좌표 없는 장소는 뒤에 그대로."""
+    with_c = [it for it in items if _coord(it["place"])]
+    without = [it for it in items if not _coord(it["place"])]
+    ordered, last, rest = [], base, list(with_c)
+    while rest:
+        nxt = min(rest, key=lambda it: straight_km(last, it["place"]) or 1e9)
+        ordered.append(nxt)
+        rest.remove(nxt)
+        last = nxt["place"]
+    return ordered + without
+
+
 def district_of(addr: str) -> str:
     """주소에서 시군구 부분을 뽑는다. '경기도 성남시 분당구 성남대로 550' → '성남시 분당구'"""
     toks = (addr or "").split()

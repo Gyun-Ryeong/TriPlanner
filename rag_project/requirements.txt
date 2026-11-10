@@ -7,3 +7,6 @@ streamlit
 fastapi
 uvicorn
 numpy
+onnxruntime
+tokenizers
+huggingface_hub
