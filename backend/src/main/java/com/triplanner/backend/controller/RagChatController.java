@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -39,6 +40,13 @@ public class RagChatController {
         validateSessionId(sessionId);
         ragChatService.cancel(sessionId);
         return ResponseEntity.noContent().build();
+    }
+
+    // 답을 기다리는 동안 챗봇이 지금 하는 일 (busy, step, elapsed). 화면이 1~2초마다 묻는다
+    @GetMapping("/{sessionId}/progress")
+    public ResponseEntity<JsonNode> progress(@PathVariable String sessionId) {
+        validateSessionId(sessionId);
+        return ResponseEntity.ok(ragChatService.progress(sessionId));
     }
 
     @DeleteMapping("/{sessionId}")

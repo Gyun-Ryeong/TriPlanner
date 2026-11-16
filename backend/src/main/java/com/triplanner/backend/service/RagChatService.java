@@ -1,6 +1,7 @@
 package com.triplanner.backend.service;
 
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.HashMap;
@@ -22,13 +23,16 @@ public class RagChatService {
 
     private final RestClient restClient;
     private final ChatbotErrorLogService errorLogService;
+    private final ChatProfileService profileService;
 
     public RagChatService(
             @Value("${rag.base-url}") String baseUrl,
             @Value("${rag.read-timeout-seconds}") long readTimeoutSeconds,
-            ChatbotErrorLogService errorLogService
+            ChatbotErrorLogService errorLogService,
+            ChatProfileService profileService
     ) {
         this.errorLogService = errorLogService;
+        this.profileService = profileService;
         // 일정 생성은 로컬 LLM 을 거쳐 수 분이 걸릴 수 있어 읽기 시간 제한을 넉넉히 둔다
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(5));
@@ -46,6 +50,7 @@ public class RagChatService {
         body.put("session_id", sessionId);
         body.put("message", message == null ? "" : message);
         body.put("debug", debug);
+        body.put("profile", profileOrEmpty(email));
 
         try {
             return restClient.post()
@@ -70,6 +75,15 @@ public class RagChatService {
             errorLogService.record(email, isTimeout(e) ? ChatbotErrorLogService.TIMEOUT : ChatbotErrorLogService.OTHER,
                     null, e.getMessage(), message);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "챗봇이 응답하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        }
+    }
+
+    // 회원이 저장한 여행으로 만든 취향 요약. 요약에 실패해도 대화는 그대로 진행한다
+    private Map<String, Object> profileOrEmpty(String email) {
+        try {
+            return email == null ? Map.of() : profileService.profileOf(email);
+        } catch (RuntimeException e) {
+            return Map.of();
         }
     }
 
@@ -114,6 +128,22 @@ public class RagChatService {
         } catch (RestClientException e) {
             // RAG 서버에 닿지 않으면 되돌릴 대화 기억도 없다
         }
+    }
+
+    // 답을 기다리는 동안 RAG 서버가 지금 하는 일 ("날씨를 모으고 있어요" 등). 서버에 닿지 않으면 처리 중이 아닌 것으로 답한다
+    public JsonNode progress(String sessionId) {
+        try {
+            JsonNode body = restClient.get()
+                    .uri("/chat/{sessionId}/progress", sessionId)
+                    .retrieve()
+                    .body(JsonNode.class);
+            if (body != null) {
+                return body;
+            }
+        } catch (RestClientException e) {
+            // 진행 상황은 보여주기용이라 실패해도 오류로 다루지 않는다
+        }
+        return JsonNodeFactory.instance.objectNode().put("busy", false).put("step", "").put("elapsed", 0);
     }
 
     public void reset(String sessionId) {
