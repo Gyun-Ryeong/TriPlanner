@@ -10,6 +10,7 @@ import {
   startChat,
   useRagChat,
 } from '../chat/chatStore.js'
+import { getChatProgress } from '../api/chat.js'
 import { BotIcon, CheckIcon, CopyIcon, SendIcon } from './Icons.jsx'
 import './ChatPanel.css'
 
@@ -200,10 +201,43 @@ function AssistantMessage({ content, debug, copyable }) {
   )
 }
 
-// 답변을 기다리는 동안 점 애니메이션과 경과 시간을 보여 준다.
+const PROGRESS_POLL_MS = 1500
+
+// 답변을 기다리는 동안 챗봇이 지금 하는 일을 1.5초마다 물어본다 ("날씨를 모으고 있어요" 등). 실패하면 조용히 넘어간다
+function useChatProgress(sessionId) {
+  const [step, setStep] = useState('')
+
+  useEffect(() => {
+    setStep('')
+    if (!sessionId) return undefined
+    let stopped = false
+    let controller = null
+    async function poll() {
+      controller = new AbortController()
+      try {
+        const progress = await getChatProgress(sessionId, controller.signal)
+        if (!stopped) setStep(progress?.busy ? (progress.step ?? '') : '')
+      } catch {
+        // 진행 상황은 보여주기용이라 실패해도 기본 문구를 보여준다
+      }
+    }
+    poll()
+    const timer = setInterval(poll, PROGRESS_POLL_MS)
+    return () => {
+      stopped = true
+      clearInterval(timer)
+      controller?.abort()
+    }
+  }, [sessionId])
+
+  return step
+}
+
+// 답변을 기다리는 동안 점 애니메이션, 지금 하는 일, 경과 시간을 보여 준다.
 // 경과 시간은 요청을 보낸 시각(since)에서 계산한다. 다른 대화에 갔다 와서 이 컴포넌트가 새로 만들어져도 이어서 센다
-function PendingMessage({ since, onCancel }) {
+function PendingMessage({ since, sessionId, onCancel }) {
   const [now, setNow] = useState(() => Date.now())
+  const step = useChatProgress(sessionId)
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000)
@@ -221,7 +255,7 @@ function PendingMessage({ since, onCancel }) {
           <i />
           <i />
         </span>
-        <span>답변을 준비하고 있어요 · {seconds}초</span>
+        <span>{step || '답변을 준비하고 있어요'} · {seconds}초</span>
         <p>일정을 만들 때는 1~3분 정도 걸릴 수 있어요.</p>
         {onCancel && (
           <button type="button" className="chat-panel__cancel" onClick={onCancel}>
@@ -235,7 +269,7 @@ function PendingMessage({ since, onCancel }) {
 
 export default function ChatPanel({ compact = false }) {
   const chatState = useRagChat()
-  const { messages, pending, pendingSince, activeId } = chatState
+  const { messages, pending, pendingSince, activeId, sessionId } = chatState
   const devMode = isDevModeActive(chatState)
   const [input, setInput] = useState('')
   const listRef = useRef(null)
@@ -324,6 +358,7 @@ export default function ChatPanel({ compact = false }) {
         {pending && (
           <PendingMessage
             since={pendingSince}
+            sessionId={sessionId}
             onCancel={messages[messages.length - 1]?.role === 'user' ? handleCancel : null}
           />
         )}

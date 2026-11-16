@@ -16,6 +16,11 @@ export function cancelChatMessage(sessionId) {
   return apiRequest(`/api/chat/${encodeURIComponent(sessionId)}/cancel`, { method: 'POST', token: authToken() })
 }
 
+// 답을 기다리는 동안 챗봇이 지금 하는 일: { busy, step: '날씨를 모으고 있어요' 등, elapsed }
+export function getChatProgress(sessionId, signal) {
+  return apiRequest(`/api/chat/${encodeURIComponent(sessionId)}/progress`, { token: authToken(), signal })
+}
+
 export function resetChat(sessionId) {
   return apiRequest(`/api/chat/${encodeURIComponent(sessionId)}`, { method: 'DELETE', token: authToken() })
 }
