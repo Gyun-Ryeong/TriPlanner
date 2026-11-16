@@ -155,6 +155,62 @@ class PlaceDB:
             self._save_regions()
         return len(ids)
 
+    def refresh_texts(self, ids: list[str] | None = None, batch: int = 2000, progress=None) -> int:
+        """
+        저장된 장소의 문장을 지금 규칙(place_text)으로 다시 만들고, 바뀐 것만 벡터를 다시 계산합니다.
+        TourAPI는 부르지 않습니다. (분류 이름·소개글을 문장에 넣도록 바꾼 뒤, 받아 둔 소개글이 늘었을 때)
+        Args:
+            ids: 이 장소들만 (None이면 전부)
+            progress(done, total): 진행 상황 알림
+        Returns: 벡터를 다시 계산한 장소 수
+        """
+        from travel.documents import place_text
+
+        with self._lock:
+            col = self._collection()
+            all_ids = list(dict.fromkeys(ids)) if ids is not None else col.get(include=[])["ids"]
+        changed = 0
+        for s in range(0, len(all_ids), batch):
+            part = all_ids[s:s + batch]
+            with self._lock:
+                got = col.get(ids=part, include=["metadatas"])
+                todo_ids, todo_docs, todo_metas = [], [], []
+                for i, m in zip(got["ids"], got["metadatas"]):
+                    try:
+                        text = place_text(json.loads(m["data"]), m.get("sido", ""))
+                    except Exception:
+                        continue
+                    th = text_hash(text)
+                    if th != m.get("th"):
+                        todo_ids.append(i)
+                        todo_docs.append(text)
+                        todo_metas.append({**m, "th": th})
+                if todo_ids:
+                    embs = [list(map(float, e)) for e in self._embed_texts(todo_docs)]
+                    col.update(ids=todo_ids, documents=todo_docs, metadatas=todo_metas, embeddings=embs)
+                    changed += len(todo_ids)
+            if progress:
+                progress(min(s + batch, len(all_ids)), len(all_ids))
+        return changed
+
+    def missing_overview_ids(self, types: tuple[str, ...], regn: str | None = None) -> list[str]:
+        """소개글을 아직 안 받은 장소 id (types 순서대로, 사진 있는 장소 먼저 = 대체로 유명한 곳)"""
+        from collectors.tourism import cached_overview
+
+        out = []
+        for t in types:
+            where = {"type": t} if not regn else {"$and": [{"type": t}, {"regn": regn}]}
+            with self._lock:
+                got = self._collection().get(where=where, include=["metadatas"])
+            rows = []
+            for i, m in zip(got["ids"], got["metadatas"]):
+                if cached_overview(i):
+                    continue
+                has_img = '"image": ""' not in m.get("data", "")
+                rows.append((not has_img, i))
+            out += [i for _, i in sorted(rows)]
+        return out
+
     # ── 조회 ──────────────────────────────────────────────────────────
     def get_places(self, regn: str, signgu: str | None = None, types: set[str] | None = None,
                    sido: str | None = None) -> list[dict]:

@@ -68,5 +68,8 @@ def evaluate_plan(days_view: list[dict], grounding: dict, source: str, timings: 
         "filled_day_rate": _round(sum(1 for v in visits if v) / len(visits)) if visits else None,
         "avg_visits_per_day": _round(sum(visits) / len(visits), 1) if visits else None,
         "place_type_count": len(types),
+        # 영업시간·휴무일: 휴무일에 들어간 방문지, 운영시간 밖에 도착하는 방문지 (상세정보를 받은 장소만 판단)
+        "closed_visits": sum(1 for d in days_view for e in d["events"] if e["kind"] == "visit" and e.get("closed")),
+        "out_of_hours_visits": sum(1 for d in days_view for e in d["events"] if e["kind"] == "visit" and e.get("warning")),
         "response_sec": total_sec,
     }

@@ -6,6 +6,8 @@
   python build_vector_db.py --force 부산     이미 있어도 다시 받기
   python build_vector_db.py --stats          저장된 장소 수 보기
   python build_vector_db.py --search "아이랑 갈 실내 박물관" 부산    DB에서 바로 검색해 보기
+  python build_vector_db.py --reembed        API 없이 문장(분류 이름·받아 둔 소개글)만 다시 만들어 벡터 갱신
+  python build_vector_db.py --overview 500 [부산]   소개글을 500곳 더 받고 그 장소 벡터 갱신 (관광지→문화시설→음식점 순)
 
 TourAPI 호출 수: 시군구 하나에 보통 1~2번 (전국 약 250개 시군구 → 300번 안팎). 개발 계정 하루 한도 안에 들어간다.
 임베딩 계산 때문에 전국은 수십 분 걸릴 수 있다.
@@ -14,7 +16,9 @@ import sys
 import time
 
 import config
-from collectors.tourism import fetch_ldong_sigungu, get_tourism_info
+from concurrent.futures import ThreadPoolExecutor
+
+from collectors.tourism import category_names, fetch_ldong_sigungu, get_overview, get_tourism_info, save_overviews
 from travel.gazetteer import _owners
 from travel.ldong import resolve_ldong
 from travel.pipeline import WANTED_TYPES
@@ -58,7 +62,63 @@ def sigungu_of(sido: str) -> tuple[str, dict[str, str]]:
     return code, names
 
 
+OVERVIEW_TYPES = ("12", "14", "39", "28", "38", "32")  # 관광지, 문화시설, 음식점, 레포츠, 쇼핑, 숙박
+
+
+def _progress(done: int, total: int) -> None:
+    print(f"  벡터 다시 계산 {done}/{total}", flush=True)
+
+
+def reembed() -> None:
+    _ensure_categories()
+    t0 = time.time()
+    n = PlaceDB().refresh_texts(progress=_progress)
+    print(f"문장이 바뀐 {n}곳의 벡터를 다시 계산했어요 ({time.time() - t0:.0f}초)")
+
+
+def fetch_overviews(limit: int, sido: str | None) -> None:
+    """소개글을 limit곳 받아 캐시에 넣고, 그 장소들 벡터를 다시 계산한다. (개발 계정 하루 한도 안에서 나눠 실행)"""
+    _ensure_categories()
+    db = PlaceDB()
+    regn = resolve_ldong(sido)[0] if sido else None
+    todo = db.missing_overview_ids(OVERVIEW_TYPES, regn)[:limit]
+    print(f"소개글을 받을 장소 {len(todo)}곳")
+    found, fails = {}, 0
+
+    def work(cid):
+        try:
+            return cid, get_overview(cid)
+        except Exception:
+            return cid, None
+
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        for k, (cid, ov) in enumerate(ex.map(work, todo), 1):
+            if ov is None:
+                fails += 1
+                if fails >= 20 and not found:
+                    print("계속 실패해서 멈춰요. (하루 호출 한도를 넘었을 수 있어요)")
+                    break
+                continue
+            found[cid] = ov or " "  # 소개글이 없는 장소도 다시 묻지 않게 표시
+            if k % 100 == 0:
+                print(f"  {k}/{len(todo)}")
+                save_overviews(found)
+    save_overviews(found)
+    print(f"소개글 {len(found)}곳 받음 (실패 {fails})")
+    n = db.refresh_texts(list(found), progress=_progress)
+    print(f"벡터 {n}곳 갱신")
+
+
+def _ensure_categories() -> None:
+    try:
+        n = len(category_names(fetch=True))
+        print(f"분류 코드표 {n}개")
+    except Exception as e:
+        print(f"분류 코드표를 받지 못했어요 ({type(e).__name__}). 분류 이름 없이 진행해요")
+
+
 def build(targets: list[str], force: bool) -> None:
+    _ensure_categories()
     db = PlaceDB()
     total_places = total_calls = fails = 0
     t0 = time.time()
@@ -103,7 +163,7 @@ def _summary(db: PlaceDB, places: int, calls: int, t0: float) -> None:
 
 
 def main(argv: list[str]) -> None:
-    if not config.PUBLIC_DATA_API_KEY and "--stats" not in argv and "--search" not in argv:
+    if not config.PUBLIC_DATA_API_KEY and not {"--stats", "--search", "--reembed"} & set(argv):
         print(".env 에 PUBLIC_DATA_API_KEY 가 없어요.")
         return
     if "--stats" in argv:
@@ -117,6 +177,15 @@ def main(argv: list[str]) -> None:
         regn = resolve_ldong(sido)[0] if sido else None
         for p in PlaceDB().search(query, regn, k=10):
             print(f"{p['distance']:.3f}  [{p.get('content_type', '')}] {p['title']}  ({p.get('addr', '')})")
+        return
+    if "--reembed" in argv:
+        reembed()
+        return
+    if "--overview" in argv:
+        i = argv.index("--overview")
+        limit = int(argv[i + 1]) if len(argv) > i + 1 and argv[i + 1].isdigit() else 500
+        rest = [a for a in argv[i + 2:] if not a.startswith("--")]
+        fetch_overviews(limit, normalize_region(rest[0]) if rest else None)
         return
     force = "--force" in argv
     names = [a for a in argv if not a.startswith("--")]

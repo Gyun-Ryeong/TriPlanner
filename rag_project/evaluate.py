@@ -77,6 +77,8 @@ def summarize(results: list[dict]) -> dict:
         "filled_day_rate": _mean([p["filled_day_rate"] for p in plans]),
         "avg_visits_per_day": _mean([p["avg_visits_per_day"] for p in plans]),
         "avg_place_type_count": _mean([p["place_type_count"] for p in plans]),
+        "closed_visits": sum(p.get("closed_visits", 0) for p in plans),
+        "out_of_hours_visits": sum(p.get("out_of_hours_visits", 0) for p in plans),
         "avg_response_sec": _mean([p["response_sec"] for p in plans]),
         "avg_wall_sec_per_case": _mean([r["wall_sec"] for r in results]),
     }
@@ -102,6 +104,8 @@ def to_markdown(summary: dict, results: list[dict], started_at: str) -> str:
         f"| 일정이 채워진 날 | {_fmt(s['filled_day_rate'], True)} | 방문지가 1곳 이상인 날의 비율 |",
         f"| 하루 방문지 수 | {_fmt(s['avg_visits_per_day'])} | |",
         f"| 방문지 유형 수 | {_fmt(s['avg_place_type_count'])} | 일정 하나에 들어간 관광지·문화시설 등 유형 수 |",
+        f"| 휴무일 방문 | {_fmt(s.get('closed_visits'))} 곳 | 문 닫는 날 들어간 방문지 (0이어야 정상) |",
+        f"| 운영시간 밖 방문 | {_fmt(s.get('out_of_hours_visits'))} 곳 | 여는 시각 전·닫은 뒤에 도착하는 방문지 |",
         f"| 일정 생성 시간 | {_fmt(s['avg_response_sec'])} 초 | 수집 + 후보 선별 + AI 생성 |",
         f"| 케이스당 전체 시간 | {_fmt(s['avg_wall_sec_per_case'])} 초 | 대화 여러 턴 포함 |",
         "", "## 케이스별", "",
@@ -120,6 +124,31 @@ def to_markdown(summary: dict, results: list[dict], started_at: str) -> str:
                 f"| {_fmt(p['avg_visits_per_day'])} | {_fmt(p['response_sec'])} | |"
             )
     return "\n".join(lines) + "\n"
+
+
+# 지난 결과와 비교할 지표: (이름, 키, 퍼센트로 보일지, 작을수록 좋은지)
+_COMPARE = [("지어낸 장소 비율", "hallucination_rate", True, True), ("규칙 기반 대체 비율", "fallback_rate", True, True),
+            ("궂은 날 실내 비율", "weather_fit_rate", True, False), ("하루 이동 거리(km)", "avg_daily_distance_km", False, True),
+            ("일정이 채워진 날", "filled_day_rate", True, False), ("하루 방문지 수", "avg_visits_per_day", False, False),
+            ("휴무일 방문", "closed_visits", False, True), ("운영시간 밖 방문", "out_of_hours_visits", False, True),
+            ("일정 생성 시간(초)", "avg_response_sec", False, True)]
+
+
+def compare_markdown(prev: dict, cur: dict, prev_name: str) -> str:
+    """지난 평가 요약과 이번 요약을 나란히 (좋아짐 ✅ / 나빠짐 ⚠️)"""
+    lines = ["", f"## 지난 결과와 비교 ({prev_name})", "", "| 지표 | 지난번 | 이번 | 변화 |", "|---|---|---|---|"]
+    for name, key, pct, lower_better in _COMPARE:
+        a, b = prev.get(key), cur.get(key)
+        mark = ""
+        if a is not None and b is not None and a != b:
+            mark = "✅" if (b < a) == lower_better else "⚠️"
+        lines.append(f"| {name} | {_fmt(a, pct)} | {_fmt(b, pct)} | {mark} |")
+    return "\n".join(lines) + "\n"
+
+
+def _latest_result(out_dir: Path) -> Path | None:
+    files = sorted(out_dir.glob("eval_*.json"))
+    return files[-1] if files else None
 
 
 def main():
@@ -148,11 +177,17 @@ def main():
     summary = summarize(results)
     out_dir = BASE / "results"
     out_dir.mkdir(parents=True, exist_ok=True)
+    prev_path = _latest_result(out_dir)  # 저장하기 전에 지난번 결과를 찾아 둔다
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     (out_dir / f"eval_{stamp}.json").write_text(
         json.dumps({"started_at": started_at, "summary": summary, "results": results}, ensure_ascii=False, indent=2),
         encoding="utf-8")
     md = to_markdown(summary, results, started_at)
+    if prev_path:
+        try:
+            md += compare_markdown(json.loads(prev_path.read_text(encoding="utf-8"))["summary"], summary, prev_path.stem)
+        except Exception:
+            pass
     (out_dir / f"eval_{stamp}.md").write_text(md, encoding="utf-8")
     print("\n" + md)
     print(f"저장: {out_dir / f'eval_{stamp}.md'}")

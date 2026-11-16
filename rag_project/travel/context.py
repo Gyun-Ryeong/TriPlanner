@@ -101,6 +101,22 @@ def _prime_from_db(ranker, items: list[tuple[str, str]]) -> None:
         pass  # DB 문제는 무시하고 평소처럼 계산
 
 
+def _hybrid(order: list[str], by_key: dict[str, dict], query: str, sido: str) -> list[str]:
+    """벡터 순위에 키워드 순위를 섞는다 ('국밥'처럼 정확한 단어를 말하면 그 단어가 이름·분류·소개에 있는 곳이 위로)"""
+    from collectors.tourism import cached_overview, category_label
+    from travel.keyword import expand_rare, fuse, keyword_score, query_terms
+    terms = query_terms(query, (sido,))
+    addrs = [p.get("addr", "") for p in by_key.values()]
+    # 후보 주소의 30% 이상에 들어 있는 말은 지역 이름이다 (해운대구 여행 → '해운대'는 키워드가 아님)
+    terms = [t for t in terms if sum(t in a for a in addrs) < max(1, 0.3 * len(addrs))]
+    if not terms:
+        return order
+    info = {k: (category_label(p.get("raw")), p.get("overview") or cached_overview(p.get("content_id"))) for k, p in by_key.items()}
+    terms = expand_rare(terms, [f"{p.get('title', '')} {info[k][0]} {info[k][1]}" for k, p in by_key.items()])
+    scores = {k: keyword_score(p, terms, *info[k]) for k, p in by_key.items()}
+    return fuse(order, scores)
+
+
 def rank_places(places: list[dict], sido: str, query: str, ranker=None) -> list[dict]:
     """
     취향(query)과 유사한 순서로 정렬. 한 번 계산한 장소 임베딩은 파일에 저장해 재사용합니다.
@@ -113,7 +129,7 @@ def rank_places(places: list[dict], sido: str, query: str, ranker=None) -> list[
         ranker = ranker or get_ranker()
         items = [(k, place_text(p, sido)) for k, p in by_key.items()]
         _prime_from_db(ranker, items)
-        order = ranker.rank(items, query)
+        order = _hybrid(ranker.rank(items, query), by_key, query, sido)
         return [by_key[k] for k in order]
     except Exception:
         return _keyword_rank(places, query)

@@ -14,7 +14,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from config import ENDPOINTS, OVERVIEW_CACHE_PATH
+from config import CATEGORY_CACHE_PATH, ENDPOINTS, OVERVIEW_CACHE_PATH
 from collectors.base_client import call_public_api, extract_items
 from collectors.cache import ttl_cache
 
@@ -209,6 +209,62 @@ def enrich_overviews(places: list[dict], limit: int) -> list[str]:
     return warnings
 
 
+def cached_overview(content_id: str) -> str:
+    """받아 둔 소개글 (없으면 ""). API는 부르지 않는다."""
+    return _load_cache().get(str(content_id or ""), "") or ""
+
+
+def save_overviews(found: dict[str, str]) -> None:
+    """소개글 여러 개를 캐시에 넣고 파일로 저장 (build_vector_db.py --overview 에서 씀)"""
+    with _cache_lock:
+        _load_cache().update(found)
+    _save_cache()
+
+
+# ── 분류 코드표 (lclsSystmCode2) ──────────────────────────────────────
+_category_names: dict[str, str] | None = None
+
+
+def category_names(fetch: bool = False) -> dict[str, str]:
+    """
+    분류 코드 → 이름. 예: {'FD05': '카페/찻집', 'FD050100': '카페', 'NA': '자연관광', ...}
+    파일(CATEGORY_CACHE_PATH)에 있으면 그걸 쓴다. fetch=True면 파일이 없을 때 API로 받아 저장한다.
+    (코드표는 거의 안 바뀌어 한 번 받아 두면 된다. 기본은 API를 부르지 않아 테스트·서버가 느려지지 않는다)
+    """
+    global _category_names
+    if _category_names is not None and (_category_names or not fetch):
+        return _category_names
+    path = Path(CATEGORY_CACHE_PATH)
+    try:
+        names = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except Exception:
+        names = {}
+    if not names and fetch:
+        params = {**_APP_PARAMS, "numOfRows": 2000, "pageNo": 1, "lclsSystmListYn": "Y"}
+        for it in extract_items(call_public_api(ENDPOINTS["tour_category"], params)):
+            for lv in ("1", "2", "3"):
+                code, name = it.get(f"lclsSystm{lv}Cd"), it.get(f"lclsSystm{lv}Nm")
+                if code and name:
+                    names[str(code)] = str(name).strip()
+        if names:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(names, ensure_ascii=False), encoding="utf-8")
+    _category_names = names
+    return names
+
+
+def category_label(raw: dict | None) -> str:
+    """장소의 분류 이름. 중분류와 소분류가 다르면 '카페/찻집>카페'처럼 둘 다, 같으면 하나만."""
+    raw = raw or {}
+    names = category_names()
+    if not names:
+        return ""
+    mid, small = names.get(raw.get("lclsSystm2", ""), ""), names.get(raw.get("lclsSystm3", ""), "")
+    if mid and small and small not in mid:
+        return f"{mid}>{small}"
+    return mid or small or names.get(raw.get("lclsSystm1", ""), "")
+
+
 # ── 법정동 시도 코드 목록 (ldongCode2) ────────────────────────────────
 def fetch_ldong_regions() -> dict[str, str]:
     """
@@ -243,7 +299,7 @@ def fetch_ldong_sigungu(regn_cd: str) -> dict[str, str]:
 
 
 # ── 소개 정보 (detailIntro2): 음식점 대표메뉴·영업시간·휴무·주차 ───────────
-@ttl_cache("intro", 24 * 3600)
+@ttl_cache("intro", 7 * 24 * 3600)  # 영업시간·휴무일은 거의 안 바뀐다
 def get_intro(content_id: str, content_type_id: str) -> dict:
     """장소 유형별 소개 정보. 음식점(39)은 firstmenu/treatmenu/opentimefood/restdatefood/parkingfood 등. 값이 있는 필드만 돌려줍니다."""
     params = {**_APP_PARAMS, "contentId": content_id, "contentTypeId": content_type_id, "numOfRows": 1, "pageNo": 1}

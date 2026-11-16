@@ -8,9 +8,11 @@
 - render_markdown  : 채팅창에 보여줄 답변 (날씨/미세먼지 수치는 코드가 직접 채움)
 """
 import re
+from datetime import date
 
 from travel.conditions import display_line
 from travel.geo import straight_km
+from travel.hours import closed_on, hours_text, open_range, rest_text
 from travel.schedule import build_timeline, stay_minutes
 
 PLAN_SYSTEM_PROMPT = """너는 한국 여행 플래너 챗봇이다. 사용자와 대화하듯 친근한 존댓말로 답한다.
@@ -213,12 +215,38 @@ def clean_text(text: str) -> str:
     return re.sub(r"\s{2,}", " ", _ID_RE.sub("", text or "")).strip()
 
 
+def _hours_line(p: dict) -> str:
+    """'09:00~18:00 · 휴무 매주 월요일' (상세정보를 받은 장소만, 길면 자름)"""
+    hours, rest = hours_text(p), rest_text(p)
+    parts = [h for h in (hours[:60], f"휴무 {rest[:40]}" if rest else "") if h]
+    return " · ".join(parts)
+
+
 def _place_view(p: dict) -> dict:
     return {
         "name": p["title"], "type": p["content_type"], "address": p["addr"], "indoor": bool(p.get("indoor")),
         "image": p.get("image", ""), "mapx": p.get("mapx", ""), "mapy": p.get("mapy", ""),
-        "content_id": p.get("content_id", ""),
+        "content_id": p.get("content_id", ""), "hours": _hours_line(p),
     }
+
+
+def _closed(p: dict, day: str | None) -> bool:
+    """그날이 그 장소 휴무일인지 (평가 지표용. 일정을 만들 때 이미 피하지만 사용자가 꼭 넣은 곳은 남는다)"""
+    try:
+        return closed_on(p, date.fromisoformat(str(day)[:10]))
+    except ValueError:
+        return False
+
+
+def _out_of_hours(p: dict, start: str, end: str) -> str:
+    """방문 시각이 운영시간 밖이면 안내 문구. 운영시간을 못 읽으면 ""."""
+    rng = open_range(p)
+    if not rng:
+        return ""
+    s, e = (int(x[:2]) * 60 + int(x[3:5]) for x in (start, end))
+    if s < rng[0] or e > rng[1]:
+        return f"⚠ 운영시간({rng[0] // 60:02d}:{rng[0] % 60:02d}~{rng[1] // 60 % 24:02d}:{rng[1] % 60:02d}) 밖이에요. 방문 시각을 확인하세요"
+    return ""
 
 
 def hydrate_plan(plan: dict, cand_map: dict[str, dict], conditions: list[dict], restaurants: list[dict] | None = None,
@@ -247,7 +275,9 @@ def hydrate_plan(plan: dict, cand_map: dict[str, dict], conditions: list[dict], 
         for e in build_timeline(day_items, restaurants, used_restaurants, base):
             ev = {"kind": e["kind"], "start": e["start"], "end": e["end"]}
             if e["kind"] == "visit":
-                ev.update(place=_place_view(e["place"]), note=e.get("note", ""), fixed=bool(e.get("fixed")))
+                ev.update(place=_place_view(e["place"]), note=e.get("note", ""), fixed=bool(e.get("fixed")),
+                          warning=_out_of_hours(e["place"], e["start"], e["end"]),
+                          closed=_closed(e["place"], cond.get("date")))
             elif e["kind"] == "meal":
                 ev.update(label=e["label"], place=_place_view(e["place"]) if e["place"] else None)
             elif e["kind"] == "move":
@@ -277,6 +307,10 @@ def _render_event(e: dict) -> list[str]:
         lines = [f"- **{span}** | **{p['name']}** ({p['type']} · {tag}){fixed}{note}"]
         if p["address"]:
             lines.append(f"  - 📍 위치: {p['address']}")
+        if p.get("hours"):
+            lines.append(f"  - 🕒 운영: {p['hours']}")
+        if e.get("warning"):
+            lines.append(f"  - {e['warning']}")
         return lines
     if e["kind"] == "meal":
         p = e.get("place")

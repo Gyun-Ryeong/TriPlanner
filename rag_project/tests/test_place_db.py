@@ -133,5 +133,50 @@ class PipelineWithDBTests(unittest.TestCase):
         self.assertEqual(seen, [["국립해양박물관"]])  # 장소 벡터는 DB 것을 쓰고 질문만 계산
 
 
+class PlaceTextTests(unittest.TestCase):
+    """벡터 문장에 분류 이름·받아 둔 소개글이 들어가는지 (API는 부르지 않는다)"""
+
+    def setUp(self):
+        from collectors import tourism
+        self.t = tourism
+        self.p1 = patch.object(tourism, "_category_names", {"NA": "자연관광", "NA04": "해변", "NA040100": "해수욕장",
+                                                            "FD05": "카페/찻집", "FD050100": "카페"})
+        self.p2 = patch.object(tourism, "_overview_cache", {"1": "부산의 대표 해수욕장으로 백사장이 넓다."})
+        self.p1.start()
+        self.p2.start()
+        self.addCleanup(self.p1.stop)
+        self.addCleanup(self.p2.stop)
+
+    def test_text_has_category_and_cached_overview(self):
+        from travel.documents import place_text
+        p = place("1", "해운대해수욕장")
+        p["raw"] = {"lclsSystm1": "NA", "lclsSystm2": "NA04", "lclsSystm3": "NA040100"}
+        text = place_text(p, "부산")
+        self.assertIn("분류: 해변>해수욕장", text)
+        self.assertIn("소개: 부산의 대표 해수욕장", text)
+        self.assertLess(text.index("분류"), text.index("주소"))  # 모델이 앞부분만 보므로 의미 있는 것이 먼저
+
+    def test_same_name_category_written_once(self):
+        self.assertEqual(self.t.category_label({"lclsSystm2": "FD05", "lclsSystm3": "FD050100"}), "카페/찻집")
+        self.assertEqual(self.t.category_label({}), "")
+
+    def test_refresh_texts_updates_only_changed(self):
+        calls = []
+
+        def embed(texts):
+            calls.append(list(texts))
+            return fake_embed(texts)
+
+        db = PlaceDB(tempfile.mkdtemp(prefix="placedb_"), embed=embed)
+        with patch.object(self.t, "_overview_cache", {}):
+            db.put_region("26", "350", [place("1", "해운대해수욕장"), place("2", "동백섬")], lambda p: "부산")
+        calls.clear()
+        self.assertEqual(db.refresh_texts(), 1)  # 소개글이 생긴 1번만 다시 계산
+        self.assertEqual(len(calls[0]), 1)
+        self.assertIn("소개:", calls[0][0])
+        self.assertEqual(db.refresh_texts(), 0)  # 두 번째는 바뀐 게 없다
+        self.assertEqual(db.missing_overview_ids(("12",)), ["2"])
+
+
 if __name__ == "__main__":
     unittest.main()

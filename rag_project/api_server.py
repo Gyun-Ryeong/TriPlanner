@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 from config import DEV_MODE, NEWS_DAYS_BACK, OLLAMA_MODEL
 from llm.ollama_client import OllamaConnectionError
-from travel.chat import GREETING, ChatSession, handle_message
+from travel.chat import GREETING, ChatSession, cancel_turn, get_progress, handle_message
 from travel.pipeline import recommend_trip, warm_up
 from travel.photos import region_photo
 from travel.regions import SIDO, normalize_region
@@ -59,6 +59,7 @@ class ChatRequest(BaseModel):
     session_id: str | None = Field(None, description="이전 응답의 session_id. 비우면 새 대화를 시작")
     message: str = Field("", description="사용자 메시지. 비워서 보내면 인사말을 돌려줌")
     debug: bool = Field(False, description="true면 이 응답에 caveats·timings·llm_stats 포함 (백엔드가 관리자에게만 허용)")
+    profile: dict | None = Field(None, description="회원 취향 요약 (categories·place_names·visited_ids·regions). 백엔드가 '내 여행' 저장 장소로 만든다")
 
 
 def _get_session(session_id: str | None) -> ChatSession:
@@ -82,7 +83,32 @@ def chat(req: ChatRequest):
           plan(일자별 일정), conditions(일자별 날씨·미세먼지), risks(이슈 뉴스), caveats(제약사항)
     """
     sess = _get_session(req.session_id)
+    if req.profile is not None:
+        sess.profile = req.profile
     return handle_message(sess, req.message, debug=req.debug)
+
+
+@app.post("/chat/{session_id}/cancel")
+def cancel_chat(session_id: str):
+    """
+    방금 보낸 말을 취소합니다. 대화 기억을 그 말을 보내기 전으로 되돌립니다.
+    처리 중이면 데이터 수집·AI 호출 전에 멈추고, 끝난 뒤였으면 바로 되돌립니다.
+    응답 status: running(처리 중 → 멈추고 되돌림) | undone(방금 끝난 말을 되돌림) | pending(곧 올 말을 취소) | none
+    """
+    with SESSIONS_LOCK:
+        sess = SESSIONS.get(session_id)
+    return {"session_id": session_id, "status": cancel_turn(sess) if sess else "none"}
+
+
+@app.get("/chat/{session_id}/progress")
+def chat_progress(session_id: str):
+    """
+    답을 만드는 동안 지금 하는 일. 화면이 1~2초마다 물어 '날씨를 모으고 있어요' 같은 글을 보여준다.
+    응답: busy(처리 중인지), step(지금 하는 일), elapsed(이번 말을 받은 뒤 지난 초)
+    """
+    with SESSIONS_LOCK:
+        sess = SESSIONS.get(session_id)
+    return {"session_id": session_id, **(get_progress(sess) if sess else {"busy": False, "step": "", "elapsed": 0})}
 
 
 @app.delete("/chat/{session_id}")

@@ -9,6 +9,7 @@
   3) 정보가 모이면 데이터 수집(관광정보·뉴스·날씨·미세먼지) → 후보 검색 → LLM이 일자별 일정 생성
   4) 일정이 나온 뒤의 메시지는 '수정/질문'으로 처리 (이미 모은 데이터를 재사용해 빠르게 응답)
 """
+import copy
 import json
 import re
 import threading
@@ -19,7 +20,7 @@ from datetime import date, timedelta
 
 from config import (
     DEV_MODE, CHAT_EXTRACT_LLM_MIN_CHARS, CHAT_HISTORY_TURNS, CHAT_MAX_CANDIDATES, CHAT_MAX_NEWS, CHAT_PLAN_CHUNK_DAYS,
-    CONTEXT_TTL_SEC,
+    CONTEXT_TTL_SEC, INTRO_PLAN_LIMIT,
     MAX_TRIP_DAYS, NEWS_DAYS_BACK,
 )
 from collectors.tourism import enrich_intro
@@ -45,6 +46,8 @@ from travel.planner import (
     render_markdown,
 )
 from travel.regions import SIDO, _mentions, mentioned_regions, resolve_place
+from travel.profile import push_visited_back, taste_words
+from travel.routing import fix_closures, rebalance_days
 from travel.schedule import stay_minutes
 
 GREETING = (
@@ -201,7 +204,17 @@ class ChatSession:
     rest_text: str | None = None                       # 장소 말을 뺀 나머지 말 (일반 흐름이 지역·날짜·취향을 읽을 때 쓴다)
     lodging_hold: str = ""                             # 말한 숙소를 찾지 못해 일정 만들기를 멈추고 숙소를 다시 물어보는 중 (찾은 숙소 이름)
     last_used: float = field(default_factory=time.time)
-    lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
+    # ── 보낸 말 취소용 (처리 중 잠금(lock)과 따로 둬서 취소 요청이 처리가 끝나길 기다리지 않게) ──
+    turn: int = 0                                      # 지금까지 받은 말 번호
+    busy_turn: int | None = None                       # 지금 처리 중인 말 번호
+    cancelled_turn: int = -1                           # 취소된 말 번호
+    undo: tuple | None = None                          # (말 번호, 그 말을 받기 전 대화 기억, 끝난 시각) — 마지막 말만
+    cancel_next_until: float = 0.0                     # 취소가 말보다 먼저 도착했을 때: 이 시각 전에 오는 말은 바로 취소
+    turn_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    profile: dict | None = None                        # 회원 취향 요약 (백엔드가 '내 여행' 저장 장소로 만들어 보냄)
+    progress: str = ""                                 # 지금 하는 일 (답을 기다리는 화면에 보여줌). 처리 중이 아니면 ""
+    progress_at: float = 0.0                           # 이번 말을 받기 시작한 시각
 
     def reset(self) -> None:
         self.slots, self.history = _empty_slots(), []
@@ -210,6 +223,106 @@ class ChatSession:
         self.trips, self.pending_multi, self.last_festivals = {}, None, []
         self.restaurants, self.fest_pins, self.fest_times, self.awaiting_fest_time = [], {}, {}, False
         self.user_places, self.lodging, self.pending_ack, self.lodging_hold, self.rest_text = [], None, None, "", None
+
+
+# ── 보낸 말 취소 ──────────────────────────────────────────────────────
+_NO_SNAPSHOT = {"session_id", "lock", "turn_lock", "last_used", "turn", "busy_turn", "cancelled_turn", "undo",
+                "cancel_next_until", "progress", "progress_at", "profile"}
+UNDO_WINDOW_SEC = 15  # 끝난 말은 이 시간 안에 온 취소만 받는다 (답이 오는 사이 누른 취소). 그보다 오래된 말은 되돌리지 않는다
+PENDING_WINDOW_SEC = 3  # 취소가 말보다 먼저 온 경우, 이 시간 안에 오는 말만 취소 (취소 후 다시 보낸 말은 살린다)
+_turn_ctx = threading.local()  # 이 스레드가 처리 중인 (세션, 말 번호) — 다중 지역의 하위 세션에서도 취소를 알아채게
+
+
+class TurnCancelled(Exception):
+    """사용자가 보낸 말을 취소해서 처리를 중간에 멈춘다"""
+
+
+def _snapshot(s: ChatSession) -> dict:
+    """대화 기억 복사본. 수집 데이터(raw)는 크고 통째로 바뀌기만 해서 참조만 둔다."""
+    snap = {}
+    for f in s.__dataclass_fields__:
+        if f in _NO_SNAPSHOT:
+            continue
+        v = getattr(s, f)
+        if f == "raw":
+            snap[f] = v
+        elif f == "trips":
+            snap[f] = {k: (sub, _snapshot(sub)) for k, sub in v.items()}
+        else:
+            snap[f] = copy.deepcopy(v)
+    return snap
+
+
+def _restore(s: ChatSession, snap: dict) -> None:
+    for f, v in snap.items():
+        if f == "trips":
+            for sub, sub_snap in v.values():
+                _restore(sub, sub_snap)
+            v = {k: sub for k, (sub, _) in v.items()}
+        setattr(s, f, v)
+
+
+def set_progress(step: str) -> None:
+    """지금 하는 일을 기록한다 (GET /chat/{id}/progress 로 화면에 보임). 하위 세션에서 불러도 원래 대화에 기록된다."""
+    ctx = getattr(_turn_ctx, "cur", None)
+    if ctx:
+        ctx[0].progress = step
+
+
+def get_progress(session: ChatSession) -> dict:
+    """{"busy": 처리 중인지, "step": 지금 하는 일, "elapsed": 이번 말을 받은 뒤 지난 초}"""
+    with session.turn_lock:
+        busy = session.busy_turn is not None
+    return {"busy": busy, "step": session.progress if busy else "",
+            "elapsed": round(time.time() - session.progress_at, 1) if busy else 0}
+
+
+def _profile_of(session: ChatSession) -> dict | None:
+    """회원 취향 요약. 여러 지역 일정의 하위 세션은 원래 대화의 것을 쓴다."""
+    if session.profile is not None:
+        return session.profile
+    ctx = getattr(_turn_ctx, "cur", None)
+    return ctx[0].profile if ctx else None
+
+
+def check_cancelled() -> None:
+    """오래 걸리는 일(데이터 수집·AI 호출) 직전에 불러, 취소됐으면 멈춘다."""
+    ctx = getattr(_turn_ctx, "cur", None)
+    if ctx and ctx[0].cancelled_turn == ctx[1]:
+        raise TurnCancelled()
+
+
+def cancel_turn(session: ChatSession) -> str:
+    """
+    사용자가 방금 보낸 말을 취소합니다. 대화 기억을 그 말을 보내기 전으로 되돌립니다.
+    Returns: "running"(처리 중 → 멈추고 되돌림) | "undone"(방금 끝난 말을 되돌림)
+             | "pending"(말이 아직 안 왔음 → 곧 오는 말을 처리하지 않음) | "none"(되돌릴 수 없음)
+    """
+    with session.turn_lock:
+        if session.busy_turn is not None:
+            session.cancelled_turn = session.busy_turn
+            return "running"
+        undo = session.undo
+        if not undo or undo[0] != session.turn or time.time() - undo[2] > UNDO_WINDOW_SEC:
+            # 방금 끝난 말이 없으면 취소가 보낸 말보다 먼저 도착한 것: 곧 올 그 말을 취소한다
+            session.cancel_next_until = time.time() + PENDING_WINDOW_SEC
+            return "pending"
+    if not session.lock.acquire(timeout=5):  # 그 사이 새 말을 처리 중이면 건드리지 않는다
+        return "none"
+    try:
+        with session.turn_lock:
+            if session.undo is not undo or session.busy_turn is not None:
+                return "none"
+            session.undo = None
+        _restore(session, undo[1])
+        return "undone"
+    finally:
+        session.lock.release()
+
+
+def _llm_json(*args, **kwargs):
+    check_cancelled()
+    return chat_json_messages(*args, **kwargs)
 
 
 # ── 슬롯 추출 ─────────────────────────────────────────────────────────
@@ -263,7 +376,7 @@ def _llm_extract(session: ChatSession, text: str, today: date, warnings: list[st
         f"최신 메시지: {text}"
     )
     try:
-        parsed, _ = chat_json_messages(
+        parsed, _ = _llm_json(
             [{"role": "system", "content": EXTRACT_SYSTEM}, {"role": "user", "content": user}], temperature=0.0
         )
     except Exception as e:
@@ -995,6 +1108,8 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
         if session.raw_key is None or session.raw_key[:4] != key[:4]:
             session.id_map, session.plan, session.last_cand_map, refine = {}, None, {}, False
             session.fest_pins, session.fest_times, session.awaiting_fest_time = {}, {}, False
+        check_cancelled()
+        set_progress(f"{area or sido}의 날씨·미세먼지·관광지·소식을 모으고 있어요")
         session.raw = gather_raw(sido, area, start, end, include_food, today)
         session.raw_key = key
     raw = session.raw
@@ -1021,9 +1136,14 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
 
     # 3) 후보 선별: 취향과 유사한 순 + 궂은 날을 위한 실내 후보 보장
     #    여행 기간 전체에 쓸 후보(하루 4곳 + 여유)를 한 번에 고른다. AI에는 아래 4)에서 며칠 치씩 나눠 보낸다.
-    query = " ".join(x for x in [sido, area, s["party"], s["preferences"], text if refine else ""] if x)
+    # 이번에 취향을 말하지 않았으면 지난 여행에서 자주 담은 종류를 반영한다 (말한 취향이 항상 우선)
+    profile = _profile_of(session)
+    taste = [] if (s["preferences"] or refine) else taste_words(profile)
+    query = " ".join(x for x in [sido, area, s["party"], s["preferences"] or " ".join(taste), text if refine else ""] if x)
+    set_progress("취향에 맞는 장소를 고르고 있어요")
     # 그 지역 장소는 취향 유사도 순, 보충한 주변 장소는 그 뒤에 가까운 순
     ranked = rank_places([p for p in sights if not p.get("nearby")], sido, query, ranker) + [p for p in sights if p.get("nearby")]
+    ranked = push_visited_back(ranked, profile)  # 저장했던 장소보다 새로운 곳을 먼저
     restaurants = (rank_places([p for p in eateries if not p.get("nearby")], sido, query, ranker)
                    + [p for p in eateries if p.get("nearby")])[:max(30, len(dates) * 3)]  # 식사 장소 후보
     wants_activity = bool(ACTIVITY_RE.search(f"{s['preferences']} {text}"))
@@ -1062,6 +1182,7 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
     any_llm_error = False
     used: set[str] = set()  # 앞 묶음에서 쓴 장소 (새 일정에서 다음 묶음 후보로 다시 보내지 않음)
     for gi, idxs in enumerate(groups):
+        set_progress("AI가 일정을 짜고 있어요" + (f" ({gi + 1}/{len(groups)})" if len(groups) > 1 else ""))
         sub_dates = [dates[i] for i in idxs]
         sub_map = _group_candidates(idxs, mode, old_days, cand_map, used, conditions)
         sub_map.update({pin_cids[i]: cand_map[pin_cids[i]] for i in idxs if i in pin_cids})
@@ -1077,7 +1198,7 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
         )
         parsed, raw_txt, llm_error = None, "", False
         try:
-            parsed, raw_txt = chat_json_messages(
+            parsed, raw_txt = _llm_json(
                 [{"role": "system", "content": PLAN_SYSTEM_PROMPT}, *_history_for_llm(session), {"role": "user", "content": user_msg}],
                 temperature=0.4,
             )
@@ -1152,9 +1273,24 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
         _apply_pins(plan["days"], pin_cids)
         fill_thin_days(plan["days"], dates, conditions, _fill_order(cand_map, s, text), cand_map)
         _gather_around_festivals(plan["days"], pin_cids, cand_map, sights, cid_of, conditions)  # 나머지는 축제장 주변으로
+    frozen = {cid for cid, p in cand_map.items() if p.get("content_type_id") == "15"}  # 축제는 날짜가 정해져 있다
+    # 영업시간·휴무일: 일정에 넣은 장소부터, 남는 한도로 바꿔 넣을 후보까지 조회 (7일 저장)
+    closure_notes = []
+    if INTRO_PLAN_LIMIT > 0:
+        set_progress("영업시간·휴무일을 확인하고 있어요")
+        in_plan = list(dict.fromkeys(it["candidate_id"] for d in plan["days"] for it in d["items"] if it.get("candidate_id") in cand_map))
+        todo = [cand_map[c] for c in in_plan] + [p for c, p in cand_map.items() if c not in set(in_plan)]
+        todo = [p for p in todo if "intro" not in p and p.get("content_type_id") in ("12", "14", "28", "38", "39")]
+        if todo:
+            warnings += enrich_intro(todo, INTRO_PLAN_LIMIT)
+        closure_notes = fix_closures(plan["days"], cand_map, conditions, frozen | set(pin_cids.values()))
+    if mode == "새 일정":  # 날짜 사이 장소 맞바꾸기로 하루 장소를 가까이 모은다 (수정 요청은 사용자가 고친 걸 흔들지 않게 제외)
+        frozen |= {it["candidate_id"] for i in pin_cids for it in plan["days"][i]["items"]}  # 축제장 주변으로 모은 날
+        rebalance_days(plan["days"], cand_map, conditions, frozen)
     _apply_user_places(session, plan["days"], cand_map, cid_of, conditions, sights, set(pin_cids))  # 사용자가 말한 장소·시간 반영
 
     # 5) 구조화 + 렌더링
+    set_progress("일정을 정리하고 있어요")
     session.plan, session.last_cand_map = plan, {cid: p for cid, p in cand_map.items()}
     session.restaurants = restaurants
     _sync_festivals(session, plan, cand_map)
@@ -1164,6 +1300,10 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
     if pins:
         festivals = ", ".join(f"{i + 1}일차 {p['title']}" for i, p in sorted(pins.items()))
         reply = f"🎉 축제 기간에 맞춰 넣고, 그날의 나머지 장소는 축제장 주변에서 골랐어요: {festivals}\n\n{reply}"
+    if taste:
+        reply = f"💡 지난 여행에서 자주 담으신 {'·'.join(taste)} 취향을 반영했어요. 원하는 취향을 말씀하시면 바꿔 드릴게요.\n\n" + reply
+    if closure_notes:
+        reply = "🕒 휴무일을 확인해서 고쳤어요: " + " / ".join(closure_notes) + "\n\n" + reply
     reply += _fest_time_prompt(session)
 
     sources = ["tourism"]
@@ -1293,6 +1433,7 @@ def detect_intent(text: str, session: "ChatSession") -> str:
 def _answer_list(session: "ChatSession", text: str, intent: str, today: date, ranker,
                  region: tuple[str, str] | None = None) -> tuple[str, dict, list[str]]:
     """일정 없이 지역만으로 답하는 단발 추천(여행지·맛집·숙박·축제·여행코스). 이미 만든 일정이 있어도 건드리지 않는다."""
+    set_progress("추천할 곳을 찾고 있어요")
     s = session.slots
     if region:
         sido, area = region
@@ -1495,13 +1636,55 @@ def handle_message(session: ChatSession, text: str, today: date | None = None, r
     LLM이나 외부 API가 실패해도 예외를 던지지 않고, 가능한 범위에서 응답하며 caveats에 사유를 남깁니다.
     debug=True 이면 DEV_MODE 가 꺼져 있어도 이 응답에만 caveats·timings·llm_stats 를 싣습니다 (관리자 화면용).
     """
-    result = _handle_message(session, text, today, ranker)
+    if not (text or "").strip() or getattr(_turn_ctx, "cur", None):  # 인사말 요청·하위 세션은 취소 대상이 아니다
+        result = _handle_message(session, text, today, ranker)
+    else:
+        result = _handle_turn(session, text, today, ranker)
+        if result is None:
+            return _cancelled_reply(session)
     ack = _user_place_ack(session)  # 이번 메시지에서 읽은 숙소·장소 (일정을 새로 만들 때 반영된 뒤 요약해서 보여줌)
     if ack:
         result["reply"] = ack + result["reply"]
     if not (DEV_MODE or debug):  # 서비스에서는 API 오류·제약사항·소요 시간 같은 내부 정보를 응답에 싣지 않는다
         result.update(caveats=[], timings=None, llm_stats=None, evaluation=None)
     return result
+
+
+def _handle_turn(session: ChatSession, text: str, today: date | None, ranker) -> dict | None:
+    """말 한 건을 취소할 수 있게 처리한다. 취소됐으면 대화 기억을 되돌리고 None."""
+    with session.lock:
+        with session.turn_lock:
+            session.turn += 1
+            my = session.busy_turn = session.turn
+            session.progress, session.progress_at = "말씀을 이해하고 있어요", time.time()
+            if time.time() < session.cancel_next_until:  # 이 말의 취소가 먼저 와 있었다
+                session.cancel_next_until = 0.0
+                session.busy_turn = None
+                return None
+        snap = _snapshot(session)
+        _turn_ctx.cur = (session, my)
+        result = None
+        try:
+            result = _handle_message(session, text, today, ranker)
+        except TurnCancelled:
+            pass
+        finally:
+            _turn_ctx.cur = None
+            with session.turn_lock:
+                session.busy_turn = None
+                session.progress = ""
+                cancelled = session.cancelled_turn == my
+                session.undo = None if cancelled else (my, snap, time.time())
+        if cancelled:
+            _restore(session, snap)
+            return None
+        return result
+
+
+def _cancelled_reply(session: ChatSession) -> dict:
+    out = _pack(session, "planned" if session.plan or session.trips else "asking", "보낸 말을 취소했어요.", with_footer=False)
+    out["cancelled"] = True
+    return out
 
 
 def _handle_message(session: ChatSession, text: str, today: date | None, ranker) -> dict:
@@ -1544,6 +1727,7 @@ def _handle_message(session: ChatSession, text: str, today: date | None, ranker)
                     return res
         stage_now = "planned" if session.plan or session.trips else "asking"
         if intent == "place_info":
+            set_progress("장소 정보를 찾고 있어요")
             reply, extra, w = answer_place(text)
             session.history.append({"role": "assistant", "content": reply})
             return _pack(session, stage_now, reply, w, extra, replace_caveats=True)
@@ -1558,6 +1742,7 @@ def _handle_message(session: ChatSession, text: str, today: date | None, ranker)
                 reply, extra, w = "\n\n---\n\n".join(parts), {"intent": "news", "news": None}, warns
             else:
                 scope = regs[-1] if (regs and not req["sido"]) else (session.slots["region"] or None, session.slots["area"])
+                set_progress("최근 소식을 찾고 있어요")
                 reply, extra, w, _ask = answer_news(text, scope)
             session.history.append({"role": "assistant", "content": reply})
             return _pack(session, stage_now, reply, w, extra, replace_caveats=True)

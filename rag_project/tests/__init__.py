@@ -12,6 +12,7 @@ os.environ["NAVER_CLIENT_ID"] = ""
 os.environ["NAVER_CLIENT_SECRET"] = ""
 _tmp = tempfile.mkdtemp(prefix="rag_test_")
 os.environ["OVERVIEW_CACHE_PATH"] = os.path.join(_tmp, "overview.json")
+os.environ["CATEGORY_CACHE_PATH"] = os.path.join(_tmp, "category.json")
 os.environ["EMBED_CACHE_PATH"] = os.path.join(_tmp, "embed.npz")
 os.environ["GAZETTEER_CACHE_PATH"] = os.path.join(_tmp, "gazetteer.json")
 os.environ["LDONG_CACHE_PATH"] = os.path.join(_tmp, "ldong.json")

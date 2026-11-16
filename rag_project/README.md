@@ -128,6 +128,10 @@ python build_vector_db.py                  # 전국 (이미 넣은 시군구는 
 python build_vector_db.py 전북 강원         # 원하는 시도만
 python build_vector_db.py --stats           # 저장된 장소 수
 python build_vector_db.py --search "아이랑 갈 실내 박물관" 부산   # DB에서 바로 검색
+python build_vector_db.py --reembed         # API 없이 문장(분류 이름·받아 둔 소개글)만 다시 만들어 벡터 갱신 (전국 약 15분)
+python build_vector_db.py --overview 500 부산  # 소개글을 500곳 더 받아 벡터에 반영 (하루 호출 한도 안에서 나눠 실행)
+python evaluate_search.py                 # 장소 검색 정확도 (질문 30개, 벡터만 vs 키워드 섞기, Ollama 없이 1분)
+python evaluate.py --limit 5              # 일정 품질 (Ollama 필요). 지난 결과와 비교 표가 함께 나옴
 ```
 
 - TourAPI 호출: 시군구 하나에 1~2번, 전국 300번 안팎. 30일(`PLACE_DB_MAX_AGE_DAYS`)이 지난 지역은 다시 받아 새로 고칩니다.
@@ -141,6 +145,8 @@ python build_vector_db.py --search "아이랑 갈 실내 박물관" 부산   # D
 | 메서드 | 경로 | 설명 |
 |---|---|---|
 | POST | `/chat` | 대화로 일정 생성·수정. `session_id`를 계속 보내면 이전 대화를 기억 |
+| POST | `/chat/{session_id}/cancel` | 방금 보낸 말 취소 (대화 기억을 그 말 전으로 되돌림, 처리 중이면 AI 호출 전에 멈춤) |
+| GET | `/chat/{session_id}/progress` | 답을 만드는 동안 지금 하는 일 (`busy`, `step`, `elapsed`). 화면이 1.5초마다 물어 보여줌 |
 | DELETE | `/chat/{session_id}` | 대화 초기화 |
 | POST | `/recommend` | (단발) 조건을 한 번에 넘겨 추천 받기 |
 | GET | `/risks?region=부산&area=해운대&days_back=7` | 지역 이슈 뉴스만 조회 (LLM 없음). 저장 일정 알림용 |

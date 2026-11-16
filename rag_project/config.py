@@ -68,7 +68,11 @@ NEWS_DAYS_BACK = int(os.getenv("NEWS_DAYS_BACK", "7"))                   # 리�
 # 후보 장소 소개글(detailCommon2)을 요청당 최대 몇 건까지 새로 조회할지. 0이면 끔.
 # (TourAPI 개발계정은 일일 호출 한도가 있어 결과를 파일로 캐시함)
 OVERVIEW_ENRICH_LIMIT = int(os.getenv("OVERVIEW_ENRICH_LIMIT", "30"))
+# 일정에 넣을 장소의 영업시간·휴무일(detailIntro2)을 요청당 최대 몇 곳까지 조회할지 (7일 저장). 0이면 끔
+INTRO_PLAN_LIMIT = int(os.getenv("INTRO_PLAN_LIMIT", "40"))
 OVERVIEW_CACHE_PATH = os.getenv("OVERVIEW_CACHE_PATH", "./cache/overview_cache.json")
+# 관광공사 분류 코드표 (코드 → '카페/찻집' 같은 이름). 벡터 문장에 분류 이름을 넣는 데 쓴다. build_vector_db.py가 받아 둔다
+CATEGORY_CACHE_PATH = os.getenv("CATEGORY_CACHE_PATH", "./cache/category_codes.json")
 
 # ── 챗봇 설정 ──────────────────────────────────────────────────────────
 # 이 글자 수 이상인 메시지에서만 'AI 정보 추출'을 씁니다. 짧은 답("부산 가려고요", "내일부터 2박 3일")은
@@ -102,6 +106,7 @@ ENDPOINTS = {
     "tour_detail": "https://apis.data.go.kr/B551011/KorService2/detailCommon2",
     "tour_search": "https://apis.data.go.kr/B551011/KorService2/searchKeyword2",  # 장소 이름 검색
     "tour_intro": "https://apis.data.go.kr/B551011/KorService2/detailIntro2",  # 음식점 대표메뉴·영업시간·주차 등
+    "tour_category": "https://apis.data.go.kr/B551011/KorService2/lclsSystmCode2",  # 분류 코드표
     "tour_area_code": "https://apis.data.go.kr/B551011/KorService2/areaCode2",
     # 법정동 시도 코드 목록 (행정구역이 바뀌어도 코드를 이름으로 찾기 위해 사용)
     "tour_ldong": "https://apis.data.go.kr/B551011/KorService2/ldongCode2",
