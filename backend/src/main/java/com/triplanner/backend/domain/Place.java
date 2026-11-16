@@ -72,6 +72,10 @@ public class Place {
         return contentId;
     }
 
+    public String getCategory() {
+        return category;
+    }
+
     public String getName() {
         return name;
     }
