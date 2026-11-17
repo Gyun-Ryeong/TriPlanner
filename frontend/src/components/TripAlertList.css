@@ -48,10 +48,15 @@
   border-left-color: var(--color-warn);
 }
 
-/* 약한 단계(화면 이름 '참고') */
+/* 약한 단계(화면 이름 '참고'): 배지만 색을 넣고 줄은 흰색에 가깝게 */
 .trip-alert__item--light {
-  background: #eef2ff;
-  border-left-color: var(--color-primary);
+  background: #fbfcff;
+  border: 1px solid var(--color-border);
+}
+
+/* 알림 문구 앞의 날짜 */
+.trip-alert__date {
+  font-weight: 700;
 }
 
 .trip-alert__item .badge {

@@ -32,13 +32,13 @@
 }
 
 .trip-stats__stat-icon--green {
-  background: #e6f6ee;
-  color: #12805c;
+  background: #e0e7ff;
+  color: #1e3a8a;
 }
 
 .trip-stats__stat-icon--orange {
-  background: #fff1e6;
-  color: #e0561b;
+  background: #e0f2fe;
+  color: #0369a1;
 }
 
 .trip-stats__summary-main {

@@ -12,6 +12,20 @@ function formatDday(daysUntilStart) {
   return `D-${daysUntilStart}`
 }
 
+// 알림 문구 앞의 날짜('11월 18일')만 굵게 보여준다. 날짜로 시작하지 않으면 그대로
+const DATE_PREFIX = /^(\d{1,2}월 \d{1,2}일)([\s\S]*)$/
+
+function AlertMessage({ text }) {
+  const m = DATE_PREFIX.exec(text ?? '')
+  if (!m) return <span className="trip-alert__message">{text}</span>
+  return (
+    <span className="trip-alert__message">
+      <strong className="trip-alert__date">{m[1]}</strong>
+      {m[2]}
+    </span>
+  )
+}
+
 // 강한 단계(DANGER)는 '주의', 약한 단계(CAUTION)는 '참고'로 보여준다
 function isStrong(alert) {
   return alert.level === 'DANGER'
@@ -76,7 +90,7 @@ export function TripAlertBlock({ trip, showTitle = false, onDismiss }) {
               <span className={`badge ${isStrong(alert) ? 'badge-warn' : 'badge-info'}`}>
                 {ALERT_LEVEL_LABEL[alert.level] ?? alert.level}
               </span>
-              <span className="trip-alert__message">{alert.message}</span>
+              <AlertMessage text={alert.message} />
               {onDismiss && <DismissButton onClick={() => onDismiss(trip, alert)} />}
             </li>
           ))}
@@ -182,7 +196,7 @@ export function PrepAlertsSection({ prep, showEmpty = false, onDismiss }) {
                     {ALERT_LEVEL_LABEL[alert.level] ?? alert.level}
                   </span>
                   <div className="trip-alert__body">
-                    <span className="trip-alert__message">{alert.message}</span>
+                    <AlertMessage text={alert.message} />
                     {link && (
                       <Link to={link.to(trip.tripId)} className="trip-alert__action">
                         {link.label} <span aria-hidden="true">→</span>
