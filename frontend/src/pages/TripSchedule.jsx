@@ -29,7 +29,7 @@ const DEFAULT_CENTER = { lat: 36.5, lng: 127.8, zoom: 7 }
 const MEMO_ITEM_TYPE = '메모'
 const MEMO_MAX_LENGTH = 255
 // 길찾기 결과의 구간(1→2, 2→3 …)마다 다른 색으로 그려 어느 구간인지 구분한다
-const LEG_COLORS = ['#3b5bdb', '#e8590c', '#2f9e44', '#ae3ec9', '#0c8599', '#d6336c']
+const LEG_COLORS = ['#1e3a8a', '#2f5fe0', '#0ea5e9', '#1d4ed8', '#60a5fa', '#0369a1']
 
 function legColor(index) {
   return LEG_COLORS[index % LEG_COLORS.length]

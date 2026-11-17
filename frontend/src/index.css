@@ -8,7 +8,7 @@
   --color-border: #e6e9f2;
   --color-text: #111827;
   --color-text-muted: #6b7280;
-  --color-safe: #16a34a;
+  --color-safe: #2f5fe0; /* 완료·성공도 기본 파랑 (빨강·주황만 강조) */
   --color-warn: #d97706;
   --color-danger: #dc2626;
   --radius-lg: 18px;

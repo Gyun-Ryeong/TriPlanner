@@ -4,7 +4,7 @@ import { WEEKDAYS, buildCells, shiftMonth, todayIso } from '../lib/festivalCalen
 import { useHolidays } from '../lib/useHolidays.js'
 import './TripCalendar.css'
 
-const BAR_COLORS = ['#3b5bdb', '#e8590c', '#2f9e44', '#ae3ec9', '#0c8599', '#d6336c']
+const BAR_COLORS = ['#1e3a8a', '#2f5fe0', '#0ea5e9', '#1d4ed8', '#60a5fa', '#0369a1']
 
 // 한 달 달력을 7칸씩 끊은 주(週) 목록으로 만든다 (마지막 주는 빈 칸으로 채움)
 function buildWeeks(year, month) {

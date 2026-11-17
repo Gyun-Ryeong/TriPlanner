@@ -17,8 +17,8 @@
   margin-right: auto;
   font-size: 12px;
   font-weight: 600;
-  color: var(--color-warn);
-  background: #fef3c7;
+  color: var(--color-primary-dark);
+  background: var(--color-primary-soft);
   padding: 3px 10px;
   border-radius: 999px;
 }
@@ -26,9 +26,9 @@
 .chat-panel__debug {
   margin-top: 10px;
   padding: 8px 10px;
-  border: 1px dashed var(--color-warn);
+  border: 1px dashed var(--color-primary);
   border-radius: 8px;
-  background: #fffbeb;
+  background: #f8faff;
   font-size: 12px;
   color: var(--color-text);
 }
@@ -36,7 +36,7 @@
 .chat-panel__debug summary {
   cursor: pointer;
   font-weight: 600;
-  color: var(--color-warn);
+  color: var(--color-primary-dark);
 }
 
 .chat-panel__debug ul {
