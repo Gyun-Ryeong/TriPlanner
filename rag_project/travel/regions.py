@@ -123,10 +123,6 @@ def resolve_place(text: str) -> tuple[str | None, str]:
     return sido, area
 
 
-def extract_region(text: str) -> str | None:
-    return resolve_place(text)[0]
-
-
 def mentioned_regions(text: str) -> list[tuple[str, str]]:
     """
     문장에 나온 지역을 등장 순서대로 (시도, 세부지역)으로 돌려줍니다. 같은 지역은 한 번만.

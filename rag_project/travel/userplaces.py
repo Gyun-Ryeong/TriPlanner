@@ -18,12 +18,13 @@ from travel.places import is_indoor
 LODGING_RE = re.compile(r"숙소|숙박|묵을|묵는|묵어|묵고|묵을래|체크\s*인|체크\s*아웃|(?:호텔|펜션|리조트|모텔|게스트하우스)\s*예약|예약\s*(?:한|해둔|해 둔)?\s*(?:호텔|펜션|리조트|모텔)")
 STRONG_RE = re.compile(r"들르|들러|들릴|들를|들렀|예약|넣어|넣고|넣을|포함|추가|꼭|무조건|반드시|묵")
 WEAK_RE = re.compile(r"가고|가려|갈래|갈게|갈거|갈\s*것|갈건|가는|먹을|먹고|마실|마시")
+_TRIP_TALK_RE = re.compile(r"\d+\s*박|여행|일정|예정")
 DROP_RE = re.compile(r"빼|제외|취소|삭제|없애|지워")
 MOVE_RE = re.compile(r"옮겨|옮기|이동해|미뤄|당겨|바꿔")  # "하늘식당 2일차로 옮겨줘" (일차를 같이 말했을 때만)
 
 _DAY_REF_RE = re.compile(r"(\d{1,2})\s*일\s*차|(\d{1,2})\s*번?\s*째\s*날|(첫|둘|셋|넷|다섯|여섯|일곱|여덟|아홉|열)\s*(?:째)?\s*날|(마지막|끝)\s*날")
 _ORDINAL = {"첫": 1, "둘": 2, "셋": 3, "넷": 4, "다섯": 5, "여섯": 6, "일곱": 7, "여덟": 8, "아홉": 9, "열": 10}
-_SPLIT_RE = re.compile(r"[,，;\n]|\s그리고\s|\s및\s|\s(?:근데|그런데|하지만|그래서|참고로)\s|(?<=[.!?。])\s*|(?<=이고)\s+|(?<=이며)\s+|(?<=인데)\s+|(?<=이지만)\s+")
+_SPLIT_RE = re.compile(r"[,，;\n]|\s그리고\s|\s및\s|\s(?:근데|그런데|하지만|그래서|참고로)\s|(?<=[.!?。])\s*|(?<=이고)\s+|(?<=이며)\s+|(?<=인데)\s+|(?<=이지만)\s+|(?<=는데)\s+|(?<=은데)\s+|(?<=건데)\s+")
 _QUOTED_RE = re.compile(r"[\"'“‘「『]([^\"'“”‘’」』]{2,30})[\"'”’」』]")  # 따옴표로 묶은 이름 ("'신라모노그램 강릉'")
 NO_LODGING_RE = re.compile(r"숙소\s*(?:는|은)?\s*(?:없이|없어|없는|안\s*정했|아직|상관\s*없|필요\s*없)|숙소\s*없이|그냥\s*(?:짜|진행)|일단\s*(?:짜|진행)")
 _NUM_PREFIX_RE = re.compile(r"^\s*(?:\d+[.)]|[-•·*])\s+")
@@ -109,6 +110,9 @@ def parse_directives(text: str, is_known_other=lambda seg: False) -> dict:
         if not (stay or drop or strong or weak or tm or move):
             rest.append(seg)
             continue
+        if not (stay or drop or strong or tm or move) and _TRIP_TALK_RE.search(seg):
+            rest.append(seg)  # "2박3일로 부산 여행을 가는데 …" 는 여행 이야기지 특정 장소가 아니다 ('가는데'가 장소 말투로 읽히지 않게)
+            continue
         quoted = _QUOTED_RE.search(seg)
         all_tokens = _name_tokens(quoted.group(1) if quoted else seg)  # 따옴표로 묶은 이름이 있으면 그것만이 장소 이름
         tokens = [x for x, _ in all_tokens if not _is_region(x) and _norm(x) not in GENERIC_NAMES]
@@ -172,6 +176,10 @@ def to_place(r: dict, kind: str, display_name: str = "") -> dict:
     title = r["title"]
     if kind == "stay" and head != "숙박" and display_name:
         title = display_name  # 호텔 안의 식당이 검색돼도(위치는 같은 건물) 사용자가 말한 숙소 이름으로 보여준다
+    elif kind == "stay" and display_name:
+        norm = lambda s: re.sub(r"[\W_]+", "", s)
+        if norm(title) and norm(title) in norm(display_name):
+            title = display_name  # 네이버 이름이 "파파지붕", 말한 이름이 "파파지붕 대전" 이면 말한 대로 보여준다
     p = {
         "source": "naver_local", "content_id": "naver:" + hashlib.md5(f"{title}|{r['addr']}".encode("utf-8")).hexdigest()[:10],
         "title": title, "addr": r.get("addr", ""), "content_type_id": ctype, "content_type": label,

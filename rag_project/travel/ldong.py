@@ -72,11 +72,6 @@ def resolve_ldong(sido: str) -> tuple[str, bool]:
     return code, shared
 
 
-def reset_cache_for_tests() -> None:
-    global _mapping
-    _mapping = None
-
-
 def resolve_sigungu(sido: str, area: str) -> list[tuple[str, str]]:
     """
     세부 지역명(예: '성남', '해운대', '분당구')에 해당하는 법정동 시군구 코드를 찾습니다.

@@ -6,6 +6,7 @@ from datetime import date
 from unittest.mock import patch
 
 import travel.chat as c
+from tests.test_userplaces import FlowBase, HOTEL
 
 TODAY = date(2026, 11, 9)
 
@@ -92,6 +93,35 @@ class CancelTests(unittest.TestCase):
         self.assertEqual(client.post(f"/chat/{s.session_id}/cancel").json()["status"], "undone")
         self.assertFalse(s.slots["region"])
 
+
+class CancelRealFlowTests(FlowBase):
+    """실제 일정 흐름(숙소·장소·축제)에서도 그 말이 바꾼 기억이 되돌려진다"""
+    DB = {"스타호텔": [HOTEL]}
+
+    def test_cancel_after_lodging_message_restores_the_state_before_it(self):
+        self.make_plan()
+        days_before = [list(d["items"]) for d in self.session.plan["days"]]
+        history_before = len(self.session.history)
+        self.say("숙소는 판교 스타호텔이야")
+        self.assertIsNotNone(self.session.lodging)
+        self.assertEqual(self.chat.cancel_turn(self.session), "undone")
+        self.assertIsNone(self.session.lodging)                              # 숙소를 말하기 전으로
+        self.assertEqual(len(self.session.history), history_before)           # 대화 기록에서도 사라진다
+        self.assertEqual([d["items"] for d in self.session.plan["days"]], days_before)
+
+    def test_cancelling_the_first_plan_request_returns_to_an_empty_conversation(self):
+        self.say("전주 다음주 주말에 2박 3일 혼자 여행 일정 짜줘")
+        self.assertIsNotNone(self.session.plan)
+        self.assertEqual(self.chat.cancel_turn(self.session), "undone")
+        self.assertIsNone(self.session.plan)
+        self.assertEqual(self.session.slots["region"], "")
+        self.assertEqual(self.session.history, [])
+
+    def test_the_same_message_can_be_sent_again_after_cancel(self):
+        first = self.say("전주 다음주 주말에 2박 3일 혼자 여행 일정 짜줘")
+        self.chat.cancel_turn(self.session)
+        again = self.say("전주 다음주 주말에 2박 3일 혼자 여행 일정 짜줘")
+        self.assertEqual(first["reply"], again["reply"])
 
 
 class ProgressTests(unittest.TestCase):

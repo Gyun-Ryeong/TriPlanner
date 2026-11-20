@@ -26,7 +26,7 @@ from config import (
 from collectors.tourism import enrich_intro
 from llm.ollama_client import LAST_STATS, chat_json_messages
 from collectors.naver_local import search_local
-from travel.clock import hhmm, parse_time_range
+from travel.clock import hhmm, parse_stay_times, parse_time_range
 from travel.userplaces import NO_LODGING_RE, find_place, integrate, key_of, lodging_item_from_reply, parse_directives
 from travel.conditions import build_day_conditions, display_line, prompt_line
 from travel.context import enrich, gather_raw, rank_places, select_candidates
@@ -34,7 +34,7 @@ from travel.dates import (WD, date_in_month, day_of_month, fmt_korean, fmt_md, n
                           parse_trip_dates)
 from travel.geo import _coord, district_of, straight_km
 from travel.gazetteer import METRO, ambiguous_regions, lookup_in_sido, lookup_regions
-from travel.lists import answer_list
+from travel.lists import answer_list, one_liner
 from travel.places import SIGHT_TYPES
 from travel.news import NEWS_RE, SAFETY_ASK_RE, answer_news, parse_news_request
 from travel.placeinfo import answer_place, is_place_info_request
@@ -83,6 +83,16 @@ FEST_RE = re.compile(r"축제|행사|공연|페스티벌|이벤트")
 # 일정이 있거나 동행·취향을 묻는 중에 축제를 "목록으로 달라"는 뜻으로 볼 표현 ("이 기간에 하는 축제 있어", "축제 언제 해")
 FEST_ASK_RE = re.compile(r"있어|있나|있니|열리|하는|언제|일정|스케줄")
 FEST_PLAN_RE = re.compile(r"짜|계획|플랜|만들어|위주|중심|포함|넣어|추가|코스")
+# 축제를 '찾아 달라/추천해 달라'는 말 ("괜찮은 축제 있나 찾아줘"): 일정에 바로 넣지 않고 후보만 보여주고, 사용자가 고르면 추가한다
+FEST_RECO_RE = re.compile(r"찾아|추천|있나|있을까|있어|있니|알려|괜찮은|볼\s*만한|볼만한|좋은|어때")
+# 축제를 일정의 중심으로 삼으라는 말 ("축제 위주로", "축제 방문 기준으로", "축제 넣어서 짜줘")
+FEST_FOCUS_RE = re.compile(r"위주|중심|기준|방문|맞춰|포함|꼭|참여|보러|넣어|넣고|들어가")
+# 여행을 간다는 말투 ("여행을 가는데 일정이 비어서 축제 찾아줘"): 축제 목록만이 아니라 일정도 함께 짜 달라는 뜻
+FEST_TRIP_RE = re.compile(r"가는데|갈\s*예정|갈\s*거|갈\s*건데|갈\s*계획|가려고|여행(?:을|이)?\s*가|일정이\s*(?:좀\s*)?(?:비|남|부족|허전)|비어")
+# 추천받은 축제를 고르는 말: 추가해 달라 / 마음에 든다 / 네(추가할까요?에 대한 답)
+FEST_ADD_RE = re.compile(r"추가|넣어|넣자|넣을|끼워|포함|이걸로|이거로|그걸로|저걸로|갈래|가자|할래|정할래|골랐")
+FEST_POS_RE = re.compile(r"괜찮|좋아|좋네|좋은데|좋겠|마음에|가보고\s*싶|가고\s*싶|끌려|땡겨|재밌겠|재미있겠")
+FEST_YES_RE = re.compile(r"^\s*(?:네|넵|예|응|어|그래|좋아|좋아요|ㅇㅇ|오케이|ok|넣어줘|추가해줘|추가|부탁해|부탁해요)", re.I)
 # 축제를 물을 때 "이 기간", "여행 때"처럼 이미 정한 여행 날짜를 가리키는 말
 PERIOD_REF_RE = re.compile(r"(?:이|그|여행|일정)\s*(?:기간|때|동안|날짜)|그때|여행\s*중|가는\s*날")
 MONTH_ONLY_RE = re.compile(r"(\d{1,2})\s*월(?!\s*\d{1,2}\s*일)")
@@ -202,6 +212,12 @@ class ChatSession:
     lodging: dict | None = None                        # 사용자가 알려준 숙소 (하루의 출발·복귀 지점)
     pending_ack: dict | None = None                    # 방금 메시지에서 읽은 장소 요약 (답변 앞에 붙임)
     rest_text: str | None = None                       # 장소 말을 뺀 나머지 말 (일반 흐름이 지역·날짜·취향을 읽을 때 쓴다)
+    stay_times: dict = field(default_factory=dict)     # 사용자가 알려준 숙소 체크인·체크아웃 시각: {"in": 분, "out": 분}
+    asked_stay_times: bool = False                     # 체크인·체크아웃 시각 안내를 이미 했는가 (한 번만 안내)
+    want_fest_reco: bool = False                       # 축제를 추천해 달라고 했다 (일정을 만들 때 후보를 함께 보여주고 비워 둔다)
+    fest_hint_day: int | None = None                   # 축제 추천을 부탁하며 말한 일차 (0부터. "둘째 날이 비어서")
+    fest_pending: dict | None = None                   # 마음에 든다고만 한 축제: 추가할까요? 에 대한 답을 기다리는 중
+    pending_stay: dict | None = None                   # 방금 메시지에서 읽은 체크인·체크아웃 (답변 앞 요약에 붙임)
     lodging_hold: str = ""                             # 말한 숙소를 찾지 못해 일정 만들기를 멈추고 숙소를 다시 물어보는 중 (찾은 숙소 이름)
     last_used: float = field(default_factory=time.time)
     lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
@@ -223,6 +239,9 @@ class ChatSession:
         self.trips, self.pending_multi, self.last_festivals = {}, None, []
         self.restaurants, self.fest_pins, self.fest_times, self.awaiting_fest_time = [], {}, {}, False
         self.user_places, self.lodging, self.pending_ack, self.lodging_hold, self.rest_text = [], None, None, "", None
+        self.stay_times, self.asked_stay_times, self.pending_stay = {}, False, None
+        self.want_fest_reco, self.fest_hint_day, self.fest_pending = False, None, None
+        self.undo = None
 
 
 # ── 보낸 말 취소 ──────────────────────────────────────────────────────
@@ -350,6 +369,14 @@ def _leftover(text: str, today: date) -> str:
         work = work[:a] + " " * (b - a) + work[b:]
     work = re.sub(r"\d{1,2}\s*박(?:\s*\d{1,2}\s*일)?|당일치기|당일|\d{1,2}\s*일\s*(?:간|동안|일정|여행|코스)|\d{1,2}\s*주(?:일)?\s*(?:간|동안)?|일주일|한\s*달|이틀|사흘|나흘|닷새|엿새|이레|열흘|보름", " ", work)
     work = re.sub(r"쯤으로|쯤|(?:여행을?\s*)?(?:갈\s*)?예정(?:이야|이에요|입니다|이라)?", " ", work)  # 날짜 뒤에 남는 군말은 취향이 아니다
+    # 축제를 찾아 달라는 말·일정이 빈 날을 말한 것은 취향이 아니라 요청이다 ("두번째 날에 일정이 좀 비어 그래서 괜찮은 축제 있나 한번 찾아주고")
+    work = re.sub(r"(?:괜찮은|좋은|볼\s*만한|볼만한)?\s*(?:축제|행사|공연|페스티벌|이벤트)(?:가|는|도|를|을)?\s*(?:있나|있을까|있어|있니|없나)?\s*(?:한번|한\s*번|좀)?\s*"
+                  r"(?:찾아|추천|알려|보여)\w*", " ", work)
+    work = re.sub(r"(?:첫|둘|셋|넷|두|세|네|\d{1,2})\s*(?:번\s*)?째\s*날(?:에는|에|엔)?|\d{1,2}\s*일\s*차(?:에는|에|엔)?", " ", work)
+    work = re.sub(r"일정이\s*(?:좀\s*)?(?:비어|비는|남아|비네|부족해|허전해)\w*|가는데|갈\s*건데|가려고\w*|(?<![가-힣])(?:그래서|그리고|그런데|근데|한번|한\s*번)(?![가-힣])", " ", work)
+    work = re.sub(r"(?<![가-힣])(?:내가|제가|저는|나는|우리가?|저희가?)(?![가-힣])", " ", work)
+    work = re.sub(r"(?<![가-힣])(?:여행|일정)(?:을|를|이|은|는|인데|이야|이고|이에요|이라|인데요)?(?![가-힣])", " ", work)   # "2박 3일 여행인데" 의 군말
+    work = re.sub(r"(?<![가-힣])(?:에|은|는|이|가|을|를|도|로|으로|에서)(?![가-힣])", " ", work)          # 지역·날짜를 지운 자리에 남은 조사
     work = re.sub(r"[\s.]+", " ", work).strip()
     return re.sub(r"^(?:에서|에|부터|까지|으로|로)\s+", "", work)  # "주말에 바다" → "바다 …" (날짜를 지우고 남은 조사)
 
@@ -561,11 +588,12 @@ def _ask_missing(s: dict) -> str:
     return f"{_label(s)}, {_date_phrase(s)}이군요. 몇 박 며칠로 다녀오실 예정인가요? (예: 2박 3일, 당일치기)"
 
 
-def _ask_optional(s: dict) -> str:
+def _ask_optional(s: dict, stay_line: str = "") -> str:
     return (
         f"{_label(s)}, {_date_phrase(s)} 일정이네요! 더 잘 맞는 일정을 짜드리려고 하나만 여쭤볼게요.\n"
         "누구와 함께 가시나요? 그리고 원하는 분위기(예: 조용한 바다, 맛집 위주, 사진 명소, 아이와 함께)가 있으면 알려주세요.\n"
-        "특별한 건 없으면 \"상관없어요\"라고 해주세요."
+        + (stay_line + "\n" if stay_line else "")
+        + "특별한 건 없으면 \"상관없어요\"라고 해주세요."
     )
 
 
@@ -719,6 +747,8 @@ def _festival_pins(session: "ChatSession", text: str, raw: dict, dates: list[str
     shown = [p for p in session.last_festivals if not area or area in p["addr"] or area in p["title"]]
     pool = shown or [p for p in raw["places"] if str(p.get("content_type_id")) == "15"]
     named = [p for p in pool if _names_festival(text, p["title"])]
+    if not (named or refers or FEST_FOCUS_RE.search(text)):
+        return {}  # "축제 있나 찾아줘"처럼 추천만 부탁했다: 일정에 마음대로 넣지 않는다
     if named:  # 축제 이름을 콕 집어 말했으면 그 축제만 ("부산불꽃축제 위주로 짜줘")
         pool = named
     days = [d.replace("-", "") for d in dates]
@@ -748,17 +778,20 @@ def _apply_pins(days: list[dict], pin_cids: dict[int, str]) -> None:
 
 
 FEST_AREA_KM = 12  # 축제가 있는 날, 다른 방문지는 축제장에서 이 거리(직선) 안에서 고른다
+LODGING_AREA_KM = 6  # 숙소를 알려줬을 때, 다른 방문지는 숙소에서 이 거리(직선) 안에서 고른다
 
 
 def _gather_around_festivals(days: list[dict], pin_cids: dict[int, str], cand_map: dict, sights: list[dict], cid_of,
-                             conditions: list[dict], want: int = 4, keep_cids: set | None = None) -> None:
+                             conditions: list[dict], want: int = 4, keep_cids: set | None = None,
+                             radius: float = FEST_AREA_KM, centers: dict[int, dict] | None = None) -> None:
     """
     축제(또는 사용자가 고른 장소)가 있는 날은 나머지 방문지를 그 주변으로 모은다: 멀리 있는 장소는 빼고, 가까운 장소(아직 안 쓴 것)로 채운다.
     궂은 날은 실내 장소를 먼저. 좌표가 없는 중심 장소는 건드리지 않는다. keep_cids: 멀어도 빼지 않을 장소(사용자가 고른 것 등).
+    centers: {일차: 중심 장소} 를 직접 줄 때 (숙소처럼 일정 후보가 아닌 곳). 이때 pin_cids 의 값은 쓰지 않는다. radius: 중심에서 이 거리(km) 안.
     """
     pinned = set(pin_cids.values()) | (keep_cids or set())
     for i, fcid in pin_cids.items():
-        fest = cand_map[fcid]
+        fest = centers[i] if centers else cand_map[fcid]
         if _coord(fest) is None:
             continue
         day = days[i]
@@ -766,7 +799,7 @@ def _gather_around_festivals(days: list[dict], pin_cids: dict[int, str], cand_ma
         for it in day["items"]:
             cid = it["candidate_id"]
             p = cand_map.get(cid) if cid else None
-            if cid in pinned or p is None or (straight_km(fest, p) or 0) <= FEST_AREA_KM:
+            if cid in pinned or p is None or (straight_km(fest, p) or 0) <= radius:
                 keep.append(it)
             else:
                 far.append((straight_km(fest, p), it))
@@ -781,7 +814,7 @@ def _gather_around_festivals(days: list[dict], pin_cids: dict[int, str], cand_ma
             d = straight_km(fest, p)
             if d is None:
                 continue
-            (near if d <= FEST_AREA_KM else anywhere).append((bool(p.get("indoor")) != bad, d, p))
+            (near if d <= radius else anywhere).append((bool(p.get("indoor")) != bad, d, p))
         near.sort(key=lambda x: (x[0], x[1]))
         anywhere.sort(key=lambda x: x[1])
 
@@ -856,21 +889,169 @@ def _apply_user_places(session: ChatSession, days: list[dict], cand_map: dict, c
     s = session.slots
     ctx = (s["region"], s["area"])
     entries = [e for e in session.user_places if e.get("ctx") in (None, ctx)]  # 다른 지역으로 바꿨다면 이전 지역 장소는 쓰지 않는다
-    if not entries:
-        return
     n = len(days)
-    for e in entries:
-        ref = e.get("day_ref")
-        e["day"] = n - 1 if ref == -1 else (ref - 1 if ref and 1 <= ref <= n else None)
-    integrate(entries, days, cand_map, cid_of)
-    mine = {cid_of(e["place"]) for e in entries}
+    mine: set[str] = set()
+    centers: dict[int, str] = {}
+    if entries:
+        for e in entries:
+            ref = e.get("day_ref")
+            e["day"] = n - 1 if ref == -1 else (ref - 1 if ref and 1 <= ref <= n else None)
+        integrate(entries, days, cand_map, cid_of)
+        mine = {cid_of(e["place"]) for e in entries}
     festival_cids = {it["candidate_id"] for d in days for it in d["items"] if it["candidate_id"] in cand_map
                      and str(cand_map[it["candidate_id"]].get("content_type_id")) == "15"}
-    centers: dict[int, str] = {}
-    for e in sorted(entries, key=lambda e: (e["time"] is None, e["time"] or (0, 0))):  # 시간이 정해진 장소를 그날의 중심으로
-        if e.get("assigned_day") is not None and e["assigned_day"] not in festival_days:
-            centers.setdefault(e["assigned_day"], cid_of(e["place"]))
-    _gather_around_festivals(days, centers, cand_map, sights, cid_of, conditions, keep_cids=mine | festival_cids)
+    if entries:
+        for e in sorted(entries, key=lambda e: (e["time"] is None, e["time"] or (0, 0))):  # 시간이 정해진 장소를 그날의 중심으로
+            if e.get("assigned_day") is not None and e["assigned_day"] not in festival_days:
+                centers.setdefault(e["assigned_day"], cid_of(e["place"]))
+        if centers:
+            _gather_around_festivals(days, centers, cand_map, sights, cid_of, conditions, keep_cids=mine | festival_cids)
+    # 숙소가 있으면, 위에서 중심이 정해지지 않은 날은 숙소 주변에서 고른다 (숙소 기준 동선을 부탁받은 경우)
+    lodging = _lodging_for(session)
+    if lodging is not None:
+        stay_days = {i: "LODGING" for i in range(n) if i not in centers and i not in festival_days}
+        _gather_around_festivals(days, stay_days, cand_map, sights, cid_of, conditions, keep_cids=mine | festival_cids,
+                                 radius=LODGING_AREA_KM, centers={i: lodging for i in stay_days})
+
+
+def _open_on(p: dict, ymd: str) -> bool:
+    """축제가 이 날(YYYYMMDD)에 열리는가 (기간을 모르면 열린다고 본다)"""
+    fs = p.get("event_start") or ""
+    fe = p.get("event_end") or fs
+    return (not fs or fs <= ymd) and (not fe or ymd <= fe)
+
+
+def _festival_offer(session: ChatSession, ranker, dates: list[str], hint_day: int | None, sido: str, area: str, query: str,
+                    start: date, end: date) -> tuple[str, list[str]]:
+    """
+    여행 기간에 열리는 축제를 추천한다 (일정에는 넣지 않는다). 사용자가 "1번 2일차에 추가해줘"라고 하면 _try_festival_add 가 넣는다.
+    비어 있다고 말한 날(hint_day)에 열리는 축제를 먼저 보여준다.
+    """
+    places, warns = _collect_festivals(sido, area, start, end)
+    pool = [p for p in places if str(p.get("content_type_id")) == "15"]
+    span = f"{fmt_md(start)} ~ {fmt_md(end)}" if end != start else fmt_md(start)
+    if not pool:
+        session.last_festivals = []
+        return f"🎉 **{area or sido} 여행 기간({span})에 열리는 축제·행사를 찾지 못했어요.** 그 대신 위 일정으로 즐겨 보세요.", warns
+    ranked = rank_places(pool, sido, query, ranker)
+    day_ymd = dates[hint_day].replace("-", "") if hint_day is not None and 0 <= hint_day < len(dates) else None
+    if day_ymd:
+        ranked = sorted(ranked, key=lambda p: not _open_on(p, day_ymd))  # 그 날 열리는 축제를 앞으로 (순위는 그대로)
+    items = ranked[:5]
+    warns += enrich(items)
+    session.last_festivals = items
+    lines = [f"## 🎉 {area or sido} {span} 축제·행사 추천", ""]
+    if day_ymd:
+        lines += [f"{hint_day + 1}일차({_md(dates[hint_day].replace('-', ''))})가 비어 있다고 하셔서, 그날 열리는 축제를 먼저 골랐어요.", ""]
+    for i, p in enumerate(items, 1):
+        on = [str(k + 1) for k, d in enumerate(dates) if _open_on(p, d.replace("-", ""))]
+        period = _period(p)
+        lines.append(f"**{i}. {p['title']}**")
+        lines.append(f"- 🗓 기간: {period} (여행 중 {', '.join(on)}일차에 열려요)")
+        if p.get("addr"):
+            lines.append(f"- 📍 위치: {p['addr']}")
+        feature = one_liner(p.get("overview", ""), 90)
+        if feature:
+            lines.append(f"- 💡 특징: {feature}")
+        lines.append("")
+    lines.append('마음에 드는 축제가 있으면 "1번 2일차에 추가해줘"처럼 말씀해 주세요. 추가하면 그날 나머지 일정을 축제장 주변으로 다시 맞춰 드려요.')
+    return "\n".join(lines), warns
+
+
+def _fest_choice(session: ChatSession, text: str) -> dict | None:
+    """추천받은 축제 중 사용자가 가리킨 하나: 이름("불꽃축제"), 번호("1번", "두 번째"), 하나뿐일 때의 "이거"."""
+    offered = session.last_festivals
+    named = [p for p in offered if _names_festival(text, p["title"])]
+    if len(named) == 1:
+        return named[0]
+    if "축제·행사" not in _prev_assistant_text(session):
+        return None  # 번호·'이거'는 바로 앞 답변이 축제 추천일 때만 축제를 가리킨다 (맛집 목록의 "1번"과 구분)
+    ordinal = {"첫": 1, "두": 2, "세": 3, "네": 4, "다섯": 5}
+    m = re.search(r"(\d)\s*번", text) or re.search(r"(첫|두|세|네|다섯)\s*(?:번)?\s*째", text)
+    if m:
+        k = int(m.group(1)) if m.group(1).isdigit() else ordinal[m.group(1)]
+        return offered[k - 1] if 1 <= k <= len(offered) else None
+    if len(offered) == 1 and re.search(r"이거|이걸|그거|그걸|저거|저걸|이\s*축제|그\s*축제", text):
+        return offered[0]
+    return None
+
+
+def _try_festival_add(session: ChatSession, text: str) -> dict | None:
+    """
+    추천받은 축제를 일정에 넣는다. "1번 2일차에 추가해줘" → 바로 추가, "1번 괜찮네요" → "추가할까요?" 하고 "네"에 추가.
+    추가하면 그날 나머지 장소는 축제장 주변으로 다시 모으고, 축제 시간을 모르니 알려 달라고 안내한다. 해당 없으면 None.
+    """
+    pending, session.fest_pending = session.fest_pending, None  # 어떤 말이든 한 번 지나면 '추가할까요?' 대기는 끝
+    if not (session.plan and session.view and session.last_festivals and session.slots["start_date"]):
+        return None
+    pick = _fest_choice(session, text)
+    wants_add, likes = bool(FEST_ADD_RE.search(text)), bool(FEST_POS_RE.search(text))
+    after_offer = "축제·행사" in _prev_assistant_text(session)
+    if pick is None and pending is not None and FEST_YES_RE.search(text):
+        pick = pending  # "추가할까요?"에 "네"
+        wants_add = True
+    if pick is None:
+        if after_offer and (wants_add or likes) and len(session.last_festivals) > 1 and not FEST_RE.search(text) and not MODIFY_RE.search(re.sub(r"추가|넣어", "", text)):
+            reply = f"어느 축제를 말씀하시나요? 번호(1~{len(session.last_festivals)})나 이름으로 알려주세요."
+            session.history.append({"role": "assistant", "content": reply})
+            return _pack(session, "planned", reply)
+        return None
+    if not (wants_add or likes):
+        return None  # 축제 이름만 언급 (시간 지정 등은 다른 처리가 맡는다)
+
+    dates = [(parse_iso(session.slots["start_date"]) + timedelta(days=i)).isoformat()
+             for i in range((parse_iso(session.slots["end_date"]) - parse_iso(session.slots["start_date"])).days + 1)]
+    n = len(dates)
+    open_days = [i for i, d in enumerate(dates) if _open_on(pick, d.replace("-", ""))]
+    period = _period(pick)
+    if not open_days:
+        reply = f"**{pick['title']}** 은(는) 여행 기간에 열리지 않아요 (개최 {period}). 다른 축제를 골라 주세요."
+        session.history.append({"role": "assistant", "content": reply})
+        return _pack(session, "planned", reply)
+    wanted = _target_days(text, n)
+    if wanted and wanted[0] not in open_days:
+        ok = ", ".join(f"{i + 1}일차" for i in open_days)
+        reply = f"**{pick['title']}** 은(는) {wanted[0] + 1}일차에는 열리지 않아요 (개최 {period}). {ok}에는 넣을 수 있어요."
+        session.history.append({"role": "assistant", "content": reply})
+        return _pack(session, "planned", reply)
+    visits = [sum(1 for it in d["items"] if it["candidate_id"]) for d in session.plan["days"]]
+    if wanted:
+        day = wanted[0]
+    elif session.fest_hint_day in open_days:
+        day = session.fest_hint_day
+    else:
+        day = min(open_days, key=lambda i: (visits[i], i))  # 열리는 날 중 일정이 가장 한가한 날
+    if not wants_add:  # 마음에 든다고만 했다: 넣을지 확인
+        session.fest_pending = pick
+        session.fest_hint_day = day if wanted else session.fest_hint_day
+        reply = (f"**{pick['title']}** 을(를) {day + 1}일차({_md(dates[day].replace('-', ''))})에 넣을까요? "
+                 f"\"네\" 또는 \"추가해줘\"라고 하시면 넣고, 그날 시간표를 다시 맞춰 드려요.")
+        session.history.append({"role": "assistant", "content": reply})
+        return _pack(session, "planned", reply)
+
+    plan, cand_map = session.plan, session.last_cand_map
+    cid_of = lambda p: _cid(session, p)
+    cid = cid_of(pick)
+    cand_map[cid] = pick
+    sights = [p for p in (session.raw or {}).get("places", []) if p["content_type_id"] in SIGHT_TYPES and str(p.get("content_type_id")) != "15"]
+    conditions = (session.view or {}).get("conditions") or []
+    before = {it["candidate_id"] for it in plan["days"][day]["items"]}
+    _apply_pins(plan["days"], {day: cid})
+    _gather_around_festivals(plan["days"], {day: cid}, cand_map, sights, cid_of, conditions,
+                             keep_cids={cid_of(e["place"]) for e in session.user_places})
+    _sync_festivals(session, plan, cand_map)
+    body = _replan_user_places(session)  # 숙소 주변 모으기·내가 고른 장소를 다시 반영하고 시간표를 새로 그린다
+    dropped = len(before - {it["candidate_id"] for it in plan["days"][day]["items"]} - {cid})
+    how = (f"축제장에서 먼 장소 {dropped}곳은 가까운 곳으로 바꿔서 그날 시간표를 다시 맞췄어요." if dropped
+           else "그날 시간표를 다시 맞췄어요 (나머지 장소는 축제장에서 가까워 그대로 뒀어요).")
+    reply = f"🎉 **{pick['title']}** 을(를) {day + 1}일차({_md(dates[day].replace('-', ''))})에 추가했어요. {how}\n\n{body}{_fest_time_prompt(session)}"
+    session.history.append({"role": "assistant", "content": reply})
+    return _pack(session, "planned", reply)
+
+
+def _period(p: dict) -> str:
+    a, b = _md(p.get("event_start")), _md(p.get("event_end") or p.get("event_start"))
+    return a if a == b else f"{a} ~ {b}"
 
 
 def _md(d: str) -> str:
@@ -895,7 +1076,7 @@ def _rerender(session: ChatSession) -> str:
     """AI를 부르지 않고, 지금 일정에 사용자가 알려준 축제 시간만 반영해서 다시 그린다."""
     view, s = session.view or {}, session.slots
     conditions = view.get("conditions") or []
-    days_view = hydrate_plan(session.plan, session.last_cand_map, conditions, session.restaurants, _fixed_map(session), _lodging_for(session))
+    days_view = hydrate_plan(session.plan, session.last_cand_map, conditions, session.restaurants, _fixed_map(session), _lodging_for(session), _stay_times_eff(session))
     session.view = {**view, "plan": days_view}
     return render_markdown("", days_view, conditions, "", [], place_label=s["area"] or s["region"])
 
@@ -903,13 +1084,28 @@ def _rerender(session: ChatSession) -> str:
 def _user_place_ack(session: ChatSession) -> str:
     """방금 메시지에서 읽은 숙소·장소를 사용자에게 되짚어 준다 (잘못 읽었으면 바로잡을 수 있게)."""
     ack, session.pending_ack = session.pending_ack, None
-    if not ack:
+    stay_new, session.pending_stay = session.pending_stay, None
+    if not ack and not stay_new:
         return ""
+    ack = ack or {}
     lines = ["📌 **이렇게 이해했어요**"]
     if ack.get("lodging"):
         lo = ack["lodging"]
         warn = " ⚠️ 말씀하신 이름과 완전히 같지는 않아요. 맞는 곳인지 확인해 주세요." if lo.get("approx") else ""
         lines.append(f"- 🏨 숙소: **{lo['title']}** ({lo['addr']}) — 매일 여기서 출발해서 여기로 돌아오는 동선으로 짤게요{warn}")
+    if stay_new:
+        parts = []
+        if "in" in stay_new:
+            parts.append(f"체크인 {hhmm(stay_new['in'])}")
+        if "out" in stay_new:
+            parts.append(f"체크아웃 {hhmm(stay_new['out'])}")
+        if "in" in stay_new and "out" in stay_new:
+            how = "첫날은 그 시간에 맞춰 숙소에 들러 체크인하고, 마지막 날은 체크아웃 시간 전에 나올게요"
+        elif "in" in stay_new:
+            how = "첫날은 그 시간에 맞춰 숙소에 들러 체크인할게요"
+        else:
+            how = "마지막 날은 체크아웃 시간 전에 나올게요"
+        lines.append(f"- 🕒 {' · '.join(parts)} — {how}")
     for e in ack.get("added", []):
         p, tm = e["place"], e.get("time")
         when = f"{e['assigned_day'] + 1}일차 " if e.get("assigned_day") is not None else ""
@@ -928,7 +1124,11 @@ def _user_place_ack(session: ChatSession) -> str:
         lines.append(f"- ❓ '{name}' 위치를 찾지 못했어요. 지역을 붙여 정확한 이름으로 다시 알려주세요 (예: \"성남 단풍 카페\")")
     if len(lines) == 1:
         return ""
-    lines.append("다르게 읽은 부분이 있으면 다시 말씀해 주세요. 다른 날로 옮기려면 \"하늘식당 2일차로 옮겨줘\"처럼 말씀하시면 돼요.")
+    added = [e["place"]["title"] for e in ack.get("added", []) if isinstance(e, dict) and e.get("place")]
+    tail = "다르게 읽은 부분이 있으면 다시 말씀해 주세요."
+    if added:  # 사용자가 실제로 말한 장소 이름으로만 예시를 든다
+        tail += f" 다른 날로 옮기려면 \"{added[0]} 2일차로 옮겨줘\"처럼 말씀하시면 돼요."
+    lines.append(tail)
     return "\n".join(lines) + "\n\n"
 
 
@@ -939,6 +1139,27 @@ def _region_matcher(slots: dict):
         return None
     names = [region, *SIDO[region]["aliases"]]
     return lambda addr: any(n in (addr or "") for n in names)
+
+
+DEFAULT_CHECK_IN, DEFAULT_CHECK_OUT = 15 * 60, 11 * 60  # 숙소를 알려주면 첫날 15시 체크인, 마지막 날 11시 체크아웃으로 고정
+
+
+def _stay_times_eff(session: ChatSession) -> dict:
+    """체크인·체크아웃 시각 (사용자가 따로 말하지 않았으면 기본값)."""
+    return {"in": DEFAULT_CHECK_IN, "out": DEFAULT_CHECK_OUT, **session.stay_times}
+
+
+def _stay_notice(session: ChatSession) -> str:
+    """숙소를 알려줬을 때 체크인·체크아웃 시각과, 바꾸는 방법을 한 번 알려준다 (당일치기는 안내하지 않는다)."""
+    s = session.slots
+    if session.asked_stay_times or _lodging_for(session) is None:
+        return ""
+    if s.get("start_date") and s.get("start_date") == s.get("end_date"):
+        return ""
+    session.asked_stay_times = True
+    t = _stay_times_eff(session)
+    return (f"🏨 숙소 체크인은 첫날 {hhmm(t['in'])}, 체크아웃은 마지막 날 {hhmm(t['out'])}으로 맞춰 뒀어요. "
+            "바꾸고 싶으면 일정을 '내 여행'에 저장한 뒤 **여행 일정 상세 페이지**에서 직접 고쳐 주세요.")
 
 
 def _lodging_hold_reply(session: ChatSession) -> str:
@@ -1035,7 +1256,8 @@ def _try_user_places(session: ChatSession, text: str) -> dict | None:
     prefix = _user_place_ack(session)
     if warns:
         session.view = {**(session.view or {}), "caveats": [*(session.view or {}).get("caveats", []), *warns]}
-    reply = prefix + reply
+    ask = _stay_notice(session)
+    reply = prefix + reply + (f"\n\n---\n{ask}" if ask else "")
     session.history.append({"role": "assistant", "content": reply})
     return _pack(session, "planned", reply)
 
@@ -1120,11 +1342,17 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
     conditions = build_day_conditions(start, end, raw["weather"], raw["air"]["by_date"])
     bad_days = sum(1 for c in conditions if c["outdoor_ok"] is False)
 
-    sights = [p for p in raw["places"] if p["content_type_id"] in SIGHT_TYPES]
+    # 축제·행사는 사용자가 축제를 말했을 때만 일정에 넣는다 (말하지 않았는데 일정에 끼어들고 시간을 되묻지 않게)
+    pins = _festival_pins(session, text, raw, dates)  # 꼭 넣을 축제 {일차: 축제}
+    want_reco, hint_day = session.want_fest_reco, session.fest_hint_day  # 축제 추천을 부탁했으면 일정에는 넣지 않고 후보만 보여준다
+    session.want_fest_reco = False  # fest_hint_day 는 남겨 둔다 (추천받은 축제를 추가할 때 어느 날에 넣을지 쓴다)
+    wants_fest = bool(pins) or (bool(FEST_RE.search(f"{s['preferences']} {text}")) and not want_reco)
+    sight_types = SIGHT_TYPES if wants_fest else SIGHT_TYPES - {"15"}
+    sights = [p for p in raw["places"] if p["content_type_id"] in sight_types]
     if area and sights and len(sights) < len(dates) * 4 + 4 and not raw.get("expanded"):
         # 작은 시·군은 긴 일정(최대 30일)을 채울 장소가 모자라다 → 같은 시도의 가까운 장소를 거리순으로 보충
         _expand_nearby(raw, sido, area, start, end)
-        sights = [p for p in raw["places"] if p["content_type_id"] in SIGHT_TYPES]
+        sights = [p for p in raw["places"] if p["content_type_id"] in sight_types]
     eateries = [p for p in raw["places"] if p["content_type_id"] == "39"]
 
     if not sights:
@@ -1152,7 +1380,6 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
     if refine and session.last_cand_map:  # 수정 요청일 때 기존 일정의 장소는 계속 후보에 포함
         keys = {(p["content_id"] or p["title"]) for p in pool}
         pool += [p for p in session.last_cand_map.values() if (p["content_id"] or p["title"]) not in keys]
-    pins = _festival_pins(session, text, raw, dates)  # 꼭 넣을 축제 {일차: 축제}
     keys = {(p["content_id"] or p["title"]) for p in pool}
     pool += [p for p in pins.values() if (p["content_id"] or p["title"]) not in keys]
     warnings += enrich(pool)
@@ -1294,7 +1521,7 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
     session.plan, session.last_cand_map = plan, {cid: p for cid, p in cand_map.items()}
     session.restaurants = restaurants
     _sync_festivals(session, plan, cand_map)
-    days_view = hydrate_plan(plan, cand_map, conditions, restaurants, _fixed_map(session), _lodging_for(session))
+    days_view = hydrate_plan(plan, cand_map, conditions, restaurants, _fixed_map(session), _lodging_for(session), _stay_times_eff(session))
     # 일정을 물었으니 일정만 답한다 (뉴스·마무리 질문 같은 묻지 않은 내용은 붙이지 않음. 뉴스는 risks 필드에만 남김)
     reply = render_markdown(plan["message"], days_view, conditions, "", [], place_label=area or sido)
     if pins:
@@ -1305,6 +1532,13 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
     if closure_notes:
         reply = "🕒 휴무일을 확인해서 고쳤어요: " + " / ".join(closure_notes) + "\n\n" + reply
     reply += _fest_time_prompt(session)
+    ask = _stay_notice(session)  # 숙소가 있으면 체크인·체크아웃 시각과 고치는 방법을 일정 아래에 한 번 알려준다
+    if ask:
+        reply += f"\n\n---\n{ask}"
+    if want_reco:
+        offer, offer_warns = _festival_offer(session, ranker, dates, hint_day, sido, area, query, start, end)
+        warnings += offer_warns
+        reply += f"\n\n---\n{offer}"
 
     sources = ["tourism"]
     if raw["news"]:
@@ -1335,7 +1569,8 @@ _DAY_REF_RE = re.compile(r"(\d{1,2})\s*일\s*차|(\d{1,2})\s*번?\s*째\s*날|(�
 def _target_days(text: str, n: int) -> list[int]:
     """수정 요청에서 말한 일차(0부터). 없으면 빈 리스트."""
     out = set()
-    for m in _DAY_REF_RE.finditer(text or ""):
+    text = re.sub(r"첫\s*번\s*째", "1번째", re.sub(r"두\s*번\s*째", "2번째", re.sub(r"세\s*번\s*째", "3번째", re.sub(r"네\s*번\s*째", "4번째", text or ""))))
+    for m in _DAY_REF_RE.finditer(text):
         k = int(m.group(1) or m.group(2)) if (m.group(1) or m.group(2)) else (_ORDINAL[m.group(3)] if m.group(3) else n)
         if 1 <= k <= n:
             out.add(k - 1)
@@ -1410,7 +1645,9 @@ def detect_intent(text: str, session: "ChatSession") -> str:
     if COURSE_LIST_RE.search(text) and not has_days:
         return "course"  # '추천 여행코스' 목록 (일정을 짜달라는 '코스'와 구분)
     list_ok = bool(ASK_RE.search(text)) if (mid or in_plan) else True
-    if (FEST_RE.search(text) and not FEST_PLAN_RE.search(text) and not (in_plan and MODIFY_RE.search(text))
+    # "2박3일로 부산 여행을 가는데 일정이 비어서 축제 찾아줘": 축제 목록만이 아니라 일정을 짜고 축제 후보를 함께 보여준다
+    trip_ctx = bool(FEST_TRIP_RE.search(text)) and (has_days or mid or in_plan)
+    if (FEST_RE.search(text) and not FEST_PLAN_RE.search(text) and not (in_plan and MODIFY_RE.search(text)) and not (trip_ctx and not in_plan)
             and (list_ok or bool(FEST_ASK_RE.search(text)))):
         # 축제를 물으면 날짜·기간이 함께 있어도 축제 목록 ("부산 2박3일 축제 추천해줘", "축제 일정 알려줘").
         # "축제 위주로 일정 짜줘"처럼 짜달라는 말이 있으면 일정
@@ -1701,6 +1938,25 @@ def _handle_message(session: ChatSession, text: str, today: date | None, ranker)
 
         session.history.append({"role": "user", "content": text})
         session.rest_text = None
+        stay, rest = parse_stay_times(text)  # "체크인 오후 3시, 체크아웃 11시" → 숙소 시각. 이 표현은 지역·날짜·취향 읽기에 넘기지 않는다
+        if stay:
+            session.stay_times, session.asked_stay_times = {**session.stay_times, **stay}, True
+            session.pending_stay = {**(session.pending_stay or {}), **stay}
+            text = rest
+            if not rest:
+                if session.plan and session.view:
+                    reply = _rerender(session)
+                    session.history.append({"role": "assistant", "content": reply})
+                    return _pack(session, "planned", _user_place_ack(session) + reply)
+                if session.asked_optional:
+                    text = "상관없어요"  # 시각만 말했으면 동행·취향은 따로 없다는 뜻
+                else:
+                    reply = _user_place_ack(session).rstrip() + "\n\n여행 지역과 날짜를 알려주시면 반영해서 일정을 짜 드릴게요."
+                    session.history.append({"role": "assistant", "content": reply})
+                    return _pack(session, "asking", reply)
+        res = _try_festival_add(session, text)  # 추천받은 축제 "1번 2일차에 추가해줘" → 일정에 넣고 그날 나머지를 축제장 주변으로 다시 맞춤 (장소 말보다 먼저)
+        if res is not None:
+            return res
         res = _try_user_places(session, text)  # "숙소는 OO호텔, 2일차 12시에 OO카페 들를게" → 숙소·고정 장소 반영
         if res is not None:
             return res
@@ -1710,6 +1966,11 @@ def _handle_message(session: ChatSession, text: str, today: date | None, ranker)
         if res is not None:
             return res
         intent = detect_intent(text, session)
+        if intent in ("plan", "festival") and FEST_RE.search(text) and FEST_RECO_RE.search(text) and not FEST_FOCUS_RE.search(text):
+            # "둘째 날이 비어서 괜찮은 축제 찾아줘": 후보만 보여주고, 어느 날에 넣을지 기억해 둔다
+            days = _target_days(text, 60)
+            session.fest_hint_day = days[0] if days else None
+            session.want_fest_reco = session.want_fest_reco or intent == "plan"  # 다음 답("상관없어요")에서 일정을 만들 때까지 기억
         if intent == "about":
             session.history.append({"role": "assistant", "content": ABOUT_REPLY})
             return _pack(session, "planned" if session.plan else "asking", ABOUT_REPLY, None, {"intent": "about"}, replace_caveats=True)
