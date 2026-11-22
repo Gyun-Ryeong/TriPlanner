@@ -42,7 +42,7 @@ ollama pull gemma4:26b
 #    .env.example 이 있으면 복사:  copy .env.example .env   (macOS/Linux: cp)
 
 # 4) 확인 후 실행
-python -m unittest discover -s tests      # 키/Ollama 없이 로직 테스트
+python -m unittest discover -s tests -t .  # 키/Ollama 없이 로직 테스트 (-t . 을 빼면 진짜 .env 설정을 읽어 일부가 실패)
 python diagnose_api.py                     # API 키 점검
 python -m streamlit run chat_app.py        # 채팅 화면 → http://localhost:8501
 ```
@@ -68,9 +68,16 @@ python -m streamlit run chat_app.py        # 채팅 화면 → http://localhost:
 | 📍 **내가 고른 장소·숙소** | "숙소는 OO호텔이야, 2일차 12시에 OO카페 들를게, 저녁 7시에 OO식당 예약했어" | 장소는 TourAPI에서 먼저, 없으면 **네이버 지역검색**으로 위치를 찾음. 시간을 말하면 그 시각에 고정(식당은 그 끼니를 대신), 숙소는 매일 출발·복귀 지점이고 일정에 체크인(첫날)·체크아웃(마지막 날) 항목으로 들어가며, 방문지는 숙소 6km 안에서 고름. 숙소를 알려주면 체크인 첫날 15시·체크아웃 마지막 날 11시로 고정하고("체크인 4시"처럼 말하면 그 시각), 첫날은 아침에 짐을 맡기고 15시에 숙소로 돌아와 체크인, 마지막 날은 체크아웃하고 나옴. 바꾸는 곳은 '내 여행' 저장 후 일정 상세 페이지라고 안내. "OO카페 빼줘", "OO카페 3일차로 옮겨줘", "OO카페 4시로 바꿔줘" 가능 |
 | 🎉 **축제 추천 → 골라서 추가** | "12월 12일 2박3일 부산 가는데 둘째 날이 비어서 괜찮은 축제 찾아줘" → (일정 + 여행 기간 축제 후보) → "1번 2일차에 추가해줘" / "2번 괜찮네요"→"네" | 축제를 일정에 마음대로 넣지 않고 후보만 보여줌(비어 있다고 한 날에 열리는 축제 먼저). 사용자가 고르면 그 날에 넣고 그날 나머지를 축제장 가까이로 다시 맞춘 뒤 축제 시간을 알려 달라고 안내. "축제 위주로" 같은 말은 예전처럼 축제 중심 일정 |
 | ⚠️ **리스크 알림용 조회** | `GET /risks?region=부산` | 특보·취소·통제 등 지역 이슈 뉴스만 (LLM 미사용, 빠름) |
+| 🗣 **대충 쓴 말** | "낼 부산 ㄱㄱ", "담주 금욜부터 2박", "강릉 금토일", "다음달 5일", "12월 초", "크리스마스에", "다다음주 월~금" | 줄임말·요일 나열·월 초/중순/말·공휴일을 날짜로 읽음. "다음달"·"다음주"만 말하면 며칠·무슨 요일인지 되묻고, "어제"·"저번주"처럼 지난 날짜는 정중히 다시 물음 |
+| ⏹ **보낸 말 취소** | 화면의 '보내기 취소' (`POST /chat/{id}/cancel`) | 대화 기억을 그 말을 보내기 전으로 되돌림. 처리 중이면 데이터 수집·AI 호출 직전에 멈춤 |
+| ⏳ **진행 상황** | 답을 기다리는 화면 (`GET /chat/{id}/progress`) | "날씨·관광지를 모으고 있어요 → 장소를 고르고 있어요 → AI가 일정을 짜고 있어요 (2/3) → 영업시간·휴무일 확인 → 정리" |
+| 💡 **취향 기억** | (취향을 말하지 않고 일정 요청) | 백엔드가 보내준 '내 여행' 저장 장소 요약으로 자주 담은 종류(박물관·카페 등)를 반영하고 답변에 알려줌. 저장했던 장소는 뒤로 미룸. 이번에 말한 취향이 항상 우선 |
 
 - **전국 지원**: 시도뿐 아니라 전국 시·군·구(곡성, 영월, 울진 …)까지 인식합니다. 일상 단어와 겹치는 이름은 "고양시"처럼, 여러 시도에 있는 이름("고성")은 시도와 함께 말해 주세요.
 - **날씨 반영**: 비/눈, 폭염·한파, 미세먼지 '나쁨'인 날은 자동으로 **실내 위주**로 짭니다.
+- **동선 최적화**: 하루 장소를 이동거리가 가장 짧은 순서로 잇고(7곳 이하는 모든 순서 비교, 그 이상은 2-opt), 새 일정은 날짜 사이 장소를 맞바꿔 가까운 곳끼리 모읍니다. 숙소를 말하면 숙소에서 출발해 숙소로 돌아오는 길로 계산합니다.
+- **영업시간·휴무일**: 일정에 넣은 장소의 상세정보(detailIntro2)로 휴무일("매주 월요일", "둘째·넷째 주 월요일", "설·추석 당일" 등)을 읽어 그날 문 닫는 곳은 다른 날로 옮기거나 바꾸고, 장소마다 "🕒 운영: 09:00~18:00 · 휴무 매주 월요일"을, 운영시간 밖에 도착하면 경고를 보여줍니다.
+- **하이브리드 검색**: AI 유사도 순위에 키워드 순위(이름 3 / 분류 2 / 소개글 1점)를 RRF로 섞어 "국밥", "해수욕장" 같은 정확한 말도 잡습니다.
 - **AI가 실패해도 동작**: Ollama가 느리거나 꺼져 있어도 규칙 기반 기본 일정으로 답합니다.
 
 ---
@@ -86,7 +93,7 @@ python -m streamlit run chat_app.py        # 채팅 화면 → http://localhost:
 | 오프라인 테스트 | `python -m unittest discover -s tests -v` | – | 없음 | 로직 검증 (네트워크·키 불필요) |
 | API 키 진단 | `python diagnose_api.py [tour\|weather\|air\|naver\|ollama]` | – | 키 | 어느 API가 왜 실패하는지 원문 표시 |
 | 단계별 점검 | `python check_setup.py [ollama\|apis\|vector\|e2e\|travel\|chat]` | – | 단계별 상이 | 연결 확인, `chat`은 실제 대화 1회 + 소요 시간 |
-| 장소 벡터 DB 채우기 | `python build_vector_db.py [시도...]` | – | 키 | 전국 장소를 `chroma_db/` 에 미리 저장 (아래 4) 참고) |
+| 장소 벡터 DB 채우기 | `python build_vector_db.py [시도...]` | – | 키 | 전국 장소를 MariaDB `tour_place` 에 미리 저장 (아래 4) 참고) |
 
 > Streamlit 화면을 두 개 동시에 띄우려면 포트를 바꾸세요: `python -m streamlit run travel_app.py --server.port 8502`
 
@@ -119,9 +126,10 @@ python check_setup.py ollama              # ③ Ollama 연결
 python check_setup.py chat                # ④ 대화형 플래너 전체 (실제 API + Ollama, 단계별 소요 시간)
 ```
 
-### 4) 장소 벡터 DB (ChromaDB)
+### 4) 장소 벡터 DB (MariaDB)
 
-전국 관광지·음식점 등을 `chroma_db/` 폴더에 미리 저장해 두면, 일정을 짤 때 TourAPI를 부르지 않고 DB에서 꺼내 씁니다.
+전국 관광지·음식점 등을 백엔드와 같은 MariaDB(`triplanner`)의 `tour_place`·`tour_region` 테이블에 미리 저장해 두면, 일정을 짤 때 TourAPI를 부르지 않고 DB에서 꺼내 씁니다.
+MariaDB **11.7 이상**(벡터 타입 `VECTOR`)이 필요하고, 접속 정보는 `.env`의 `DB_HOST`·`DB_PORT`·`DB_NAME`·`DB_USER`·`DB_PASSWORD`(백엔드와 같은 계정)입니다.
 DB에 없는 지역은 지금처럼 TourAPI로 받고, 받은 결과를 DB에 저장합니다 (쓰면서 채워짐). 축제는 날짜가 자주 바뀌어 저장하지 않습니다.
 
 ```bash
@@ -136,7 +144,9 @@ python evaluate.py --limit 5              # 일정 품질 (Ollama 필요). 지�
 ```
 
 - TourAPI 호출: 시군구 하나에 1~2번, 전국 300번 안팎. 30일(`PLACE_DB_MAX_AGE_DAYS`)이 지난 지역은 다시 받아 새로 고칩니다.
-- `chroma_db/` 는 git에 올리지 않습니다. 팀원은 각자 위 명령으로 만듭니다.
+- 벡터는 float32 바이트로 저장하고, 검색은 그 지역 장소만 꺼내 정확히 비교합니다. (MariaDB 벡터 인덱스는 `WHERE 지역`과 함께 쓰면 전국에서 먼저 고른 뒤 걸러서 지역 검색 결과가 거의 빠집니다. 실측 10곳 중 1곳)
+- 팀원은 DB 덤프를 받거나, 테이블을 만든 뒤 `python build_vector_db.py`로 채웁니다. 예전 `chroma_db/`가 있으면 `python migrate_chroma_to_mariadb.py`로 옮길 수 있습니다(77초, 옮긴 뒤 자동 확인).
+- MariaDB가 꺼져 있거나 접속 정보가 없으면 TourAPI만 써서 챗봇은 그대로 동작합니다.
 - 끄려면 `.env` 에 `PLACE_DB_ENABLED=off` (그러면 예전처럼 TourAPI만 씀).
 
 ---
@@ -270,6 +280,7 @@ Encoding/Decoding 키는 어느 쪽을 넣어도 동작합니다. 문화정보·
 - **궂은 날 실내 비율**: 비/눈·폭염·한파·미세먼지 나쁨인 날에 배치된 방문지 중 실내 장소 비율
 - **하루 이동 거리**: 방문지·식당을 순서대로 이은 직선거리 합 (km)
 - **채워진 날 / 하루 방문지 수 / 방문지 유형 수**, **일정 생성 시간**, **규칙 기반 대체 비율**(AI 실패)
+- **휴무일 방문 / 운영시간 밖 방문**: 문 닫는 날 들어간 방문지, 여는 시각 전·닫은 뒤에 도착하는 방문지 수
 
 ```bash
 python evaluate.py              # eval/cases.json 전체 (케이스당 수십 초~몇 분, Ollama·API 키 필요)
@@ -277,7 +288,24 @@ python evaluate.py --limit 3    # 앞에서 3개만
 python evaluate.py --only busan-couple-sea,daegu-indoor
 ```
 
-결과는 `eval/results/eval_날짜.md`(요약 표)와 `.json`(전체 값)으로 저장됩니다 (깃에는 올리지 않음). 케이스는 `eval/cases.json` 에 추가하면 되고, 날씨가 반영되도록 "내일·모레·이번 주말"처럼 3일 이내 날짜로 적습니다.
+결과는 `eval/results/eval_날짜.md`(요약 표)와 `.json`(전체 값)으로 저장됩니다 (깃에는 올리지 않음). 지난 결과가 있으면 **지난 결과와 비교 표**(✅ 좋아짐 / ⚠️ 나빠짐)가 함께 붙습니다. 케이스는 `eval/cases.json` 에 추가하면 되고, 날씨가 반영되도록 "내일·모레·이번 주말"처럼 3일 이내 날짜로 적습니다.
+
+### 장소 검색 정확도 (Ollama 없이 1분)
+
+`eval/search_cases.json`의 질문 30개마다 실제 일정과 같은 함수(`rank_places`)로 장소를 줄 세우고, 상위 5곳이 정답 기준(이름·분류·소개글 정규식)에 맞는지 잽니다. 벡터만 쓴 경우와 키워드를 섞은 경우를 나란히 보여줍니다.
+
+```bash
+python evaluate_search.py                       # 결과: eval/results/search_날짜.md
+python evaluate_search.py --only daegu-gukbap
+```
+
+| 지표 | 벡터만 | 키워드 섞기 |
+|---|---|---|
+| P@5 (상위 5곳 중 정답 비율) | 0.367 | **0.913** |
+| Hit@5 (5곳 안에 정답이 있음) | 0.500 | **1.000** |
+| MRR (첫 정답 순위의 역수 평균) | 0.451 | **0.983** |
+
+(2026-11-16, 전국 47,703곳 기준)
 
 ---
 
@@ -289,15 +317,22 @@ python evaluate.py --only busan-couple-sea,daegu-indoor
  ├─ 정보 수집 대화: 지역 → 출발일 → 기간 → [한 번만] 동행·취향을 하나씩 되묻기      travel/chat.py
  │     지역/날짜는 규칙 파서가 우선(내일, 이번 주말, 2박 3일 ...), 동행/취향은 LLM       travel/dates.py, regions.py
  │
+ │     대충 쓴 말은 먼저 표준 표현으로 바꿈 (낼→내일, 담주→다음주, 금욜→금요일 ...)       travel/dates.py normalize_casual
+ │
  ├─ 정보가 모이면 외부 데이터를 병렬 수집 (같은 여행 조건에서는 재사용)                 travel/context.py
- │     ① TourAPI 관광지·문화시설·레포츠·축제    ② 네이버 뉴스(특보/취소/통제)
- │     ③ 기상청 단기예보(오늘~3일)            ④ 에어코리아 미세먼지(오늘~모레 예보 + 실시간)
+ │     ① 장소: 벡터 DB(MariaDB tour_place)에 있으면 거기서, 없으면 TourAPI로 받고 DB에 저장   travel/place_db.py
+ │     ② 네이버 뉴스(특보/취소/통제)   ③ 기상청 단기예보(오늘~3일)   ④ 에어코리아 미세먼지
  │
  ├─ 일자별 컨디션 계산: 비/눈, 폭염·한파, 미세먼지·초미세먼지 '나쁨' → "실내 위주"     travel/conditions.py
- ├─ 후보를 임베딩 검색(취향 유사도) + 궂은 날용 실내 후보 보장 → 소개글 보강             travel/context.py
- ├─ LLM이 일자별 일정을 JSON으로 생성 (후보 id로만 장소 지정)                        travel/planner.py
+ ├─ 후보 순위: 벡터 유사도 + 키워드(RRF) [+ 취향 기억, 저장했던 곳은 뒤로]             travel/context.py, keyword.py, profile.py
+ │     + 궂은 날용 실내 후보 보장 → 소개글 보강
+ ├─ LLM이 일자별 일정을 JSON으로 생성 (후보 id로만 장소 지정, 긴 일정은 3일씩 나눠서)     travel/planner.py
  ├─ 검증: 없는 장소·중복 제거, 날짜 맞추기 / 실패 시 규칙 기반 기본 일정으로 대체
- └─ 답변 렌더링: 날씨·미세먼지 수치는 코드가 직접 채움, 궂은 날 실외 일정이 많으면 경고
+ ├─ 휴무일 정리: 상세정보로 휴무일 확인 → 다른 날과 맞바꾸기 / 안 쓴 후보로 바꾸기 / 빼기   travel/hours.py, routing.py
+ ├─ 동선: 날짜 사이 장소 맞바꾸기(새 일정만) → 하루 안 최단 순서                        travel/routing.py, geo.py
+ └─ 답변 렌더링: 날씨·미세먼지 수치·운영시간은 코드가 직접 채움, 궂은 날 실외 일정이 많으면 경고
+
+ (단계마다 진행 상황을 기록 → GET /chat/{id}/progress, 취소되면 다음 단계 전에 멈추고 대화 기억 복원)
 ```
 
 **설계 포인트**
@@ -341,26 +376,38 @@ AI는 **날짜별로 방문할 장소와 순서**만 정하고, 나머지는 코
 ```
 rag_project/
 ├── chat_app.py            # ★ 채팅 화면 (Streamlit)
-├── api_server.py          # ★ FastAPI: /chat, /recommend, /risks, /regions, /region-photo, /health
+├── api_server.py          # ★ FastAPI: /chat, /chat/{id}/cancel, /chat/{id}/progress, /recommend, /risks, /regions, /region-photo, /health
+├── build_vector_db.py     # ★ 장소 벡터 DB 채우기 (--reembed, --overview N, --search, --stats)
+├── evaluate.py            # 일정 품질 일괄 평가 (Ollama 필요, 지난 결과와 비교)
+├── evaluate_search.py     # 장소 검색 정확도 평가 (Ollama 없이, 벡터만 vs 키워드 섞기)
 ├── diagnose_api.py        # ★ 키 문제 vs API 문제 진단
 ├── check_setup.py         # 단계별 점검
 ├── config.py              # 설정 (.env 읽기, API 엔드포인트)
 ├── travel/
-│   ├── chat.py            # ★ 대화형 플래너 handle_message()
-│   ├── planner.py         # 프롬프트, LLM 응답 검증, 기본 일정, 마크다운 렌더링
-│   ├── schedule.py, geo.py   # 시간표(체류·이동·식사), 좌표 기반 이동 시간 추정
+│   ├── chat.py            # ★ 대화형 플래너 handle_message(), 보낸 말 취소, 진행 상황
+│   ├── planner.py         # 프롬프트, LLM 응답 검증, 기본 일정, 마크다운 렌더링(운영시간 표시)
+│   ├── schedule.py, geo.py   # 시간표(체류·이동·식사), 좌표 기반 이동 시간, 하루 최단 순서(best_order)
+│   ├── routing.py         # 날짜 사이 장소 맞바꾸기, 휴무일 정리(fix_closures)
+│   ├── hours.py           # 휴무일·운영시간 문구 읽기 (설·추석 표 포함)
+│   ├── keyword.py         # 키워드 뽑기·점수, 벡터 순위와 RRF로 합치기
+│   ├── profile.py         # 회원 취향 요약 → 취향 단어, 저장했던 장소 뒤로
+│   ├── place_db.py        # 장소 벡터 DB (MariaDB tour_place, 시군구 단위 저장·30일마다 새로 고침)
+│   ├── embeddings.py, onnx_embedder.py   # 임베딩 (ONNX 기본, PyTorch 대체)
+│   ├── documents.py       # 장소 → 벡터 문장 (이름 → 분류 → 소개글 → 주소)
 │   ├── conditions.py      # 일자별 날씨·미세먼지 → 실내/실외 판단
-│   ├── context.py         # 데이터 수집·후보 선별
-│   ├── dates.py           # 한국어 날짜 파서
+│   ├── context.py         # 데이터 수집·후보 선별(하이브리드 순위)
+│   ├── dates.py           # 한국어 날짜 파서 (대충 쓴 말 normalize_casual 포함)
 │   ├── lists.py, placeinfo.py, news.py, multi.py   # 목록·장소 문의·뉴스(사건·사고 포함)·다중 지역
 │   ├── clock.py           # "저녁 7시부터 9시" 같은 시각 말 읽기
 │   ├── userplaces.py      # 사용자가 말한 숙소·장소·시간 읽기, 위치 찾기, 일정에 넣기
 │   ├── regions.py, ldong.py, gazetteer.py, places.py, risk_scanner.py
 │   └── pipeline.py        # (단발 추천) recommend_trip()
 ├── collectors/            # TourAPI, 기상청, 에어코리아, 네이버 등 API 클라이언트 + 캐시
-├── rag/                   # ChromaDB 벡터 스토어 (app.py용)
+├── rag/                   # ChromaDB 임시 벡터 스토어 (app.py, /recommend용)
 ├── llm/ollama_client.py   # Ollama 호출, JSON 파싱
-├── tests/                 # 키/Ollama 없이 돌리는 오프라인 테스트
+├── tests/                 # 키/Ollama 없이 돌리는 오프라인 테스트 (348개)
+├── eval/                  # 평가 질문 (cases.json 일정, search_cases.json 검색). results/ 는 깃에 올리지 않음
+├── migrate_chroma_to_mariadb.py  # 예전 chroma_db/ → MariaDB 옮기기 + 확인 (--check)
 ├── travel_app.py, app.py  # (이전) 단발 추천 화면 / 범용 챗봇
 └── cache/                 # 실행 중 자동 생성 (API 응답·임베딩·지역 사전). 깃에 올리지 않음
 ```
@@ -377,4 +424,7 @@ rag_project/
 - **로컬 LLM은 한 번에 하나씩 처리**합니다. 첫 일정 요청이 가장 느리고(데이터 수집 + 모델 로드), 수정 요청은 훨씬 빠릅니다.
 - **캐시**: API 응답은 `cache/api/`에 저장됩니다 (관광정보 12시간, 날씨·예보 30분, 뉴스 10분). API가 실패하면 최근 저장본(미세먼지 18시간, 날씨·뉴스 6시간, 관광정보 며칠)으로 대신 답합니다. 초기화하려면 `cache/` 폴더를 지우세요 (다시 자동 생성).
 - **세션**은 API 서버 메모리에만 있어 재시작하면 사라집니다. 서버를 여러 대로 늘릴 때는 Redis 등으로 옮겨야 합니다.
+- **휴무일 읽기**는 정규식이라 확실히 읽히는 문구만 씁니다. 애매하면("휴무 가능성 있음, 전화 문의") 연다고 봅니다. 설·추석은 2026~2028년만 표에 있어요. 점심·저녁 식당은 휴무일을 확인하지 않습니다.
+- **상세정보 호출**: 새 일정 하나에 상세정보(detailIntro2)를 최대 `INTRO_PLAN_LIMIT`(기본 40)번 부르고 7일 저장합니다. 한도가 아까우면 줄이세요.
+- **취소**: 이미 Ollama에 보낸 요청은 끝까지 돌고 결과만 버립니다. 끝난 지 15초가 지난 말은 되돌리지 않습니다.
 - **TourAPI는 KorService2**입니다. 엔드포인트/파라미터는 `config.py`, `collectors/tourism.py`에 있습니다.
