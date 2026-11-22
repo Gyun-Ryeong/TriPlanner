@@ -48,7 +48,13 @@ OLLAMA_THINK = os.getenv("OLLAMA_THINK", "").strip().lower()   # "" | "true" | "
 EMBEDDING_MODEL_NAME = os.getenv(
     "EMBEDDING_MODEL_NAME", "paraphrase-multilingual-MiniLM-L12-v2"
 )
-CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db")
+CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db")  # 예전 장소 DB(옮기기 전)와 app.py 범용 챗봇용
+# 장소 벡터 DB를 둘 MariaDB (백엔드와 같은 triplanner DB, 테이블 tour_place · tour_region). 11.7 이상(VECTOR 타입) 필요
+DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
+DB_PORT = int(os.getenv("DB_PORT", "3308"))
+DB_NAME = os.getenv("DB_NAME", "triplanner")
+DB_USER = os.getenv("DB_USER", "")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 # 임베딩을 돌리는 방식. onnx = PyTorch 없이 ONNX Runtime (메모리 적게, 처음 한 번 모델 파일 내려받음) / torch = 예전 방식
 EMBEDDING_BACKEND = os.getenv("EMBEDDING_BACKEND", "onnx").strip().lower()
 # 장소 임베딩을 저장해 두는 파일. 처음 본 장소만 계산하므로 두 번째 요청부터 후보 검색이 거의 즉시 끝납니다.

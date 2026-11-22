@@ -116,8 +116,11 @@ def _area_places(sido: str, code: str, scode: str, shared: bool) -> list[dict]:
     try:
         got = get_tourism_info(l_dong_regn_cd=code, l_dong_signgu_cd=scode, num_rows=TOUR_AREA_ROWS)
     except Exception:
-        if db is not None and db.region_age_days(code, scode) is not None:
-            stored = db.get_places(code, scode)
+        if db is not None:
+            try:
+                stored = db.get_places(code, scode) if db.region_age_days(code, scode) is not None else []
+            except Exception:
+                stored = []  # DB도 안 되면 TourAPI 오류를 그대로 알린다
             if stored:
                 return stored
         raise

@@ -1,5 +1,6 @@
-"""장소 벡터 DB (travel/place_db.py) — 실제 임베딩 모델·TourAPI 없이 가짜 벡터로 확인"""
+"""장소 벡터 DB (travel/place_db.py) — 실제 MariaDB·임베딩 모델·TourAPI 없이 메모리 SQLite와 가짜 벡터로 확인"""
 import hashlib
+from datetime import datetime, timedelta
 import os
 import tempfile
 import time
@@ -42,7 +43,7 @@ class PlaceDBTests(unittest.TestCase):
             self.calls.append(list(texts))
             return fake_embed(texts)
 
-        self.db = PlaceDB(tempfile.mkdtemp(prefix="placedb_"), embed=embed)
+        self.db = PlaceDB.in_memory(embed=embed)
 
     def test_save_and_load_region(self):
         n = self.db.put_region("26", "350", [place("1", "해운대해수욕장"), place("2", "부산 불꽃축제", "15"),
@@ -72,13 +73,13 @@ class PlaceDBTests(unittest.TestCase):
 
     def test_stale_after_max_age(self):
         self.db.put_region("26", "350", [place("1", "해운대해수욕장")], lambda p: "부산")
-        self.db._regions["26|350"] = time.time() - (config.PLACE_DB_MAX_AGE_DAYS + 1) * 86400
+        self.db.set_region_time("26", "350", datetime.now() - timedelta(days=config.PLACE_DB_MAX_AGE_DAYS + 1))
         self.assertFalse(self.db.is_fresh("26", "350"))
 
 
 class PipelineWithDBTests(unittest.TestCase):
     def setUp(self):
-        self.db = PlaceDB(tempfile.mkdtemp(prefix="placedb_"), embed=fake_embed)
+        self.db = PlaceDB.in_memory(embed=fake_embed)
         place_db.reset_for_tests(self.db)
         self.on = patch.object(config, "PLACE_DB_ENABLED", True)
         self.on.start()
@@ -98,10 +99,30 @@ class PipelineWithDBTests(unittest.TestCase):
 
     def test_api_failure_uses_old_db(self):
         self.db.put_region("26", "350", [place("1", "해운대해수욕장")], lambda p: "부산")
-        self.db._regions["26|350"] = 0  # 아주 오래됨
+        self.db.set_region_time("26", "350", datetime(2000, 1, 1))  # 아주 오래됨
         with patch.object(pl, "get_tourism_info", side_effect=TimeoutError("느림")):
             got = pl._area_places("부산", "26", "350", False)
         self.assertEqual([p["title"] for p in got], ["해운대해수욕장"])
+
+    def test_db_down_falls_back_to_api(self):
+        def refuse():
+            raise ConnectionRefusedError("MariaDB 꺼짐")
+
+        place_db.reset_for_tests(PlaceDB(connect=refuse, embed=fake_embed))
+        api = [place("1", "해운대해수욕장")]
+        with patch.object(pl, "get_tourism_info", return_value=api):
+            got = pl._area_places("부산", "26", "350", False)
+        self.assertEqual([p["title"] for p in got], ["해운대해수욕장"])  # 챗봇은 멈추지 않는다
+        with patch.object(pl, "get_tourism_info", side_effect=TimeoutError("느림")):
+            with self.assertRaises(TimeoutError):  # DB 오류가 아니라 TourAPI 오류를 알린다
+                pl._area_places("부산", "26", "350", False)
+
+    def test_vectors_round_trip(self):
+        self.db.put_region("26", "350", [place("1", "해운대해수욕장")], lambda p: "부산")
+        th, vec = self.db.vectors(["1"])["1"]
+        self.assertEqual(vec.dtype, np.float32)
+        self.assertEqual(len(vec), 32)
+        self.assertAlmostEqual(float(np.linalg.norm(vec)), 1.0, places=5)
 
     def test_api_failure_without_db_raises(self):
         with patch.object(pl, "get_tourism_info", side_effect=TimeoutError("느림")):
@@ -167,7 +188,7 @@ class PlaceTextTests(unittest.TestCase):
             calls.append(list(texts))
             return fake_embed(texts)
 
-        db = PlaceDB(tempfile.mkdtemp(prefix="placedb_"), embed=embed)
+        db = PlaceDB.in_memory(embed=embed)
         with patch.object(self.t, "_overview_cache", {}):
             db.put_region("26", "350", [place("1", "해운대해수욕장"), place("2", "동백섬")], lambda p: "부산")
         calls.clear()
