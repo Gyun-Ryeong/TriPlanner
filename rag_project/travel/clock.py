@@ -59,3 +59,68 @@ def parse_time_range(text: str) -> tuple[int, int | None] | None:
     if end <= start or end > 24 * 60:
         return start, None
     return start, end
+
+
+_STAY_KEY_RE = re.compile(r"(체크\s*인|체크\s*아웃|입실|퇴실)(?:\s*시간)?")
+_AFTER_GAP_RE = re.compile(r"^[\s은는이가을를:=\-~]*$")      # "체크인은 오후 3시" 처럼 키워드와 시각 사이에 올 수 있는 말
+_STAY_FILLER = {"부터", "까지", "쯤", "경", "정도", "이고", "이며", "인데", "고", "야", "이야", "이에요", "예요", "에요", "입니다", "하고", "하고요", "하며",
+                "다음날", "이후", "이후로", "이전", "이전에", "로", "으로", "요", "그리고", "그리고요", "근데", "그런데", "해줘", "할게", "할게요", "해요", "에", "은", "는", "이"}
+_BEFORE_GAP_RE = re.compile(r"^\s*(?:쯤|경|정도)?\s*(?:에|부터|까지|이후|전)?\s*(?:에는|엔)?\s*$")   # "3시쯤에 체크인"
+
+
+def _stay_minutes_of(m: re.Match, is_out: bool) -> int | None:
+    mer, h = m.group(1), int(m.group(2))
+    minute = int(m.group(3) or m.group(5) or (30 if m.group(4) else 0))
+    if h > 24 or minute > 59:
+        return None
+    if is_out and mer is None and h <= 8:
+        return h * 60 + minute        # 체크아웃을 저녁 8시 이전 '오후'로 말하는 일은 없다 ("체크아웃 8시" = 오전)
+    return _hour24(h, mer) * 60 + minute
+
+
+def parse_stay_times(text: str) -> tuple[dict, str]:
+    """
+    "체크인은 오후 3시, 체크아웃 11시" → ({"in": 900, "out": 660}, 그 표현을 지운 나머지 말).
+    시각을 같이 말하지 않은 체크인/체크아웃은 무시한다 (나머지 말에 그대로 남는다).
+    """
+    text = text or ""
+    keys = list(_STAY_KEY_RE.finditer(text))
+    found: dict[str, int] = {}
+    cuts: list[tuple[int, int]] = []
+    floor = 0   # 앞 표현이 쓴 자리까지
+    for i, k in enumerate(keys):
+        is_out = "아웃" in k.group(1) or "퇴" in k.group(1)
+        nxt = keys[i + 1].start() if i + 1 < len(keys) else len(text)
+        after = text[k.end():nxt]
+        hit = _TIME_RE.search(after)
+        span = None
+        if hit and _AFTER_GAP_RE.match(after[:hit.start()]):
+            span = (k.start(), k.end() + hit.end())
+            val = _stay_minutes_of(hit, is_out)
+        else:
+            val = None
+        if span is None:
+            before = text[floor:k.start()]
+            last = None
+            for last in _TIME_RE.finditer(before):
+                pass
+            if last is not None and _BEFORE_GAP_RE.match(before[last.end():]):
+                span = (floor + last.start(), k.end())
+                val = _stay_minutes_of(last, is_out)
+        if span is None or val is None:
+            continue
+        found["out" if is_out else "in"] = val
+        cuts.append(span)
+        floor = span[1]
+    if not cuts:
+        return {}, text
+    out, pos = [], 0
+    for a, b in sorted(cuts):
+        out.append(text[pos:a])
+        pos = b
+    out.append(text[pos:])
+    rest = " ".join(out)
+    toks = [t for t in rest.split() if t.strip(",.") not in _STAY_FILLER]   # 시각을 지운 자리에 남은 조사·어미 조각
+    rest = re.sub(r"\s*[,，]\s*(?:[,，]\s*)*", ", ", " ".join(toks))
+    rest = re.sub(r"\s+", " ", rest).strip(" ,.")
+    return found, rest

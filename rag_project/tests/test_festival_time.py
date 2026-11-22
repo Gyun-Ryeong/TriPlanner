@@ -112,7 +112,7 @@ class FestivalChatFlowTests(unittest.TestCase):
         return self.chat.handle_message(self.session, text, today=date(2026, 10, 21), ranker=FakeRanker())
 
     def make_plan(self):
-        self.first = self.say("전주 다음주 주말에 2박 3일 혼자 여행 일정 짜줘")   # 축제가 일정에 들어가면 이때 시간 안내가 한 번 나간다
+        self.first = self.say("전주 다음주 주말에 2박 3일 혼자 여행 일정 짜줘")   # 축제를 말하지 않았으니 축제도, 시간 안내도 없다
         return self.say("노상놀이야 축제 방문 기준으로 일정 짜줘")
 
     def fest_event(self, r):
@@ -124,10 +124,13 @@ class FestivalChatFlowTests(unittest.TestCase):
 
     def test_plan_explains_that_the_user_must_find_the_festival_time(self):
         r = self.make_plan()
-        self.assertIn("축제 시간은 저희가 알 수 없어요", self.first["reply"])
-        self.assertIn("사용자님이 공식 홈페이지나 포스터에서 시간을 찾아서 알려주셔야", self.first["reply"])
-        self.assertIn("노상놀이야 저녁 7시부터 9시", self.first["reply"])           # 예시 문장
-        self.assertNotIn("축제 시간은 저희가 알 수 없어요", r["reply"])             # 같은 축제는 한 번만 안내
+        self.assertNotIn("축제 시간은 저희가 알 수 없어요", self.first["reply"])    # 축제를 말한 적 없으면 시간을 묻지 않는다
+        self.assertIsNone(self.fest_event(self.first)[1])                          # 축제가 일정에 끼어들지도 않는다
+        self.assertIn("축제 시간은 저희가 알 수 없어요", r["reply"])                # 축제를 말했을 때 한 번 안내
+        self.assertIn("사용자님이 공식 홈페이지나 포스터에서 시간을 찾아서 알려주셔야", r["reply"])
+        self.assertIn("노상놀이야 저녁 7시부터 9시", r["reply"])                    # 예시 문장
+        r_again = self.say("노상놀이야 축제 방문 기준으로 다시 짜줘")
+        self.assertNotIn("축제 시간은 저희가 알 수 없어요", r_again["reply"])       # 같은 축제는 한 번만 안내
         di, e = self.fest_event(r)
         self.assertIsNotNone(e)
         self.assertFalse(e["fixed"])

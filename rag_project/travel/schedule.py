@@ -50,9 +50,11 @@ def pick_restaurant(prev: dict | None, restaurants: list[dict], used: set[str]) 
 class _Day:
     """하루의 이벤트를 시간 순서대로 쌓는 작업대. 현재 시각(t)과 직전 장소(prev)를 기억한다."""
 
-    def __init__(self, restaurants: list[dict], used: set[str], base: dict | None = None):
+    def __init__(self, restaurants: list[dict], used: set[str], base: dict | None = None, return_home: bool = True,
+                 day_start: int = DAY_START):
+        self.return_home = return_home  # False: 마지막 날처럼 체크아웃하고 나오는 날 (숙소로 돌아가지 않는다)
         self.events: list[dict] = []
-        self.t = DAY_START
+        self.t = day_start
         self.prev: dict | None = None
         self.base = base  # 숙소: 하루의 출발·복귀 지점 (첫 이동과 마지막 복귀 이동이 여기서 시작/끝난다)
         self.restaurants, self.used = restaurants, used
@@ -133,7 +135,7 @@ class _Day:
         a, (s, e) = anchor["place"], anchor["fixed"]
         if self.prev is None and not self.events:
             self.t = s  # 하루의 첫 일정이 정해진 장소면 그 시각에 맞춰 하루를 시작한다 (앞에 빈 시간을 두지 않는다)
-            if self.base is not None:
+            if self.base is not None and a is not self.base:
                 self._leave_base(a, arrive_by=s)  # 숙소에서 그 시각에 맞춰 출발
         else:
             self._meals_before(s)
@@ -172,7 +174,7 @@ class _Day:
             self.meal("점심", LUNCH_EARLIEST, LUNCH_MIN)
         if self.prev is not None and not self.dinner_done and self.t < 20 * 60:
             self.meal("저녁", DINNER_EARLIEST, DINNER_MIN)
-        if self.base is not None and self.prev is not None and self.prev is not self.base:
+        if self.base is not None and self.return_home and self.prev is not None and self.prev is not self.base:
             est = estimate_travel(self.prev, self.base)  # 숙소로 복귀
             self.events.append({"kind": "move", "start": hhmm(self.t), "end": hhmm(self.t + est["minutes"]),
                                 "from": self.prev, "to": self.base, "text": est["text"]})
@@ -180,7 +182,8 @@ class _Day:
 
 
 def build_timeline(day_items: list[dict], restaurants: list[dict], used_restaurants: set[str],
-                   base: dict | None = None) -> list[dict]:
+                   base: dict | None = None, return_home: bool = True,
+                   day_start: int = DAY_START) -> list[dict]:
     """
     Args:
         day_items: [{"place": place_dict, "note": str, "fixed": (시작 분, 끝 분) — 시간이 정해진 장소만}, ...]
@@ -191,7 +194,7 @@ def build_timeline(day_items: list[dict], restaurants: list[dict], used_restaura
     Returns:
         이벤트 리스트. kind = visit | move | meal | free   (시간이 정해진 장소의 visit 에는 fixed=True)
     """
-    day = _Day(restaurants, used_restaurants, base)
+    day = _Day(restaurants, used_restaurants, base, return_home, day_start)
     anchors = sorted((it for it in day_items if it.get("fixed")), key=lambda it: it["fixed"][0])
     free = [it for it in day_items if not it.get("fixed")]
     queue = order_from(base, free) if base is not None else order_by_proximity(free)
