@@ -12,8 +12,9 @@ from datetime import date
 
 from travel.conditions import display_line
 from travel.geo import straight_km
+from travel.clock import hhmm
 from travel.hours import closed_on, hours_text, open_range, rest_text
-from travel.schedule import build_timeline, stay_minutes
+from travel.schedule import DAY_START, build_timeline, stay_minutes
 
 PLAN_SYSTEM_PROMPT = """너는 한국 여행 플래너 챗봇이다. 사용자와 대화하듯 친근한 존댓말로 답한다.
 [여행 조건], [일자별 컨디션], [후보 장소], [지역 이슈 뉴스]에 있는 정보만 근거로 '날짜별로 방문할 장소와 순서'를 정한다.
@@ -215,6 +216,9 @@ def clean_text(text: str) -> str:
     return re.sub(r"\s{2,}", " ", _ID_RE.sub("", text or "")).strip()
 
 
+CHECK_IN_MIN = 30  # 체크인에 쓰는 시간(분)
+
+
 def _hours_line(p: dict) -> str:
     """'09:00~18:00 · 휴무 매주 월요일' (상세정보를 받은 장소만, 길면 자름)"""
     hours, rest = hours_text(p), rest_text(p)
@@ -250,18 +254,24 @@ def _out_of_hours(p: dict, start: str, end: str) -> str:
 
 
 def hydrate_plan(plan: dict, cand_map: dict[str, dict], conditions: list[dict], restaurants: list[dict] | None = None,
-                 fixed_times: dict[str, tuple[int, int | None]] | None = None, base: dict | None = None) -> list[dict]:
+                 fixed_times: dict[str, tuple[int, int | None]] | None = None, base: dict | None = None,
+                 stay_times: dict[str, int] | None = None) -> list[dict]:
     """
     일자별 시간표(장소·이동·식사)를 만들어 화면/API용 구조로 변환합니다.
     같은 음식점이 여러 날 반복되지 않도록 여행 전체에서 사용한 음식점을 기억합니다.
     fixed_times: {장소 key(content_id 또는 제목): (시작 분, 끝 분 또는 None)} 사용자가 알려준 축제·장소 시간. 그 시각은 그대로 두고 나머지를 맞춥니다.
     base: 사용자가 알려준 숙소. 매일 숙소에서 출발해 숙소로 돌아오는 동선으로 짭니다.
+    stay_times: {"in": 체크인 분, "out": 체크아웃 분}. 첫날 그 시각에 숙소에서 체크인하고(그 앞뒤로 나머지를 맞춤), 마지막 날은 그 시각 전에 나옵니다.
     """
     restaurants = restaurants or []
+    stay_times = stay_times or {}
     fixed_times = fixed_times or {}
     used_restaurants: set[str] = set()
     out = []
-    for cond, day in zip(conditions, plan["days"]):
+    n_days = len(plan["days"])
+    for di, (cond, day) in enumerate(zip(conditions, plan["days"])):
+        first_day, last_day = di == 0, di == n_days - 1
+        overnight = base is not None and n_days > 1  # 숙박이 있는 여행: 첫날 체크인, 마지막 날 체크아웃
         day_items = []
         for it in day["items"]:
             p = cand_map.get(it["candidate_id"]) if it["candidate_id"] else None
@@ -271,10 +281,19 @@ def hydrate_plan(plan: dict, cand_map: dict[str, dict], conditions: list[dict], 
                 if fx:
                     d_item["fixed"] = (fx[0], fx[1] if fx[1] else fx[0] + stay_minutes(p))
                 day_items.append(d_item)
+        day_start = DAY_START
+        check_in = stay_times.get("in") if overnight and first_day else None
+        if check_in is not None and check_in > DAY_START:
+            day_items.append({"place": base, "note": "", "fixed": (check_in, check_in + CHECK_IN_MIN)})  # 일정 사이에 숙소로 돌아와 체크인
+        if overnight and last_day and stay_times.get("out") is not None:
+            day_start = min(DAY_START, stay_times["out"])  # 체크아웃 시각이 이르면 그 전에 나선다
         events = []
-        for e in build_timeline(day_items, restaurants, used_restaurants, base):
+        for e in build_timeline(day_items, restaurants, used_restaurants, base, return_home=not (overnight and last_day),
+                                day_start=day_start):
             ev = {"kind": e["kind"], "start": e["start"], "end": e["end"]}
-            if e["kind"] == "visit":
+            if e["kind"] == "visit" and e["place"] is base:
+                ev.update(kind="stay", place=_place_view(base), label="체크인")
+            elif e["kind"] == "visit":
                 ev.update(place=_place_view(e["place"]), note=e.get("note", ""), fixed=bool(e.get("fixed")),
                           warning=_out_of_hours(e["place"], e["start"], e["end"]),
                           closed=_closed(e["place"], cond.get("date")))
@@ -285,6 +304,14 @@ def hydrate_plan(plan: dict, cand_map: dict[str, dict], conditions: list[dict], 
             else:
                 ev.update(text=e["text"])
             events.append(ev)
+        if overnight and events and (first_day or last_day) and events[0]["kind"] != "stay":
+            # 숙소를 일정에 넣는다: 첫날은 체크인(짐 맡기고 출발), 마지막 날은 체크아웃. 저장할 때도 장소로 남는다
+            at = events[0]["start"]
+            if last_day:
+                label = "체크아웃" + (f" ({hhmm(stay_times['out'])}까지)" if stay_times.get("out") is not None else "")
+            else:
+                label = "짐 맡기고 출발" if check_in is not None and check_in > DAY_START else "체크인 · 짐 맡기고 출발"
+            events.insert(0, {"kind": "stay", "start": at, "end": at, "place": _place_view(base), "label": label})
         visits = [e for e in events if e["kind"] == "visit"]
         out.append({
             "date": cond["date"], "label": cond["label"], "theme": clean_text(day["theme"]),
@@ -320,6 +347,12 @@ def _render_event(e: dict) -> list[str]:
                 lines.append(f"  - 📍 위치: {p['address']}")
             return lines
         return [f"- **{span}** | 🍽️ **{e['label']} 식사** — 이동 경로 근처에서 자유롭게"]
+    if e["kind"] == "stay":
+        p = e["place"]
+        lines = [f"- **{e['start']}** | 🏨 **{e['label']}: {p['name']}**"]
+        if p["address"]:
+            lines.append(f"  - 📍 위치: {p['address']}")
+        return lines
     if e["kind"] == "move":
         return [f"- 🚶 {span} | 이동: {e['from']} ➔ {e['to']} ({e['text']})"]
     return [f"- ☕ {span} | {e['text']}"]

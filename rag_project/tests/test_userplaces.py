@@ -129,6 +129,30 @@ class FlowBase(unittest.TestCase):
                     return di, e
         return None, None
 
+    def assert_hotel_route(self, r, hotel):
+        """첫날 체크인(15시) · 마지막 날 체크아웃(11시)이 일정에 들어가고, 매일 숙소에서 출발하며 숙박하는 날은 숙소로 돌아온다."""
+        days, n = r["plan"], len(r["plan"])
+        for i, d in enumerate(days):
+            ev = [e for e in d["events"] if e["kind"] != "stay"]
+            stay = [e for e in d["events"] if e["kind"] == "stay"]
+            self.assertEqual(ev[0]["from"], hotel)
+            if i < n - 1:
+                self.assertEqual(ev[-1]["to"], hotel)
+            else:
+                self.assertNotEqual(ev[-1].get("to"), hotel)                     # 체크아웃한 날은 숙소로 돌아가지 않는다
+            if i == 0:
+                self.assertEqual([e["label"] for e in stay], ["짐 맡기고 출발", "체크인"])   # 아침에 짐을 맡기고, 15시에 돌아와 체크인
+                self.assertEqual(stay[1]["start"], "15:00")
+            elif i == n - 1:
+                self.assertEqual([e["label"] for e in stay], ["체크아웃 (11:00까지)"])
+            else:
+                self.assertEqual(stay, [])
+            for e in stay:
+                self.assertEqual(e["place"]["name"], hotel)
+                self.assertTrue(e["place"]["content_id"])                          # 저장할 때 장소로 남도록 id 가 있다
+            if i in (0, n - 1):
+                self.assertEqual(d["events"][0]["kind"], "stay")
+
     def assert_days_clean(self, r):
         for d in r["plan"]:
             ev = d["events"]
@@ -146,9 +170,7 @@ class ChatFlowTests(FlowBase):
         dj, diner = self.find(r, "하늘식당")
         self.assertEqual((diner["start"], diner["end"], diner["fixed"]), ("19:00", "20:10", True))
         self.assert_days_clean(r)
-        for d in r["plan"]:                                                                                   # 매일 숙소에서 출발·복귀
-            self.assertEqual(d["events"][0]["from"], "스타호텔 판교점")
-            self.assertEqual(d["events"][-1]["to"], "스타호텔 판교점")
+        self.assert_hotel_route(r, "스타호텔 판교점")                                                         # 매일 숙소에서 출발, 숙박하는 날은 복귀
         # 7시에 고른 식당은 저녁을 대신하지만, 12시에 고른 카페는 점심을 대신하지 않는다
         self.assertFalse([e for e in r["plan"][dj]["events"] if e["kind"] == "meal" and e["label"] == "저녁"])
         self.assertTrue([e for e in r["plan"][di]["events"] if e["kind"] == "meal" and e["label"] == "점심"])
@@ -273,7 +295,7 @@ class LodgingHoldTests(FlowBase):
         self.assertIn("누구와", r["reply"])                # 숙소가 정해졌으니 이제 동행·취향을 한 번 묻는다 (보통 흐름)
         r = self.say("상관없어요")
         self.assertIsNotNone(r["plan"])
-        self.assertEqual(r["plan"][0]["events"][0]["from"], "신라모노그램 강릉 레지던스")
+        self.assert_hotel_route(r, "신라모노그램 강릉 레지던스")
 
     def test_no_lodging_option_plans_without_it(self):
         self.say(USER_MSG)
@@ -283,7 +305,7 @@ class LodgingHoldTests(FlowBase):
         r = self.say("상관없어요")
         self.assertIsNotNone(r["plan"])
         self.assertIsNone(self.session.lodging)
-        self.assertNotEqual(r["plan"][0]["events"][0]["kind"], "move")          # 숙소가 없으니 숙소에서 출발하는 이동이 없다
+        self.assertNotIn("move", [e["kind"] for e in r["plan"][0]["events"][:1]])          # 숙소가 없으니 숙소에서 출발하는 이동이 없다
 
     def test_when_a_plan_already_exists_a_missing_lodging_does_not_block(self):
         self.db["신라모노그램"] = [GN_HOTEL]
@@ -307,9 +329,38 @@ class LodgingFoundTests(FlowBase):
         self.assertEqual(self.session.slots["preferences"], "")               # 숙소·여행 문장이 취향으로 저장되지 않는다
         r = self.say("상관없어요")                                              # 동행·취향 질문(한 번)에 답하면 일정이 나온다
         self.assertIsNotNone(r["plan"])
-        for d in r["plan"]:
-            self.assertEqual(d["events"][0]["from"], "신라모노그램 강릉 레지던스")
-            self.assertEqual(d["events"][-1]["to"], "신라모노그램 강릉 레지던스")
+        self.assert_hotel_route(r, "신라모노그램 강릉 레지던스")
+
+
+class LodgingAsPlaceTests(FlowBase):
+    """숙소만 말했을 때: 안내 문구는 말한 장소만 들고, 숙소는 일정 항목이 되며, 방문지는 숙소 주변에서 고른다."""
+    DB = {"스타호텔": [HOTEL]}
+
+    def test_hint_never_names_a_place_the_user_did_not_say(self):
+        self.make_plan()
+        r = self.say("숙소는 판교 스타호텔이야")
+        self.assertIn("이렇게 이해했어요", r["reply"])
+        self.assertNotIn("하늘식당", r["reply"])
+        self.assertNotIn("옮겨줘", r["reply"])              # 옮길 장소가 없으니 옮기는 방법도 알려주지 않는다
+
+    def test_hint_uses_the_place_the_user_named(self):
+        self.db["단풍"] = [CAFE]
+        self.make_plan()
+        r = self.say("2일차 12시에 단풍 카페 들를게")
+        self.assertIn('"단풍 2일차로 옮겨줘"', r["reply"])
+
+    def test_lodging_is_a_schedule_item_and_visits_are_near_it(self):
+        r = self.say("전주 다음주 주말에 2박 3일 혼자 여행인데 숙소는 판교 스타호텔로 예약했어. 숙소 주변으로 동선 짜줘")
+        self.assertIsNotNone(r["plan"])
+        self.assert_hotel_route(r, "스타호텔 판교점")
+        self.assertIn("체크인", r["reply"])
+        self.assertIn("체크아웃", r["reply"])
+        names = [e["place"]["name"] for d in r["plan"] for e in d["events"] if e["kind"] == "visit"]
+        self.assertNotIn("아주먼곳", names)                   # 숙소에서 먼 곳은 넣지 않는다
+
+    def test_no_festival_notice_when_the_user_never_mentioned_a_festival(self):
+        r = self.make_plan()
+        self.assertNotIn("축제 시간은 저희가 알 수 없어요", r["reply"])
 
 
 if __name__ == "__main__":
