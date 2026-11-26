@@ -1,5 +1,6 @@
 package com.triplanner.backend.controller;
 
+import tools.jackson.databind.JsonNode;
 import com.triplanner.backend.dto.ChatPlanImportRequest;
 import com.triplanner.backend.dto.ChecklistCheckRequest;
 import com.triplanner.backend.dto.ChecklistItemRequest;
@@ -18,6 +19,7 @@ import com.triplanner.backend.service.ChecklistService;
 import com.triplanner.backend.service.PrepAlertService;
 import com.triplanner.backend.service.RouteService;
 import com.triplanner.backend.service.TripAlertService;
+import com.triplanner.backend.service.TripNewsService;
 import com.triplanner.backend.service.TripService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -42,19 +44,22 @@ public class TripController {
     private final TripAlertService tripAlertService;
     private final ChecklistService checklistService;
     private final PrepAlertService prepAlertService;
+    private final TripNewsService tripNewsService;
 
     public TripController(
             TripService tripService,
             RouteService routeService,
             TripAlertService tripAlertService,
             ChecklistService checklistService,
-            PrepAlertService prepAlertService
+            PrepAlertService prepAlertService,
+            TripNewsService tripNewsService
     ) {
         this.tripService = tripService;
         this.routeService = routeService;
         this.tripAlertService = tripAlertService;
         this.checklistService = checklistService;
         this.prepAlertService = prepAlertService;
+        this.tripNewsService = tripNewsService;
     }
 
     // 일정 변경·준비 알림 (체크리스트 기한, 비어 있는 일정)
@@ -95,6 +100,12 @@ public class TripController {
     ) {
         checklistService.deleteItem(authentication.getName(), tripId, itemId);
         return ResponseEntity.noContent().build();
+    }
+
+    // 여행지 소식 카드: 주의할 이슈 + 지역 소식 (기사마다 사진). 본인 여행만
+    @GetMapping("/{tripId}/news")
+    public ResponseEntity<JsonNode> getTripNews(Authentication authentication, @PathVariable Long tripId) {
+        return ResponseEntity.ok(tripNewsService.getNews(authentication.getName(), tripId));
     }
 
     @GetMapping("/alerts")

@@ -1,0 +1,5 @@
+target/
+.idea/
+*.iml
+# 로컬 개발용 비밀 설정은 이미지에 넣지 않는다 (배포는 환경변수 + application-prod.yml)
+src/main/resources/application-local.yml

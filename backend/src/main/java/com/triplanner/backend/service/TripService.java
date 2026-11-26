@@ -290,6 +290,12 @@ public class TripService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "사용자를 찾을 수 없습니다."));
     }
 
+    // 다른 서비스(여행지 소식 등)가 '본인 여행인지' 확인할 때 쓴다. 남의 여행이면 403, 없으면 404
+    @Transactional(readOnly = true)
+    public Trip findOwnedTrip(String email, Long tripId) {
+        return getOwnedTrip(email, tripId);
+    }
+
     private Trip getOwnedTrip(String email, Long tripId) {
         User user = currentUser(email);
         Trip trip = tripRepository.findById(tripId)
