@@ -1,0 +1,43 @@
+# TriPlanner 배포 (EC2 t3.small 1대, 메모리 2GB + 스왑 4GB). DB는 AWS RDS MySQL, AI는 학교 LLM 게이트웨이(Bedrock).
+#   cd deploy && cp .env.example .env  (값 채우기)  →  docker compose up -d --build
+# 밖으로 여는 포트는 80(web) 하나. backend·rag 는 컨테이너끼리만 통신한다.
+services:
+  web:
+    build: ../frontend
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+    mem_limit: 64m
+
+  backend:
+    build: ../backend
+    env_file: .env
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      RAG_BASE_URL: http://rag:8000
+      # 2GB 서버라 힙을 작게 (Dockerfile 기본값 768m 을 덮어씀)
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx448m -XX:MaxMetaspaceSize=160m -Xss512k -XX:+UseSerialGC"
+    depends_on:
+      - rag
+    restart: unless-stopped
+    mem_limit: 700m
+
+  rag:
+    build: ../rag_project
+    env_file: .env
+    environment:
+      LLM_PROVIDER: gateway
+      DEV_MODE: "off"
+    volumes:
+      - rag-cache:/app/cache          # API 응답·분류 코드표·소개글 캐시 (재시작해도 유지)
+      - hf-cache:/app/hf-cache        # 임베딩 모델 (처음 한 번만 내려받음)
+    restart: unless-stopped
+    mem_limit: 1g
+
+volumes:
+  rag-cache:
+  hf-cache:

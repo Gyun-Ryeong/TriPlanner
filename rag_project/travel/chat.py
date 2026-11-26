@@ -1555,7 +1555,7 @@ def _make_plan(session: ChatSession, text: str, today: date, ranker, refine: boo
         "evaluation": evaluate_plan(days_view, grounding, plan_source, timings),
         "llm_stats": llm_stats,
         "plan": days_view, "conditions": conditions, "used_sources": sources,
-        "risks": [{"category": n["category"], "title": n["title"], "link": n["link"], "pub_date": n["pub_date"]} for n in raw["news"]],
+        "risks": [{"category": n["category"], "title": n["title"], "link": n["link"], "pub_date": n["pub_date"], "source": n.get("source", "")} for n in raw["news"]],
         "caveats": _caveats(raw, conditions, warnings, start, end, today),
     }
     return reply

@@ -1,0 +1,13 @@
+# 배포(EC2) 서버용 패키지. 로컬 개발용 requirements.txt 에서 서버에 필요 없는 무거운 패키지를 뺐다.
+#  - chromadb, sentence-transformers(PyTorch): 장소 검색은 MariaDB/MySQL + ONNX 임베딩으로 해서 필요 없음
+#  - streamlit: 개발용 채팅 화면
+requests
+python-dotenv
+xmltodict
+fastapi
+uvicorn
+numpy
+pymysql
+onnxruntime
+tokenizers
+huggingface_hub

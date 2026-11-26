@@ -26,6 +26,10 @@ PUBLIC_DATA_API_KEY = os.getenv("PUBLIC_DATA_API_KEY", "")
 NAVER_CLIENT_ID = os.getenv("NAVER_CLIENT_ID", "").strip()
 NAVER_CLIENT_SECRET = os.getenv("NAVER_CLIENT_SECRET", "").strip()
 
+# ── 연합뉴스 재난·사건사고 기사 (행정안전부 재난안전데이터 공유플랫폼) ──
+# ★ 넣을 곳: .env 의 YONHAP_NEWS_API_KEY=  (공공데이터포털 키와 별개). 플랫폼에 호출하는 PC·서버의 IP를 등록해야 한다
+YONHAP_NEWS_API_KEY = os.getenv("YONHAP_NEWS_API_KEY", "").strip()
+
 # ── Ollama (로컬 LLM) ─────────────────────────────────────────────────
 # ollama가 로컬에서 서비스 중인 주소 (기본 설치 시 그대로 사용하면 됨)
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").strip().rstrip("/")  # 끝의 / 는 자동 제거
@@ -39,6 +43,17 @@ OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "300"))
 OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
 # 모델을 메모리에 올려둘 시간. 기본(5분)이면 잠깐 쉬었다 대화할 때마다 모델을 다시 올려 느려지므로 길게 잡음
 OLLAMA_KEEP_ALIVE = os.getenv("OLLAMA_KEEP_ALIVE", "30m")
+# ── AI 모델 제공자: ollama(로컬, 기본) | gateway(학교 LLM 게이트웨이 = Bedrock, OpenAI 호환 API) ──
+# 배포(EC2)에서는 로컬 모델을 못 돌려서 gateway 를 쓴다. 키는 코드에 넣지 말고 서버의 .env 에만.
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama").strip().lower()
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "").strip().rstrip("/")           # 예: https://게이트웨이주소/v1
+LLM_CHAT_PATH = os.getenv("LLM_CHAT_PATH", "/chat/completions").strip()   # OpenAI 호환 경로
+LLM_API_KEY = os.getenv("LLM_API_KEY", "").strip()
+LLM_MODEL = os.getenv("LLM_MODEL", "bedrock-haiku").strip()
+LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", "120"))
+LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "4096"))
+# on 이면 response_format=json_object 를 보낸다. 게이트웨이가 지원하지 않으면 off (프롬프트로 JSON을 받고 코드가 고쳐 읽음)
+LLM_JSON_MODE = os.getenv("LLM_JSON_MODE", "off").strip().lower() in ("on", "true", "1", "yes")
 # 일부 모델은 답하기 전에 길게 '생각'해서 느리거나 빈 응답을 줍니다. false로 끄면 빨라질 수 있어요.
 # 비워두면 옵션을 보내지 않습니다(모델 기본 동작). 생각 기능이 없는 모델에는 보내지 않는 게 안전해요.
 OLLAMA_THINK = os.getenv("OLLAMA_THINK", "").strip().lower()   # "" | "true" | "false"
@@ -126,6 +141,8 @@ ENDPOINTS = {
     "air_quality": "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty",
     # 국토교통부_한국건설기술연구원 교통량 통계 데이터 정보조회서비스
     "traffic": "https://apis.data.go.kr/1613000/TrafficVolumeService/getTrafficVolumeList",
+    # 행정안전부 재난안전데이터 공유플랫폼: 연합뉴스 재난·사건사고 기사
+    "yonhap_news": "https://www.safetydata.go.kr/V2/api/DSSP-IF-10747",
     # 네이버 검색/검색어 트렌드: NAVER API HUB
     "naver_news_hub": "https://naverapihub.apigw.ntruss.com/search/v1/news",
     "naver_local_hub": "https://naverapihub.apigw.ntruss.com/search/v1/local",  # 지역(장소) 검색: 사용자가 말한 카페·식당·숙소 위치 찾기

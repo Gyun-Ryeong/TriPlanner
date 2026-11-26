@@ -4,12 +4,15 @@
   Case A 포괄 질문  "성남시 요즘 소식 있어?"        → 그 지역 핵심 소식 3~4개 (같은 사건을 여러 언론이 쓴 건 하나로)
   Case B 특정 대상  "성남 야외공연장 뉴스 알려줘"    → 그 대상과 직접 관련된 뉴스 '하나'만 (무관한 기사는 제외)
 
-네이버 뉴스 검색 결과(제목·요약)만 사용하고 AI는 쓰지 않습니다. 기사에 없는 내용을 지어낼 수 없고 빠릅니다.
+  Case C 사건·사고  "인천 사건사고 알려줘"          → 네이버 뉴스 + 연합뉴스 재난·사건사고 기사(행정안전부 공유플랫폼)
+
+뉴스 기사(제목·요약)만 사용하고 AI는 쓰지 않습니다. 기사에 없는 내용을 지어낼 수 없고 빠릅니다.
 """
 import re
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 
+import config
 from collectors.naver_news import search_news
 from travel.regions import CITY_TO_SIDO, SIDO, normalize_region
 
@@ -29,11 +32,13 @@ SAFETY_DAYS = 60  # 최근 두 달
 SAFETY_MAX = 6
 SAFETY_QUERIES = ("경찰 검거", "범죄", "사건사고", "화재", "교통사고", "폭행 절도")
 # 실제 사건·사고 기사에 나오는 말 (이 중 하나는 있어야 통과)
-_INCIDENT_RE = re.compile(r"경찰|검거|체포|구속|입건|송치|피의자|피해자|용의자|범행|범죄|사망|숨져|숨진|부상|(?<!문)화재(?!단)|불이|소방|실종|폭행|절도|사기|"
+_INCIDENT_RE = re.compile(r"경찰|검거|체포|구속|입건|송치|피의자|피해자|용의자|범행|범죄|사망|숨져|숨진|부상|(?<!문)화재(?!단)|불이|산불|"
+                          r"(?:^|[\s서에])불(?=…|\.\.\.|\s|$|나)|소방|실종|폭행|절도|사기|"
                           r"살인|성범죄|마약|음주운전|추락|붕괴|침수|교통사고|안전사고|강도|납치|보이스피싱|변사|응급|추돌|충돌|전복|심정지|참변|피습|흉기|스토킹|학대")
 # 예방 캠페인·기부·예산·정치 기사처럼 사건이 아닌데 단어만 겹치는 제목
 _NOT_INCIDENT_RE = re.compile(r"협약|캠페인|훈련|예산|정책|기부|전달받|전달식|공모|박람회|축제|세미나|업무보고|후보자|국정감사|의혹|논란|"
-                              r"포상|표창|영웅|수여|유공|예방|대책|접견|청장|임명|취임|출범|개청|감소|증가|행사|기념|체험|수렴|약속|개선|브리핑|메디톡|칼럼|기고|주의|교육|24시|실시")
+                              r"포상|표창|영웅|수여|유공|예방|대책|접견|청장|임명|취임|출범|개청|감소|증가|행사|기념|체험|수렴|약속|개선|브리핑|메디톡|칼럼|기고|주의|교육|24시|실시|"
+                              r"시의원|구의원|도의원|국회의원|의회|공단|점검|선거|공약|동절기|하절기|단속")
 # 이야기·방송 속 사건이라 여행과 무관한 기사에 나오는 말 (하나라도 있으면 제외)
 _FICTION_RE = re.compile(r"드라마|영화|웹툰|애니|코난|예능|배우|소설|게임|개봉|시즌|캐릭터|넷플릭스|뮤지컬|콘서트|아이돌|만화|OTT|시청률|"
                          r"주연|출연|방영|촬영|스포일러|리뷰|줄거리|웹소설|유튜버|가수")
@@ -130,6 +135,36 @@ def fetch(queries: list[str], display: int = 20) -> tuple[list[dict], list[str]]
     return items, warnings
 
 
+def fetch_yonhap() -> tuple[list[dict], list[str]]:
+    """연합뉴스 재난·사건사고 최근 기사. 키가 없으면 조용히 건너뛰고, 실패하면 경고만 남긴다 (네이버 뉴스로 계속 동작)."""
+    if not config.YONHAP_NEWS_API_KEY:
+        return [], []
+    try:
+        from collectors.yonhap import recent_articles
+        # 지운 기사(<삭제>)는 받을 때 빼지만, 예전에 저장된 캐시에 남아 있을 수 있어 여기서도 거른다
+        return [a for a in recent_articles() if "<삭제>" not in a["title"]], []
+    except Exception as e:
+        return [], [f"연합뉴스 기사 조회 실패: {type(e).__name__}: {str(e)[:120]}"]
+
+
+_COLUMN_RE = re.compile(r"^\s*\[(?!속보|단독|종합|사진|영상)[^\]]{1,12}\]")
+
+
+def is_column(title: str) -> bool:
+    """'[해수분해]', '[기자수첩]' 처럼 연재·해설 기사 (특정 사건 소식이 아님). [속보]·[단독]·[종합]은 사건 기사로 본다"""
+    return bool(_COLUMN_RE.match(title or ""))
+
+
+def _in_title_or_dateline(it: dict, key: str) -> bool:
+    """지역 이름이 제목에 있거나, 연합뉴스 데이트라인((부산=연합뉴스))이 그 지역인지"""
+    return key in _norm(it["title"]) or (bool(it.get("dateline")) and key in _norm(it["dateline"]))
+
+
+def _source_line(it: dict) -> str:
+    """기사 링크가 있으면 '기사 보기', 없으면(연합뉴스 재난 기사) 출처만"""
+    return f"- [기사 보기]({it['link']})" if it.get("link") else f"- 출처: {it.get('source') or '언론 보도'}"
+
+
 def _recent(items: list[dict], days: int, now: datetime | None = None) -> list[dict]:
     cutoff = (now or datetime.now(timezone.utc)) - timedelta(days=days)
     return [it for it in items if (d := _when(it)) is not None and d >= cutoff]
@@ -176,7 +211,8 @@ def _date(item: dict) -> str:
 
 
 def _view(it: dict) -> dict:
-    return {"title": it["title"], "summary": _snippet(it["description"], 160), "link": it["link"], "pub_date": it.get("pub_date", "")}
+    return {"title": it["title"], "summary": _snippet(it["description"], 160), "link": it.get("link", ""),
+            "pub_date": it.get("pub_date", ""), "source": it.get("source", "")}
 
 
 def render_broad(label: str, items: list[dict]) -> tuple[str, list[dict]]:
@@ -184,7 +220,7 @@ def render_broad(label: str, items: list[dict]) -> tuple[str, list[dict]]:
         return f"최근 {label} 관련 소식을 찾지 못했어요.", []
     lines = [f"## {label} 최근 소식", ""]
     for i, it in enumerate(items, 1):
-        lines += [f"**{i}. {it['title']}** ({_date(it)})", f"- {_snippet(it['description'], 110)}", f"- [기사 보기]({it['link']})", ""]
+        lines += [f"**{i}. {it['title']}** ({_date(it)})", f"- {_snippet(it['description'], 110)}", _source_line(it), ""]
     return "\n".join(lines).strip(), [_view(it) for it in items]
 
 
@@ -198,12 +234,12 @@ def render_focus(target: str, item: dict | None) -> tuple[str, list[dict]]:
     if item is None:
         return f"'{target}'{_wa(target)} 직접 관련된 최근 소식은 찾지 못했어요.", []
     text = "\n".join([f"## {target} 관련 소식", "", f"**{item['title']}** ({_date(item)})", "",
-                      _snippet(item["description"], 220), "", f"[기사 보기]({item['link']})"])
+                      _snippet(item["description"], 220), "", _source_line(item)[2:]])
     return text, [_view(item)]
 
 
 def _incident_kind(title: str) -> str:
-    if re.search(r"(?<!문)화재(?!단)|불이|소방|폭발", title):
+    if re.search(r"(?<!문)화재(?!단)|불이|산불|(?:^|[\s서에])불(?=…|\.\.\.|\s|$|나)|소방|폭발", title):
         return "fire"
     if re.search(r"교통사고|추돌|충돌|전복|음주운전", title):
         return "traffic"
@@ -217,8 +253,8 @@ def pick_safety(items: list[dict], label: str, n: int = SAFETY_MAX, now: datetim
     for it in _recent(items, SAFETY_DAYS, now):
         text = it["title"] + " " + it["description"]
         # 지역 이름과 사건 단어가 모두 제목에 있어야 한다 (본문 한 줄에 '범죄 피해자 지원'처럼 스치는 기사 제외)
-        if (key in _norm(it["title"]) and _INCIDENT_RE.search(it["title"]) and not _NOT_INCIDENT_RE.search(it["title"])
-                and not _FICTION_RE.search(text)):
+        if (_in_title_or_dateline(it, key) and _INCIDENT_RE.search(it["title"]) and not _NOT_INCIDENT_RE.search(it["title"])
+                and not _FICTION_RE.search(text) and not is_column(it["title"])):
             rel.append(it)
     rel.sort(key=lambda it: (key in _norm(it["title"]), _when(it)), reverse=True)  # 제목에 지역이 있는 것 → 최신 순
     # 같은 사건을 여러 언론이 쓴 건 하나로 묶고, 화재만 줄줄이 나오지 않게 종류(범죄·화재·교통)마다 2건까지 먼저 담는다
@@ -247,15 +283,20 @@ def render_safety(label: str, items: list[dict]) -> tuple[str, list[dict]]:
         return f"최근 두 달 안에 {label}에서 알아둘 만한 사건·사고 기사는 찾지 못했어요.", []
     lines = [f"## {label} 최근 사건·사고 소식", "", "최근 두 달 기사 중 해당 지역의 사건·사고만 골랐어요. 최신순입니다.", ""]
     for i, it in enumerate(items, 1):
-        lines += [f"**{i}. {it['title']}** ({_date(it)})", f"- {_snippet(it['description'], 110)}", f"- [기사 보기]({it['link']})", ""]
+        lines += [f"**{i}. {it['title']}** ({_date(it)})", f"- {_snippet(it['description'], 110)}", _source_line(it), ""]
     return "\n".join(lines).strip(), [_view(it) for it in items]
 
 
 def answer_safety(label: str) -> tuple[str, dict, list[str], bool]:
     items, warnings = fetch([f"{label} {q}" for q in SAFETY_QUERIES], display=50)
+    yonhap, yw = fetch_yonhap()  # 재난·사건사고만 모은 연합뉴스 기사도 함께 (같은 사건은 pick_safety가 하나로 묶음)
+    items, warnings = yonhap + items, warnings + yw
     if not items and warnings:
         return NEWS_UNAVAILABLE, {"intent": "news", "news": []}, warnings, False
-    reply, views = render_safety(label, pick_safety(items, label))
+    chosen = pick_safety(items, label)
+    from collectors.yonhap import attach_links
+    attach_links(chosen)  # 링크가 없는 연합뉴스 기사는 네이버 검색으로 원문 주소를 찾아 '기사 보기'로
+    reply, views = render_safety(label, chosen)
     return reply, {"intent": "news", "news": views}, warnings, False
 
 
