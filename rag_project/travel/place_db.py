@@ -10,7 +10,7 @@
 지역마다 언제 저장했는지 기록해 두고(tour_region), PLACE_DB_MAX_AGE_DAYS가 지나면 다시 받아 새로 고칩니다.
 축제(15)는 날짜가 자주 바뀌어 저장하지 않고 계속 실시간으로 받습니다.
 
-테이블 (MariaDB 11.7 이상: VECTOR 타입)
+테이블 (로컬: MariaDB 11.7 이상 VECTOR(384) / 배포: AWS RDS MySQL varbinary(1536) — 코드는 둘 다 바이트로 읽어서 같다)
   tour_place  : content_id(PK), regn_cd, signgu_cd, sido, type_id, indoor, doc_text(검색용 문장),
                 text_hash, data(장소 정보 JSON), embedding VECTOR(384)
   tour_region : regn_cd, signgu_cd (PK), fetched_at

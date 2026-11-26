@@ -388,7 +388,10 @@ def render_markdown(message: str, days_view: list[dict], conditions: list[dict],
         lines.append("")
     if news_show:
         for n in news_show:
-            lines.append(f"💡 방문 전 확인: [{n['title']}]({n['link']})")
+            if n.get("link"):
+                lines.append(f"💡 방문 전 확인: [{n['title']}]({n['link']})")
+            else:  # 링크가 없는 기사 (연합뉴스 재난 기사)
+                lines.append(f"💡 방문 전 확인: {n['title']} ({n.get('source') or '언론 보도'})")
         lines.append("")
     if clean_text(follow_up):
         lines.append(clean_text(follow_up))

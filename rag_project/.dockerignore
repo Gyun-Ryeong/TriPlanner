@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+**/__pycache__/
+.env
+cache/
+chroma_db/
+eval/results/
+tests/
+*.sql
+.claude/
+.agents/

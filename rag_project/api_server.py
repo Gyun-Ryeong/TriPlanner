@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from config import DEV_MODE, NEWS_DAYS_BACK, OLLAMA_MODEL
+from config import DEV_MODE, LLM_MODEL, LLM_PROVIDER, NEWS_DAYS_BACK, OLLAMA_MODEL
 from llm.ollama_client import OllamaConnectionError
 from travel.chat import GREETING, ChatSession, cancel_turn, get_progress, handle_message
 from travel.pipeline import recommend_trip, warm_up
@@ -120,7 +120,8 @@ def reset_chat(session_id: str):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", **({"model": OLLAMA_MODEL} if DEV_MODE else {})}
+    model = LLM_MODEL if LLM_PROVIDER == "gateway" else OLLAMA_MODEL
+    return {"status": "ok", **({"model": model, "provider": LLM_PROVIDER} if DEV_MODE else {})}
 
 
 @app.get("/regions")
@@ -173,3 +174,20 @@ def region_photo_api(
     못 찾으면 image가 빈 값입니다. 같은 지역은 서버 메모리에 기억해 다시 조회하지 않습니다.
     """
     return region_photo(name, region)
+
+
+@app.get("/region-news")
+def region_news_api(
+    name: str = Query(..., description="지역 이름 (시·군·구 또는 시도). 예: 부산, 수원, 곡성", max_length=30),
+    region: str = Query("", description="앱의 권역 이름 (예: '경상도'). 같은 이름의 시군구를 고를 때 씀", max_length=30),
+    limit: int = Query(6, ge=1, le=10, description="칸(사건사고 / 지역 소식)마다 최대 장수"),
+):
+    """
+    여행지 소식 카드를 두 칸으로: 사건사고(여행 영향 이슈 + 화재·교통사고·사건) / 지역 소식(여행 관련 먼저). 기사마다 사진(원문 대표 사진, 없으면 지역 사진). LLM 미사용.
+    응답 counts{incident,local,issue}, items[]: group(incident|local), kind(issue|incident|news), category, title, summary, link(없으면 ""), source, date, image, image_is_fallback
+    """
+    from travel.region_news import region_news
+    out = region_news(name, region, limit)
+    if not DEV_MODE:
+        out.pop("warnings", None)
+    return out

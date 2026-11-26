@@ -38,3 +38,6 @@ out/
 
 # Local handoff notes (not part of the repo)
 /HANDOFF.md
+
+#database dump files
+*.sql

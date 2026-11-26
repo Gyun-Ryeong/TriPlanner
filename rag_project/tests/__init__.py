@@ -10,6 +10,11 @@ os.environ["API_CACHE"] = "off"  # 테스트끼리 응답이 섞이지 않게
 os.environ["PUBLIC_DATA_API_KEY"] = ""
 os.environ["NAVER_CLIENT_ID"] = ""
 os.environ["NAVER_CLIENT_SECRET"] = ""
+os.environ["YONHAP_NEWS_API_KEY"] = ""
+# .env 가 배포 확인용으로 gateway 로 바뀌어 있어도 테스트는 로컬 Ollama 기준, 학교 게이트웨이(한도 있음)는 절대 호출하지 않는다
+os.environ["LLM_PROVIDER"] = "ollama"
+os.environ["LLM_BASE_URL"] = ""
+os.environ["LLM_API_KEY"] = ""
 _tmp = tempfile.mkdtemp(prefix="rag_test_")
 os.environ["OVERVIEW_CACHE_PATH"] = os.path.join(_tmp, "overview.json")
 os.environ["CATEGORY_CACHE_PATH"] = os.path.join(_tmp, "category.json")

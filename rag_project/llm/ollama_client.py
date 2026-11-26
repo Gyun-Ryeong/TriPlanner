@@ -10,9 +10,11 @@
   3) ollama가 백그라운드에서 실행 중이어야 함 (설치하면 보통 자동 실행)
 """
 import json
+import time
 
 import requests
 
+import config
 from config import OLLAMA_BASE_URL, OLLAMA_FALLBACK_MODEL, OLLAMA_KEEP_ALIVE, OLLAMA_MODEL, OLLAMA_NUM_CTX, OLLAMA_THINK, OLLAMA_TIMEOUT
 
 SYSTEM_PROMPT = """당신은 한국 공공데이터와 뉴스 트렌드를 바탕으로 답변하는 어시스턴트입니다.
@@ -42,6 +44,8 @@ class OllamaConnectionError(Exception):
 
 
 def _post_chat(messages: list[dict], temperature: float = 0.2, json_mode: bool = True) -> str:
+    if config.LLM_PROVIDER == "gateway":
+        return _post_gateway(messages, temperature, json_mode)
     try:
         return _post_chat_model(OLLAMA_MODEL, messages, temperature, json_mode)
     except OllamaConnectionError as e:
@@ -100,6 +104,56 @@ def _post_chat_model(model: str, messages: list[dict], temperature: float, json_
         "tokens_per_sec": round(gen / (gen_ns / 1e9), 1) if gen and gen_ns else None,
         "total_sec": round(total_ns / 1e9, 1) if total_ns else None,
         "thinking_chars": len(thinking),
+        "content_chars": len(content),
+    })
+    return content
+
+
+def _post_gateway(messages: list[dict], temperature: float, json_mode: bool) -> str:
+    """
+    학교 LLM 게이트웨이(Amazon Bedrock) 호출. OpenAI 호환 Chat Completions 형식:
+      POST {LLM_BASE_URL}{LLM_CHAT_PATH}  Authorization: Bearer {LLM_API_KEY}
+      {"model", "messages", "temperature", "max_tokens"} → choices[0].message.content
+    실패는 Ollama와 같은 예외(OllamaConnectionError)로 알려, 호출하는 쪽(기본 일정 대체 등)은 그대로 동작한다.
+    """
+    if not config.LLM_BASE_URL or not config.LLM_API_KEY:
+        raise OllamaConnectionError("LLM 게이트웨이 주소(LLM_BASE_URL)나 키(LLM_API_KEY)가 .env 에 없습니다.")
+    payload = {"model": config.LLM_MODEL, "messages": messages, "temperature": temperature,
+               "max_tokens": config.LLM_MAX_TOKENS}
+    if json_mode and config.LLM_JSON_MODE:
+        payload["response_format"] = {"type": "json_object"}
+    url = f"{config.LLM_BASE_URL}{config.LLM_CHAT_PATH}"
+    headers = {"Authorization": f"Bearer {config.LLM_API_KEY}", "Content-Type": "application/json"}
+    started = time.perf_counter()
+    try:
+        resp = requests.post(url, json=payload, headers=headers, timeout=config.LLM_TIMEOUT)
+    except requests.exceptions.Timeout:
+        raise OllamaConnectionError(f"LLM 게이트웨이 응답이 {config.LLM_TIMEOUT}초 안에 오지 않았습니다.")
+    except requests.exceptions.RequestException as e:
+        raise OllamaConnectionError(f"LLM 게이트웨이에 연결할 수 없습니다 ({type(e).__name__}). LLM_BASE_URL 을 확인하세요.")
+    if resp.status_code >= 400:
+        try:
+            body = resp.json()
+            detail = (body.get("error") or {}).get("message") if isinstance(body.get("error"), dict) else body.get("error") or body
+        except ValueError:
+            detail = resp.text
+        hint = " (키를 확인하세요)" if resp.status_code in (401, 403) else " (호출 한도를 넘었을 수 있어요)" if resp.status_code == 429 else ""
+        raise OllamaConnectionError(f"LLM 게이트웨이 오류 {resp.status_code}{hint}: {str(detail)[:400]}")
+    try:
+        data = resp.json()
+        content = (data["choices"][0]["message"].get("content") or "").strip()
+    except (ValueError, KeyError, IndexError, TypeError):
+        raise OllamaConnectionError(f"LLM 게이트웨이 응답 형식을 읽지 못했습니다: {resp.text[:300]}")
+    usage = data.get("usage") or {}
+    total = time.perf_counter() - started
+    gen = usage.get("completion_tokens")
+    LAST_STATS.clear()
+    LAST_STATS.update({
+        "prompt_tokens": usage.get("prompt_tokens"),
+        "gen_tokens": gen,
+        "tokens_per_sec": round(gen / total, 1) if gen and total else None,
+        "total_sec": round(total, 1),
+        "thinking_chars": 0,
         "content_chars": len(content),
     })
     return content

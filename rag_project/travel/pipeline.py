@@ -51,6 +51,13 @@ def warm_up() -> None:
     """임베딩 모델을 백그라운드에서 미리 올려둡니다. 첫 일정 요청이 모델 로딩(수 초~십수 초)을 기다리지 않게 하려는 용도."""
     def run():
         try:
+            # 분류 코드표(cache/category_codes.json)가 없으면 한 번 받아 둔다. 없으면 장소 문장이 DB에 저장된 것과 달라져
+            # 요청마다 장소 벡터를 다시 계산한다 (새로 만든 서버처럼 cache/ 가 비어 있을 때)
+            from collectors.tourism import category_names
+            category_names(fetch=True)
+        except Exception:
+            pass
+        try:
             from travel.embeddings import get_ranker
             get_ranker().load()
         except Exception:
