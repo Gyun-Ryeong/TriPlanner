@@ -1,0 +1,289 @@
+.trip-news {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.trip-news__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.trip-news__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.trip-news__label,
+.trip-news__note,
+.trip-news__footnote {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.trip-news__footnote {
+  font-size: 12px;
+}
+
+.trip-news__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.trip-news__grid > li {
+  display: flex;
+}
+
+.trip-news__card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 12px);
+  background: var(--color-surface);
+  overflow: hidden;
+  color: inherit;
+  text-decoration: none;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+a.trip-news__card:hover {
+  box-shadow: 0 6px 18px rgba(47, 95, 224, 0.12);
+  transform: translateY(-2px);
+}
+
+/* 주의할 이슈: 테두리만 강조색 */
+.trip-news__card--issue {
+  border-color: var(--color-warn);
+}
+
+.trip-news__thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: linear-gradient(135deg, var(--color-primary-soft), #dbe4fb);
+  overflow: hidden;
+}
+
+.trip-news__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 기사 사진이 없어 지역 대표 사진을 쓴 경우: 기사 사진과 구분되게 살짝 흐리게 */
+.trip-news__thumb--region img {
+  filter: saturate(0.75) brightness(0.95);
+}
+
+.trip-news__thumb-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  opacity: 0.6;
+}
+
+.trip-news__badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--color-warn);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.trip-news__text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px 14px;
+  flex: 1;
+}
+
+.trip-news__card-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+  word-break: keep-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.trip-news__summary {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.trip-news__meta {
+  margin: auto 0 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.trip-news__more {
+  color: var(--color-primary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 지역 소식 / 사건사고 탭 */
+.trip-news__tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.trip-news__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.trip-news__tab:hover {
+  color: var(--color-text);
+}
+
+.trip-news__tab--active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.trip-news__count {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-size: 12px;
+}
+
+/* 여행에 영향을 주는 이슈가 있으면 사건사고 탭에 강조색 표시 */
+.trip-news__tab-alert {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--color-warn);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* 사건·사고 종류(화재·교통사고·사건) 배지: 강조색이 아닌 기본 색 */
+.trip-news__badge--incident {
+  background: rgba(17, 24, 39, 0.72);
+}
+
+/* 원문 주소가 없는 기사: 카드 전체가 '본문 보기' 버튼 */
+.trip-news__card--button {
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trip-news__card--button:hover {
+  box-shadow: 0 6px 18px rgba(47, 95, 224, 0.12);
+  transform: translateY(-2px);
+}
+
+.trip-news__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(17, 24, 39, 0.45);
+}
+
+.trip-news__dialog {
+  position: relative;
+  width: min(640px, 100%);
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 24px 24px 20px;
+  border-radius: 16px;
+  background: var(--color-surface);
+  box-shadow: 0 20px 50px rgba(16, 24, 40, 0.25);
+}
+
+.trip-news__dialog-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.trip-news__dialog-close:hover {
+  background: rgba(16, 24, 40, 0.08);
+}
+
+.trip-news__dialog-meta {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.trip-news__dialog-title {
+  margin: 0 32px 14px 0;
+  font-size: 18px;
+  line-height: 1.45;
+  word-break: keep-all;
+}
+
+.trip-news__dialog-body p {
+  margin: 0 0 10px;
+  font-size: 15px;
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
+.trip-news__dialog-credit {
+  margin: 16px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}

@@ -12,6 +12,7 @@ import { TripAlertBlock } from '../components/TripAlertList.jsx'
 import { getAuth } from '../api/authStorage.js'
 import { prepAlertKey, useDismissedAlerts, weatherAlertKey } from '../lib/dismissedAlerts.js'
 import { useTripAlerts } from '../lib/tripAlertsContext.js'
+import TripNewsCards from '../components/TripNewsCards.jsx'
 import { placeLabel } from '../lib/tripPlace.js'
 import { dayLabel, durationLabel } from '../lib/tripDuration.js'
 import './TripSchedule.css'
@@ -898,6 +899,12 @@ export default function TripSchedule({ mode = 'view' }) {
           )}
         </div>
       </div>
+
+      {!planning && (
+        <div className="card trip-schedule__news">
+          <TripNewsCards tripId={trip.tripId} />
+        </div>
+      )}
 
       {!planning && (
         <div className="trip-schedule__danger-zone">

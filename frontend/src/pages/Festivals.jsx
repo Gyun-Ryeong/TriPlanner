@@ -138,7 +138,7 @@ function Poster({ src, title }) {
   )
 }
 
-function DayList({ day, ids, byId, onPick }) {
+function DayList({ day, ids, byId, loading, unavailable, onPick }) {
   if (!day) {
     return <p className="festivals__hint">달력에서 날짜를 누르면 그날 열리는 축제를 볼 수 있어요.</p>
   }
@@ -147,7 +147,13 @@ function DayList({ day, ids, byId, onPick }) {
     return (
       <>
         <h2 className="festivals__panel-title">{title}</h2>
-        <p className="festivals__hint">이 날 열리는 축제가 없어요.</p>
+        <p className="festivals__hint">
+          {loading
+            ? '축제 정보를 불러오는 중이에요…'
+            : unavailable
+              ? '축제 정보를 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요.'
+              : '이 날 열리는 축제가 없어요.'}
+        </p>
       </>
     )
   }
@@ -396,7 +402,14 @@ export default function Festivals() {
               onBack={() => setSelectedId(null)}
             />
           ) : (
-            <DayList day={activeDay} ids={dayIds} byId={byId} onPick={setSelectedId} />
+            <DayList
+              day={activeDay}
+              ids={dayIds}
+              byId={byId}
+              loading={loading}
+              unavailable={unavailable}
+              onPick={setSelectedId}
+            />
           )}
         </aside>
       </div>

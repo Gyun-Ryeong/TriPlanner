@@ -5,6 +5,7 @@ import AlertBell from './AlertBell.jsx'
 import ChatbotWidget from './ChatbotWidget.jsx'
 import DemoAlertToggle from './DemoAlertToggle.jsx'
 import TripAlertsProvider from './TripAlertsProvider.jsx'
+import UserMenu from './UserMenu.jsx'
 import './MainLayout.css'
 
 const NAV_ITEMS = [
@@ -12,7 +13,6 @@ const NAV_ITEMS = [
   { to: '/mytrips/stats', label: '여행 일정', end: true },
   { to: '/chatbot', label: '여행 챗봇' },
   { to: '/festivals', label: '축제 달력' },
-  { to: '/mytrips', label: '내 여행', end: true },
   { to: '/alerts', label: '실시간 알림' },
 ]
 
@@ -58,13 +58,9 @@ export default function MainLayout() {
             <div className="app-header__user">
               {auth ? (
                 <>
+                  <span className="app-header__user-name">{auth.nickname}님</span>
+                  <UserMenu onLogout={handleLogout} />
                   <AlertBell />
-                  <Link to="/mytrips/edit" className="app-header__user-name">
-                    {auth.nickname}님
-                  </Link>
-                  <button type="button" className="app-header__logout" onClick={handleLogout}>
-                    로그아웃
-                  </button>
                 </>
               ) : (
                 <NavLink to="/login" className="app-header__login-link">로그인</NavLink>
@@ -83,7 +79,6 @@ export default function MainLayout() {
               <span className="app-footer__logo">TriPlanner</span>
               <p className="app-footer__tagline">국내 여행의 모든 순간을 더 안전하고 자유롭게</p>
             </div>
-            <p className="app-footer__team">이동희 김령균 이시우</p>
             <p className="app-footer__copyright">
               {auth ? <DemoAlertToggle /> : '©'} 2026 TriPlanner
             </p>

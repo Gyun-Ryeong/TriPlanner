@@ -218,9 +218,9 @@
   padding: 3px 6px;
   border-radius: 6px;
   background: var(--color-primary-soft);
-  color: var(--color-primary-dark);
-  font-size: 11px;
-  font-weight: 600;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 350;
   line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -231,9 +231,9 @@
 }
 
 .festivals__more {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 350;
+  color: #374151;
 }
 
 .festivals__status-line {
@@ -366,7 +366,7 @@
 }
 
 .festivals__status--live {
-  background: #e6f6ec;
+  background: var(--color-primary-soft);
   color: var(--color-safe);
 }
 

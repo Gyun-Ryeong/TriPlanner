@@ -1,5 +1,6 @@
+/* 본문 칸이 아니라 페이지 전체가 스크롤된다 (마우스가 어디에 있어도 휠이 먹는다). 내용이 짧으면 푸터는 화면 아래에 붙는다 */
 .layout {
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
@@ -46,19 +47,6 @@
   border-bottom-color: var(--color-primary);
 }
 
-.app-header__logout {
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  border-radius: var(--radius-md);
-  padding: 6px 12px;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.app-header__logout:hover {
-  background: var(--color-bg);
-}
-
 .app-header__login-link {
   font-weight: 600;
   color: var(--color-primary);
@@ -67,12 +55,6 @@
 .app-header__user-name {
   color: var(--color-text);
   font-weight: 500;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.app-header__user-name:hover {
-  color: var(--color-primary);
 }
 
 .app-header__user {
@@ -86,8 +68,6 @@
 
 .app-content {
   flex: 1;
-  min-height: 0;
-  overflow-y: auto;
   max-width: 1280px;
   width: 100%;
   margin: 0 auto;

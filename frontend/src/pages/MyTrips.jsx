@@ -67,7 +67,7 @@ export default function MyTrips() {
       <div className="page-head">
         <div>
           <p className="page-eyebrow">MY PAGE</p>
-          <h1 className="page-title">내 프로필</h1>
+          <h1 className="page-title">마이페이지</h1>
           <p className="page-subtitle">개인 정보와 예정된 여행의 위험 정보를 한눈에 관리하세요.</p>
         </div>
       </div>
@@ -93,7 +93,7 @@ export default function MyTrips() {
         </div>
 
         <Link to="/mytrips/stats" className="card mytrips__stats-card">
-          <h2 className="card-title">여행 통계</h2>
+          <h2 className="card-title">여행 일정</h2>
           <div className="mytrips__stat-tiles">
             <div className="mytrips__stat-tile">
               <p className="mytrips__stat-label">다녀온 여행</p>

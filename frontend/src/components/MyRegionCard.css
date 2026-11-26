@@ -39,8 +39,102 @@
   color: var(--color-text-muted);
 }
 
+.my-region__place,
+.my-region__line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 안내 글(13px)과 '강수 걱정 없어요'(12px)의 글자 크기가 달라도 같은 높이 */
+.my-region__line {
+  line-height: 20px;
+}
+
+/* 카드가 여러 줄이 되어도 모두 같은 높이 */
+.alerts__weather-grid.alerts__weather-grid--equal {
+  grid-auto-rows: 1fr;
+  align-items: stretch;
+}
+
+.my-region {
+  position: relative;
+  min-width: 0;
+}
+
+.my-region__more {
+  min-height: 34px;
+  margin-top: 8px;
+}
+
+.my-region__more-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-primary-soft);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.my-region__more-btn > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.my-region__more-btn small {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* 카드 위에 떠서 카드 높이를 바꾸지 않는 드롭다운. 길면 안에서 스크롤 */
+.my-region__dropdown {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% - 18px);
+  left: -1px;
+  right: -1px;
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  box-shadow: 0 12px 28px rgba(16, 24, 40, 0.18);
+}
+
+.my-region__drop-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.my-region__dropdown .my-region__trip-title {
+  font-size: 14px;
+}
+
+.my-region__dropdown .alerts__city-list {
+  margin: 0;
+  padding: 0;
+  border-top: 0;
+}
+
 .my-region__extras {
-  margin: 10px 0 0;
+  margin: auto 0 0;
   padding: 10px 0 0;
   border-top: 1px solid var(--color-border);
   display: flex;
@@ -71,7 +165,12 @@
 
 .my-region__warnings {
   display: inline-flex;
-  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 4px;
+}
+
+.my-region__warnings--all {
+  flex-wrap: wrap;
+  justify-content: flex-start;
 }

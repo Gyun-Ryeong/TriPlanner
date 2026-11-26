@@ -78,7 +78,7 @@
 }
 
 .auth-success {
-  background: #f0fdf4;
+  background: var(--color-primary-soft);
   color: var(--color-safe);
   font-size: 13px;
   padding: 10px 14px;

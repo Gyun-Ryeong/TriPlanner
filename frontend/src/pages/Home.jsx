@@ -23,7 +23,7 @@ function formatUpcomingDate(startDate, endDate) {
 // 홈 가운데의 바로가기 3칸
 const SHORTCUTS = [
   { to: '/chatbot', title: '여행 챗봇', desc: 'AI에게 코스·맛집 추천 받기', Icon: BotIcon, tone: 'blue' },
-  { to: '/mytrips/stats', title: '내 여행', desc: '저장한 일정과 동선 관리', Icon: CalendarIcon, tone: 'blue' },
+  { to: '/mytrips/stats', title: '여행 일정', desc: '저장한 일정과 동선 관리', Icon: CalendarIcon, tone: 'blue' },
   { to: '/alerts', title: '실시간 알림', desc: '권역별 날씨와 기상특보', Icon: BellIcon, tone: 'orange' },
 ]
 

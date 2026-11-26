@@ -13,10 +13,10 @@
   gap: 24px;
   padding: 44px 48px;
   border-radius: 24px;
-  /* 샘플2 사진 위에 왼쪽(글자 쪽)은 진하게, 오른쪽은 투명하게 번지는 그라데이션 */
+  /* 하늘보다 육교가 보이도록 사진 아래쪽을 보여 주고, 아주 옅은 파란색을 전체에 고르게 덮는다 */
   background:
-    linear-gradient(100deg, rgba(20, 38, 110, 0.92) 0%, rgba(34, 64, 170, 0.78) 42%, rgba(47, 95, 224, 0.2) 100%),
-    url('/images/home-banner.jpg') center 40% / cover no-repeat,
+    linear-gradient(rgba(47, 95, 224, 0.25), rgba(47, 95, 224, 0.25)),
+    url('/images/home-banner.jpg') center 74% / cover no-repeat,
     #2f5fe0;
   color: #fff;
   overflow: hidden;
@@ -30,6 +30,14 @@
   position: relative;
   z-index: 1;
   max-width: 640px;
+  /* 덮는 색이 옅어서 밝은 조명 위에서도 글자가 읽히게 */
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65), 0 2px 14px rgba(0, 0, 0, 0.5);
+}
+
+/* 사진이 없는 로그인 전 배너와 버튼 글자에는 그림자를 넣지 않는다 */
+.home__banner--guest .home__banner-body,
+.home__banner-button {
+  text-shadow: none;
 }
 
 .home__banner-greeting {
