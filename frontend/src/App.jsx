@@ -17,6 +17,7 @@ import TripStats from './pages/TripStats.jsx'
 import ProfileEdit from './pages/ProfileEdit.jsx'
 import Alerts from './pages/Alerts.jsx'
 import Admin from './pages/Admin.jsx'
+import NotFound from './pages/NotFound.jsx'
 
 export default function App() {
   return (
@@ -46,6 +47,8 @@ export default function App() {
         <Route element={<RequireAdmin />}>
           <Route path="/admin" element={<Admin />} />
         </Route>
+
+        <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
   )

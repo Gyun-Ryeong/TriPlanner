@@ -438,3 +438,8 @@
   --leg-color: var(--color-text-muted);
   line-height: 1.5;
 }
+
+/* 여행지 소식 카드 (지도 아래) */
+.trip-schedule__news {
+  margin-top: 24px;
+}

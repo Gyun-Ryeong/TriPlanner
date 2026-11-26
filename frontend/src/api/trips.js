@@ -25,6 +25,11 @@ export function getTrip(tripId) {
   return apiRequest(`/api/trips/${tripId}`, { token: authToken() })
 }
 
+// 여행지 소식 카드: { label, items: [{ kind: 'issue'|'news', category, title, summary, link, source, date, image, image_is_fallback }], unavailable? }
+export function getTripNews(tripId, signal) {
+  return apiRequest(`/api/trips/${tripId}/news`, { token: authToken(), signal })
+}
+
 // 마지막 일차 뒤에 하루를 더한다. 바뀐 여행 상세를 돌려준다
 export function addTripDay(tripId) {
   return apiRequest(`/api/trips/${tripId}/days`, { method: 'POST', token: authToken() })

@@ -42,11 +42,6 @@ export function regionPhoto(region) {
   return REGION_PHOTOS[region] ?? null
 }
 
-// 여행 목록에 보여줄 사진: 세부 지역(시)을 골랐고 그 도시 사진이 있으면 도시 사진, 아니면 권역 사진
-export function tripPhoto(trip) {
-  return CITY_PHOTOS[trip.city] ?? regionPhoto(trip.region)
-}
-
 // 사진 파일이 없는 시·군(성남, 곡성 등)은 서버에서 그 지역 관광지 사진(한국관광공사)을 받아 온다.
 // 같은 지역은 한 번만 부르도록 화면을 옮겨 다녀도 결과를 기억한다
 const remotePhotos = new Map()

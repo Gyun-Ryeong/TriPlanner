@@ -7,6 +7,7 @@ import AirCell from '../components/AirCell.jsx'
 import { MapIcon } from '../components/Icons.jsx'
 import MyRegionCard from '../components/MyRegionCard.jsx'
 import { PrepAlertsSection, TripAlertsOverview } from '../components/TripAlertList.jsx'
+import TripNewsCards from '../components/TripNewsCards.jsx'
 import { useTripAlerts } from '../lib/tripAlertsContext.js'
 import { myRegionsOf, summarizeRegion, upcomingTripsOf, warningsForRegion } from '../lib/weatherSummary.js'
 import './Alerts.css'
@@ -194,7 +195,7 @@ export default function Alerts() {
       {myPartLoading && !error && <p className="alerts__meta">불러오는 중...</p>}
       {error && <p className="alerts__meta">{error}</p>}
       {!myPartLoading && !error && myRegions.length > 0 && (
-        <div className="alerts__weather-grid">
+        <div className="alerts__weather-grid alerts__weather-grid--equal">
           {myRegions.map((region) => (
             <MyRegionCard
               key={region.key}
@@ -354,6 +355,13 @@ export default function Alerts() {
         </div>
         <TripAlertsOverview data={tripAlerts.data} loading={tripAlerts.loading} error={tripAlerts.error} />
       </div>
+
+      {/* 다가오는 여행지 소식 (여행 2개까지, 4장씩). 사진은 기사 원문 미리보기 */}
+      {(myTrips ?? []).slice(0, 2).map((trip) => (
+        <div key={trip.tripId} className="card alerts__signals alerts__trips">
+          <TripNewsCards tripId={trip.tripId} heading={`${trip.title} · 여행지 소식`} limit={4} />
+        </div>
+      ))}
 
       <div className="card alerts__signals alerts__trips">
         <div className="alerts__signals-head">

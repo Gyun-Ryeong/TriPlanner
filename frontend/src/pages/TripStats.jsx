@@ -97,7 +97,7 @@ export default function TripStats() {
       <div className="page-head">
         <div>
           <p className="page-eyebrow">MY TRAVEL LOG</p>
-          <h1 className="page-title">여행 통계</h1>
+          <h1 className="page-title">여행 일정</h1>
           <p className="page-subtitle">{auth?.nickname ?? '내'}님의 국내 여행 기록을 한눈에 확인하세요.</p>
         </div>
         <Link to="/trips/new" className="btn btn-primary">
