@@ -52,6 +52,12 @@
 			<artifactId>mariadb-java-client</artifactId>
 			<scope>runtime</scope>
 		</dependency>
+		<!-- 배포(AWS RDS MySQL)용 드라이버. 로컬 개발은 위 MariaDB 드라이버, 배포는 application-prod.yml 에서 이 드라이버를 쓴다 -->
+		<dependency>
+			<groupId>com.mysql</groupId>
+			<artifactId>mysql-connector-j</artifactId>
+			<scope>runtime</scope>
+		</dependency>
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-api</artifactId>
