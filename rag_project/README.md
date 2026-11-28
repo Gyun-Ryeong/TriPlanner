@@ -185,7 +185,7 @@ curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" \
 | `slots`, `missing` | 파악한 조건 / 더 필요한 정보 |
 | `plan[]` | 일자별: `date, theme, weather, air, outdoor_ok, items[slot, note, place{name, type, address, indoor, image, mapx, mapy}]` |
 | `conditions[]`, `risks[]`, `used_sources[]` | 일자별 날씨·미세먼지 / 이슈 뉴스 / 사용 데이터 |
-| `caveats[]`, `timings`, `llm_stats` | `DEV_MODE=on`이거나 요청에 `"debug": true`를 보냈을 때만 채워짐 (백엔드는 관리자 계정에만 `debug`를 허용) |
+| `caveats[]`, `timings`, `llm_stats` | `DEV_MODE=on`이거나 요청에 `"debug": true`를 보냈을 때만 채워짐 (백엔드는 `debug`를 보내지 않으므로, 화면에는 나오지 않고 챗봇 서버를 직접 부를 때만 확인) |
 
 세션은 서버 메모리에 2시간 보관됩니다 (서버를 재시작하면 사라짐).
 
@@ -276,7 +276,7 @@ Encoding/Decoding 키는 어느 쪽을 넣어도 동작합니다. 문화정보·
 
 ## 일정 품질 평가
 
-챗봇이 만든 일정을 아래 지표로 수치화합니다 (`travel/evaluation.py`). 관리자 계정으로 **챗봇 개발자 모드**를 켜면 일정 답변마다 "🧪 디버그 정보 → 📊 일정 품질 지표"에 보이고, `evaluate.py` 로 여러 질문을 한 번에 돌려 평균을 낼 수 있습니다.
+챗봇이 만든 일정을 아래 지표로 수치화합니다 (`travel/evaluation.py`). 지표는 챗봇 서버 응답의 `evaluation`(`DEV_MODE=on` 또는 `"debug": true`)으로 확인하고, `evaluate.py` 로 여러 질문을 한 번에 돌려 평균을 낼 수 있습니다.
 
 - **지어낸 장소 비율**: AI가 제안한 장소 중 후보 목록(실제 관광 데이터)에 없던 비율 (제외 처리됨)
 - **궂은 날 실내 비율**: 비/눈·폭염·한파·미세먼지 나쁨인 날에 배치된 방문지 중 실내 장소 비율
