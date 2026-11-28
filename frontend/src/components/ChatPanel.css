@@ -13,42 +13,6 @@
   padding: 0 0 8px;
 }
 
-.chat-panel__dev-badge {
-  margin-right: auto;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-primary-dark);
-  background: var(--color-primary-soft);
-  padding: 3px 10px;
-  border-radius: 999px;
-}
-
-.chat-panel__debug {
-  margin-top: 10px;
-  padding: 8px 10px;
-  border: 1px dashed var(--color-primary);
-  border-radius: 8px;
-  background: #f8faff;
-  font-size: 12px;
-  color: var(--color-text);
-}
-
-.chat-panel__debug summary {
-  cursor: pointer;
-  font-weight: 600;
-  color: var(--color-primary-dark);
-}
-
-.chat-panel__debug ul {
-  margin: 6px 0;
-  padding-left: 18px;
-}
-
-.chat-panel__debug p {
-  margin: 4px 0;
-  overflow-wrap: anywhere;
-}
-
 .chat-panel__reset {
   border: 1px solid var(--color-border);
   background: var(--color-surface);
@@ -421,32 +385,4 @@
 .chat-panel--compact .chat-panel__input {
   font-size: 12px;
   line-height: 1.5;
-}
-
-.chat-panel__eval {
-  margin: 6px 0 8px;
-}
-
-.chat-panel__eval-title {
-  font-weight: 600;
-}
-
-.chat-panel__eval table {
-  border-collapse: collapse;
-  width: 100%;
-}
-
-.chat-panel__eval th,
-.chat-panel__eval td {
-  padding: 2px 6px;
-  border-bottom: 1px solid var(--color-border);
-  text-align: left;
-  vertical-align: top;
-}
-
-.chat-panel__eval th {
-  width: 40%;
-  font-weight: 500;
-  color: var(--color-text-muted);
-  white-space: nowrap;
 }

@@ -7,7 +7,6 @@ import { toSavablePlans } from './planExport.js'
 // 챗봇 페이지와 플로팅 위젯이 같은 대화 목록을 보도록 대화 상태를 한 곳에서 관리한다.
 // 대화는 이 브라우저(localStorage)에 계정별로 저장하고, 고정(핀)하지 않은 대화는 만든 지 24시간 뒤에 지운다.
 const STORAGE_PREFIX = 'triplanner_chats_'
-const DEV_MODE_KEY = 'triplanner_chat_dev_mode'
 
 export const CHAT_TTL_MS = 24 * 60 * 60 * 1000
 export const MAX_CHATS = 10
@@ -21,7 +20,6 @@ const listeners = new Set()
 const pendingSince = new Map()
 // 응답을 기다리는 대화 id → 그 요청의 AbortController (취소할 때 쓴다)
 const pendingControllers = new Map()
-let devMode = loadDevMode()
 let data = load(currentUserId())
 // 저장해 둔 대화 중 이미 24시간이 지난 것은 처음부터 지운다
 purgeExpired()
@@ -31,21 +29,8 @@ function currentUserId() {
   return getAuth()?.userId ?? null
 }
 
-function isAdmin() {
-  return getAuth()?.admin === true
-}
-
 function storageKey(userId) {
   return `${STORAGE_PREFIX}${userId ?? 'anonymous'}`
-}
-
-// 챗봇 개발자 모드: 관리자 페이지에서 켜고 끄며, 이 브라우저에만 저장된다
-function loadDevMode() {
-  try {
-    return localStorage.getItem(DEV_MODE_KEY) === 'on'
-  } catch {
-    return false
-  }
 }
 
 function emptyData(userId) {
@@ -117,7 +102,6 @@ function buildState() {
     .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.createdAt - a.createdAt)
   return {
     userId: data.userId,
-    devMode,
     activeId: data.activeId,
     conversations,
     pinnedCount: conversations.filter((conversation) => conversation.pinned).length,
@@ -171,18 +155,6 @@ setInterval(() => {
   if (purgeExpired()) commit()
 }, 60 * 1000)
 
-// 개발자 모드 응답에만 들어 있는 내부 정보 (API 오류·소요 시간·AI 속도·일정 품질 지표)
-function debugInfo(response) {
-  const caveats = response.caveats ?? []
-  if (caveats.length === 0 && !response.timings && !response.llm_stats && !response.evaluation) return null
-  return {
-    caveats,
-    timings: response.timings ?? null,
-    llmStats: response.llm_stats ?? null,
-    evaluation: response.evaluation ?? null,
-  }
-}
-
 async function request(id, message) {
   const conversation = findConversation(id)
   if (!conversation) return
@@ -191,7 +163,7 @@ async function request(id, message) {
   pendingControllers.set(id, controller)
   commit()
   try {
-    const response = await sendChatMessage(conversation.sessionId, message, isAdmin() && devMode, controller.signal)
+    const response = await sendChatMessage(conversation.sessionId, message, controller.signal)
     // 사용자가 취소했거나, 응답을 기다리는 사이 지워진 대화면 버린다
     if (controller.signal.aborted || !findConversation(id)) return
     patchConversation(id, (c) => ({
@@ -201,7 +173,7 @@ async function request(id, message) {
       messages: [
         ...c.messages,
         // plans: '내 여행에 저장'할 수 있는 일정, saved: 저장된 일정의 tripId (plans 순서 기준)
-        { role: 'assistant', content: response.reply, debug: debugInfo(response), plans: toSavablePlans(response), saved: {} },
+        { role: 'assistant', content: response.reply, plans: toSavablePlans(response), saved: {} },
       ],
     }))
   } catch (error) {
@@ -351,21 +323,6 @@ export async function saveChatPlan(messageIndex, planIndex) {
     commit()
   }
   return trip
-}
-
-export function setDevMode(enabled) {
-  try {
-    localStorage.setItem(DEV_MODE_KEY, enabled ? 'on' : 'off')
-  } catch {
-    // 저장소를 못 써도 이번 화면에서는 적용된다
-  }
-  devMode = enabled
-  commit()
-}
-
-// 관리자 계정에서 개발자 모드를 켰을 때만 디버그 정보를 보여준다
-export function isDevModeActive(chatState) {
-  return chatState.devMode && isAdmin()
 }
 
 export function useRagChat() {

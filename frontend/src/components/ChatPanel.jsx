@@ -3,7 +3,6 @@ import Markdown from 'react-markdown'
 import { Link } from 'react-router-dom'
 import {
   cancelMessage,
-  isDevModeActive,
   newConversation,
   saveChatPlan,
   sendMessage,
@@ -24,84 +23,6 @@ function MarkdownLink({ node: _node, ...props }) {
 }
 
 const MARKDOWN_COMPONENTS = { a: MarkdownLink }
-
-function formatTimings(timings) {
-  if (!timings) return null
-  const parts = [
-    timings.collect_sec != null && `데이터 수집 ${timings.collect_sec}초`,
-    timings.rank_sec != null && `후보 검색 ${timings.rank_sec}초`,
-    timings.llm_sec != null && `AI 일정 ${timings.llm_sec}초`,
-  ].filter(Boolean)
-  return parts.length ? parts.join(' · ') : JSON.stringify(timings)
-}
-
-function formatRate(value) {
-  return value === null || value === undefined ? '-' : `${Math.round(value * 100)}%`
-}
-
-// 일정 품질 지표 (rag_project/travel/evaluation.py 와 같은 기준, 일괄 평가는 evaluate.py)
-function EvaluationTable({ evaluation, title }) {
-  const rows = [
-    ['일정 출처', evaluation.source === 'llm' ? 'AI 생성' : '규칙 기반 대체 (AI 실패)'],
-    [
-      '지어낸 장소',
-      evaluation.source === 'llm'
-        ? `${evaluation.hallucinated_places}/${evaluation.proposed_places} (${formatRate(evaluation.hallucination_rate)})`
-        : '-',
-    ],
-    [
-      '궂은 날 실내 비율',
-      evaluation.bad_weather_days
-        ? `${formatRate(evaluation.weather_fit_rate)} (궂은 날 ${evaluation.bad_weather_days}일, 실외 ${evaluation.bad_weather_outdoor_visits}곳)`
-        : '궂은 날 없음',
-    ],
-    ['하루 이동 거리', `${(evaluation.daily_distance_km ?? []).join(' / ')} km (직선)`],
-    ['채워진 날', `${formatRate(evaluation.filled_day_rate)} · 하루 평균 ${evaluation.avg_visits_per_day ?? '-'}곳`],
-    ['방문지 유형 수', evaluation.place_type_count],
-    ['생성 시간', evaluation.response_sec === null ? '-' : `${evaluation.response_sec}초`],
-  ]
-  return (
-    <div className="chat-panel__eval">
-      <p className="chat-panel__eval-title">📊 일정 품질 지표{title ? ` · ${title}` : ''}</p>
-      <table>
-        <tbody>
-          {rows.map(([label, value]) => (
-            <tr key={label}>
-              <th>{label}</th>
-              <td>{value}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-function DebugInfo({ debug }) {
-  const timings = formatTimings(debug.timings)
-  return (
-    <details className="chat-panel__debug">
-      <summary>🧪 디버그 정보 (개발자 모드)</summary>
-      {debug.evaluation?.regions
-        ? Object.entries(debug.evaluation.regions).map(
-            ([region, evaluation]) => evaluation && <EvaluationTable key={region} evaluation={evaluation} title={region} />,
-          )
-        : debug.evaluation && <EvaluationTable evaluation={debug.evaluation} />}
-      {debug.caveats.length > 0 && (
-        <ul>
-          {debug.caveats.map((caveat, index) => (
-            <li key={index}>{caveat}</li>
-          ))}
-        </ul>
-      )}
-      {timings && <p>소요 시간: {timings}</p>}
-      {debug.timings?.tasks && Object.keys(debug.timings.tasks).length > 0 && (
-        <p>항목별: {JSON.stringify(debug.timings.tasks)}</p>
-      )}
-      {debug.llmStats && <p>AI: {JSON.stringify(debug.llmStats)}</p>}
-    </details>
-  )
-}
 
 // 챗봇이 만든 일정을 '내 여행'에 저장하는 버튼. 저장 후에는 일정 화면에서 직접 고칠 수 있다
 function PlanSaveBar({ messageIndex, plans, saved }) {
@@ -173,7 +94,7 @@ function CopyButton({ text }) {
   )
 }
 
-function AssistantMessage({ content, debug, copyable }) {
+function AssistantMessage({ content, copyable }) {
   const footerIndex = content.indexOf(FOOTER_SEPARATOR)
   const body = footerIndex === -1 ? content : content.slice(0, footerIndex)
   const footer = footerIndex === -1 ? '' : content.slice(footerIndex + '\n---\n'.length)
@@ -194,7 +115,6 @@ function AssistantMessage({ content, debug, copyable }) {
             </div>
           </details>
         )}
-        {debug && <DebugInfo debug={debug} />}
         {copyable && <CopyButton text={body} />}
       </div>
     </div>
@@ -270,7 +190,6 @@ function PendingMessage({ since, sessionId, onCancel }) {
 export default function ChatPanel({ compact = false }) {
   const chatState = useRagChat()
   const { messages, pending, pendingSince, activeId, sessionId } = chatState
-  const devMode = isDevModeActive(chatState)
   const [input, setInput] = useState('')
   const listRef = useRef(null)
   const inputRef = useRef(null)
@@ -322,7 +241,6 @@ export default function ChatPanel({ compact = false }) {
   return (
     <div className={`chat-panel${compact ? ' chat-panel--compact' : ''}`}>
       <div className="chat-panel__toolbar">
-        {devMode && <span className="chat-panel__dev-badge">🛠 개발자 모드</span>}
         <button type="button" className="chat-panel__reset" onClick={newConversation}>
           새 대화
         </button>
@@ -343,7 +261,7 @@ export default function ChatPanel({ compact = false }) {
           message.role === 'assistant' ? (
             <Fragment key={index}>
               {/* 맨 처음 인사말은 복사할 내용이 아니라서 버튼을 두지 않는다 */}
-              <AssistantMessage content={message.content} debug={devMode ? message.debug : null} copyable={index > 0} />
+              <AssistantMessage content={message.content} copyable={index > 0} />
               {message.plans?.length > 0 && (
                 <PlanSaveBar messageIndex={index} plans={message.plans} saved={message.saved} />
               )}
