@@ -2,8 +2,6 @@ package com.triplanner.backend.service;
 
 import com.triplanner.backend.domain.User;
 import com.triplanner.backend.dto.WithdrawalRequest;
-import com.triplanner.backend.repository.ChatbotErrorLogRepository;
-import com.triplanner.backend.repository.RagQueryLogRepository;
 import com.triplanner.backend.repository.TripChecklistItemRepository;
 import com.triplanner.backend.repository.TripDayRepository;
 import com.triplanner.backend.repository.TripItemRepository;
@@ -36,9 +34,7 @@ public class WithdrawalService {
     private final TripRepository tripRepository;
     private final TripDayRepository tripDayRepository;
     private final TripItemRepository tripItemRepository;
-    private final RagQueryLogRepository ragQueryLogRepository;
     private final TripChecklistItemRepository checklistRepository;
-    private final ChatbotErrorLogRepository chatbotErrorLogRepository;
     private final PasswordEncoder passwordEncoder;
 
     public WithdrawalService(
@@ -46,18 +42,14 @@ public class WithdrawalService {
             TripRepository tripRepository,
             TripDayRepository tripDayRepository,
             TripItemRepository tripItemRepository,
-            RagQueryLogRepository ragQueryLogRepository,
             TripChecklistItemRepository checklistRepository,
-            ChatbotErrorLogRepository chatbotErrorLogRepository,
             PasswordEncoder passwordEncoder
     ) {
-        this.chatbotErrorLogRepository = chatbotErrorLogRepository;
         this.passwordEncoder = passwordEncoder;
         this.userRepository = userRepository;
         this.tripRepository = tripRepository;
         this.tripDayRepository = tripDayRepository;
         this.tripItemRepository = tripItemRepository;
-        this.ragQueryLogRepository = ragQueryLogRepository;
         this.checklistRepository = checklistRepository;
     }
 
@@ -87,15 +79,13 @@ public class WithdrawalService {
         user.restore();
     }
 
-    // 매시 정각에 보관 기간이 지난 탈퇴 회원을 파기한다 (FK 순서: 챗봇 로그·오류 기록 → 체크리스트 → 일정 항목 → 일차 → 여행 → 회원)
+    // 매시 정각에 보관 기간이 지난 탈퇴 회원을 파기한다 (FK 순서: 체크리스트 → 일정 항목 → 일차 → 여행 → 회원)
     @Scheduled(cron = "0 0 * * * *")
     @Transactional
     public void purgeExpired() {
         List<User> expired = userRepository.findByWithdrawnAtBefore(LocalDateTime.now().minusDays(RETENTION_DAYS));
         for (User user : expired) {
             Long userId = user.getUserId();
-            ragQueryLogRepository.deleteAllOfUser(userId);
-            chatbotErrorLogRepository.deleteAllOfUser(userId);
             checklistRepository.deleteAllOfUser(userId);
             tripItemRepository.deleteAllOfUser(userId);
             tripDayRepository.deleteAllOfUser(userId);
