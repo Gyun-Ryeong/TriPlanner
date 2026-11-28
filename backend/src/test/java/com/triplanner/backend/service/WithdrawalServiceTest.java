@@ -9,8 +9,6 @@ import static org.mockito.Mockito.when;
 
 import com.triplanner.backend.domain.User;
 import com.triplanner.backend.dto.WithdrawalRequest;
-import com.triplanner.backend.repository.ChatbotErrorLogRepository;
-import com.triplanner.backend.repository.RagQueryLogRepository;
 import com.triplanner.backend.repository.TripChecklistItemRepository;
 import com.triplanner.backend.repository.TripDayRepository;
 import com.triplanner.backend.repository.TripItemRepository;
@@ -41,9 +39,7 @@ class WithdrawalServiceTest {
                 mock(TripRepository.class),
                 mock(TripDayRepository.class),
                 mock(TripItemRepository.class),
-                mock(RagQueryLogRepository.class),
                 mock(TripChecklistItemRepository.class),
-                mock(ChatbotErrorLogRepository.class),
                 passwordEncoder);
 
         user = new User(EMAIL, "encoded-password", "회원");

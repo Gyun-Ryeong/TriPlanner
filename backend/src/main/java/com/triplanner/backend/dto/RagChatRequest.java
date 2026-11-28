@@ -9,9 +9,6 @@ public record RagChatRequest(
         String sessionId,
 
         @Size(max = 1000, message = "메시지는 1000자 이하로 입력해 주세요.")
-        String message,
-
-        // 챗봇 개발자 모드 (API 오류·소요 시간 포함). 관리자가 아니면 무시된다
-        Boolean debug
+        String message
 ) {
 }
